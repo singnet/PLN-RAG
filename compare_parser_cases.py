@@ -126,6 +126,15 @@ async def _run_case(parser_name: str, case: dict, run_id: str) -> dict:
                 "raw_proof": query_response.raw_proof,
                 "sources": query_response.sources,
                 "answer": query_response.answer,
+                "candidate_count": query_response.candidate_count,
+                "candidate_count_tried": query_response.candidate_count_tried,
+                "executed_candidate_index": query_response.executed_candidate_index,
+                "retry_used": query_response.retry_used,
+                "context_retrieval_seconds": query_response.context_retrieval_seconds,
+                "parse_query_seconds": query_response.parse_query_seconds,
+                "reasoning_seconds": query_response.reasoning_seconds,
+                "source_lookup_seconds": query_response.source_lookup_seconds,
+                "answer_generation_seconds": query_response.answer_generation_seconds,
             },
             "proof_found": bool(
                 query_response.raw_proof and query_response.raw_proof != "[]"

@@ -50,6 +50,21 @@ class Settings(BaseSettings):
     # Query execution
     query_fallback_enabled: bool = True
 
+    # Maximum number of query candidates to try before giving up.
+    # Applies to all parsers when query_fallback_enabled is true.
+    # Set to 0 to disable the cap.
+    query_candidate_max_tries: int = 5
+
+    # Query performance knobs
+    answer_generation_enabled: bool = True
+    # Default off: source lookup is expensive and not required
+    # for proof search or benchmarking.
+    source_lookup_max_atoms: int = 0
+
+    # Hybrid query behavior (canonical_langextract)
+    # Options: "langextract_first" | "canonical_first" | "canonical_only"
+    hybrid_query_mode: str = "langextract_first"
+
     # ConceptNet background knowledge
     conceptnet_enabled: bool = False
     conceptnet_autoload: bool = True

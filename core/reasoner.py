@@ -63,18 +63,34 @@ class Reasoner:
         Add parsed MeTTa statements to the atomspace and persist them.
         Returns the list of successfully added atoms.
         """
-        added = []
+        added, _rejected = self.add_statements_report(statements)
+        return added
+
+    def add_statements_report(self, statements: List[str]) -> tuple[List[str], List[dict]]:
+        """Like add_statements, but also returns structured rejections.
+
+        Returns:
+        - added: list of atoms successfully added (normalized)
+        - rejected: list of {"stmt": <normalized>, "error": <str>}
+        """
+
+        added: List[str] = []
+        rejected: List[dict] = []
         with self._lock:
             with open(self._atomspace_path, "a", encoding="utf-8") as f:
                 for stmt in statements:
-                    clean = " ".join(stmt.split())
+                    clean = " ".join(str(stmt).split())
+                    if not clean:
+                        continue
                     try:
                         self._handler.add_atom(clean)
                         f.write(clean + "\n")
                         added.append(clean)
                     except Exception as e:
-                        print(f"[Reasoner] Failed to add atom '{clean}': {e}")
-        return added
+                        err = str(e)
+                        print(f"[Reasoner] Failed to add atom '{clean}': {err}")
+                        rejected.append({"stmt": clean, "error": err})
+        return added, rejected
 
     def query(self, pln_query: str) -> List[str]:
         """

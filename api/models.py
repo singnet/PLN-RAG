@@ -18,6 +18,10 @@ class IngestItemResult(BaseModel):
     batch_sizes: List[int] = []
     parser_calls: int = 0
 
+    # Parser/reasoner contract diagnostics
+    rejected_count: int = 0
+    rejected_samples: List[str] = []
+
 
 class IngestResponse(BaseModel):
     processed_count: int
@@ -40,6 +44,19 @@ class QueryResponse(BaseModel):
     raw_proof: str
     sources: List[str]       # NL sentences that contributed to the proof
     answer: str
+
+    # Candidate execution diagnostics
+    candidate_count: Optional[int] = None  # total candidates available
+    candidate_count_tried: Optional[int] = None
+    executed_candidate_index: Optional[int] = None
+    retry_used: Optional[bool] = None
+
+    # Optional query path timings (seconds)
+    context_retrieval_seconds: Optional[float] = None
+    parse_query_seconds: Optional[float] = None
+    reasoning_seconds: Optional[float] = None
+    source_lookup_seconds: Optional[float] = None
+    answer_generation_seconds: Optional[float] = None
 
 
 #  Reset 

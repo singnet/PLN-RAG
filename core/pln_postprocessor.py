@@ -231,7 +231,12 @@ class PLNPostprocessor:
 
     def extract_protected_constants(self, text: str) -> set[str]:
         protected: set[str] = set()
+        # Protect proper names and acronyms, but avoid protecting sentence-initial
+        # capitalized common nouns (e.g. "Dogs are animals") which should be lemmatized.
+        first_word = (text.strip().split()[:1] or [""])[0]
         for token in re.findall(r"\b[A-Z][A-Za-z0-9_-]*\b", text):
+            if token == first_word and token[1:].islower():
+                continue
             canonical = canonical_symbol(token, lemmatize=False)
             if canonical:
                 protected.add(canonical)
@@ -239,7 +244,10 @@ class PLNPostprocessor:
 
     def extract_proper_name_map(self, text: str) -> dict[str, str]:
         proper_names: dict[str, str] = {}
+        first_word = (text.strip().split()[:1] or [""])[0]
         for token in re.findall(r"\b[A-Z][A-Za-z0-9_-]*\b", text):
+            if token == first_word and token[1:].islower():
+                continue
             canonical = canonical_symbol(token, lemmatize=False)
             if not canonical:
                 continue

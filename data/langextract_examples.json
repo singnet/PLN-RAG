@@ -1,0 +1,168 @@
+{
+  "statement_prompt": "Extract semantic facts, type declarations, inheritance relationships, rules, and negations.\n\nThe output is not PLN text. Return LangExtract objects with these extraction classes:\n- fact: a predicate with one or more arguments. Attributes: predicate, plus either arguments or subject/object.\n- type_decl: declares that an entity belongs to a type. Attributes: entity, type.\n- property: assigns a property value to an entity. Attributes: entity, property, value.\n- inheritance: subtype or kind-of relationship. Attributes: child, parent.\n- rule: a conditional implication. Attributes: head_predicate, head_args, body.\n- negation: explicit negation of a unary or binary fact. Attributes: predicate, plus either arguments or subject/object.\n\nRules:\n- Use lowercase hyphen-separated predicate names, such as eats-fish or can-fly.\n- Entity and type names may preserve source casing.\n- Variables in rules must start with $.\n- rule.head_args must be a space-separated argument string.\n- rule.body must be a valid S-expression using the same predicate names.\n- Use (and ...) for multi-premise rule bodies.\n- Emit each causal/transitive link as a separate rule.\n- Reuse predicate names from the provided context when possible.",
+  "query_prompt": "Extract one or more executable logical queries from the question.\n\nReturn LangExtract objects with extraction_class=query.\nAttributes:\n- predicate: lowercase hyphen-separated predicate name.\n- arguments: ordered argument list.\n\nRules:\n- Yes/no questions should use grounded arguments from the question.\n- Who/what/which questions should use variables such as $who, $what, or $x.\n- \"is a kind of\", \"is a\", and type/class questions should use predicate=isa.\n- Reuse predicate names from the provided context when possible.\n- Do not output PLN syntax directly.",
+  "statement_examples": [
+    {
+      "text": "People who eat fish are smart. Kebede eats fish.",
+      "extractions": [
+        {
+          "class": "rule",
+          "text": "People who eat fish are smart",
+          "attributes": {
+            "head_predicate": "smart",
+            "head_args": "$x",
+            "body": "(eats $x fish)"
+          }
+        },
+        {
+          "class": "fact",
+          "text": "Kebede eats fish",
+          "attributes": {
+            "subject": "Kebede",
+            "predicate": "eats",
+            "object": "fish"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Dogs are animals. Fido is a dog.",
+      "extractions": [
+        {
+          "class": "inheritance",
+          "text": "Dogs are animals",
+          "attributes": {
+            "child": "dog",
+            "parent": "animal"
+          }
+        },
+        {
+          "class": "fact",
+          "text": "Fido is a dog",
+          "attributes": {
+            "subject": "Fido",
+            "predicate": "isa",
+            "object": "dog"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Freezing means a substance is decreasing in heat. As heat decreases, temperature decreases. Water is freezing.",
+      "extractions": [
+        {
+          "class": "rule",
+          "text": "Freezing means a substance is decreasing in heat",
+          "attributes": {
+            "head_predicate": "decreasing-heat",
+            "head_args": "$s",
+            "body": "(is-freezing $s)"
+          }
+        },
+        {
+          "class": "rule",
+          "text": "As heat decreases, temperature decreases",
+          "attributes": {
+            "head_predicate": "decreasing-temp",
+            "head_args": "$s",
+            "body": "(decreasing-heat $s)"
+          }
+        },
+        {
+          "class": "fact",
+          "text": "Water is freezing",
+          "attributes": {
+            "subject": "Water",
+            "predicate": "is-freezing"
+          }
+        }
+      ]
+    },
+    {
+      "text": "Kebede is at Rack-01. Rack-01 is inside Vault-07. A person at a spot inside an area is in that area.",
+      "extractions": [
+        {
+          "class": "fact",
+          "text": "Kebede is at Rack-01",
+          "attributes": {
+            "subject": "Kebede",
+            "predicate": "at-spot",
+            "object": "Rack-01"
+          }
+        },
+        {
+          "class": "fact",
+          "text": "Rack-01 is inside Vault-07",
+          "attributes": {
+            "subject": "Rack-01",
+            "predicate": "inside",
+            "object": "Vault-07"
+          }
+        },
+        {
+          "class": "rule",
+          "text": "A person at a spot inside an area is in that area",
+          "attributes": {
+            "head_predicate": "in-area",
+            "head_args": "$p $a",
+            "body": "(and (at-spot $p $s) (inside $s $a))"
+          }
+        }
+      ]
+    }
+  ],
+  "query_examples": [
+    {
+      "text": "Is Kebede smart?",
+      "extractions": [
+        {
+          "class": "query",
+          "text": "Is Kebede smart?",
+          "attributes": {
+            "predicate": "smart",
+            "arguments": ["Kebede"]
+          }
+        }
+      ]
+    },
+    {
+      "text": "Who is smart?",
+      "extractions": [
+        {
+          "class": "query",
+          "text": "Who is smart?",
+          "attributes": {
+            "predicate": "smart",
+            "arguments": ["$who"]
+          }
+        }
+      ]
+    },
+    {
+      "text": "Do water molecules move slower?",
+      "extractions": [
+        {
+          "class": "query",
+          "text": "Do water molecules move slower?",
+          "attributes": {
+            "predicate": "molecules-move-slower",
+            "arguments": ["Water"]
+          }
+        }
+      ]
+    },
+    {
+      "text": "Where is Kebede?",
+      "extractions": [
+        {
+          "class": "query",
+          "text": "Where is Kebede?",
+          "attributes": {
+            "predicate": "in-area",
+            "arguments": ["Kebede", "$where"]
+          }
+        }
+      ]
+    }
+  ]
+}

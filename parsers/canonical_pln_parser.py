@@ -120,6 +120,15 @@ class CanonicalPLNParser(SemanticParser):
             )
             statements = [self._prune_generic_sortal_premises(stmt) for stmt in statements]
             statements = self._filter_statements(statements)
+
+            if not is_query:
+                # If NL2PLN emits only rules, materialize obvious grounded premises
+                # as facts when their variable names match words in the sentence.
+                # This keeps reasoning from failing due to missing witnesses.
+                statements = self._dedupe_preserve_order(
+                    statements + self._materialize_grounded_premise_facts(texts, statements)
+                )
+
             question_text = " ".join(texts)
             queries = self._plan_queries(question=question_text, queries=queries, statements=statements, context=context)
 
@@ -257,6 +266,52 @@ class CanonicalPLNParser(SemanticParser):
         ]
         canonical_items = [self._normalize_isa_classes(item) for item in canonical_items]
         return self._dedupe_preserve_order(canonical_items)
+
+    def _materialize_grounded_premise_facts(
+        self, texts: List[str], statements: List[str]
+    ) -> List[str]:
+        normalized = self._normalize_text(" ".join(texts))
+        # Avoid asserting conditional premises for definitional/indicator rules.
+        # Example: "X indicates Y" should stay a rule, not assert X.
+        if any(phrase in normalized for phrase in (" indicate ", " indicates ", " implies ", " suggest ", " suggests ", " if ", " when ")):
+            return []
+        tokens = set(normalized.split())
+        facts: List[str] = []
+
+        # Pull premise atoms out of implication statements.
+        for stmt in statements:
+            m = re.search(r"\(Implication\s+\(Premises\s+(.+?)\)\s+\(Conclusions\s+.+?\)\)", stmt)
+            if not m:
+                continue
+            premises_blob = m.group(1)
+            for atom in re.findall(r"\(([A-Za-z][A-Za-z0-9_]*)\s+([^()]+?)\)", premises_blob):
+                head, arg_blob = atom
+                args = [a.strip() for a in arg_blob.split() if a.strip()]
+                if not args:
+                    continue
+
+                bound: List[str] = []
+                ok = True
+                for a in args:
+                    if a.startswith(("$", "?")):
+                        name = self._canonical_symbol(a[1:])
+                        if name in tokens:
+                            bound.append(name)
+                        else:
+                            ok = False
+                            break
+                    else:
+                        # Already grounded.
+                        bound.append(self._canonical_symbol(a))
+
+                if not ok:
+                    continue
+
+                fact_atom = f"({head} {' '.join(bound)})"
+                fact_name = f"materialized_{self._canonical_symbol(head)}_fact"
+                facts.append(f"(: {fact_name} {fact_atom} (STV 1.0 1.0))")
+
+        return self._dedupe_preserve_order(facts)
 
     def _extract_context_symbol_map(self, context: List[str]) -> dict[str, str]:
         symbol_map: dict[str, str] = {}

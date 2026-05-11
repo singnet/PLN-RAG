@@ -30,6 +30,11 @@ def get_parser() -> SemanticParser:
 
         return LangExtractPLNParser()
 
+    if name == "canonical_langextract":
+        from parsers.canonical_langextract_parser import CanonicalLangExtractParser
+
+        return CanonicalLangExtractParser()
+
     raise ValueError(
-        f"Unknown parser '{name}'. Set PARSER to one of: nl2pln, canonical_pln, manhin, langextract"
+        f"Unknown parser '{name}'. Set PARSER to one of: nl2pln, canonical_pln, manhin, langextract, canonical_langextract"
     )

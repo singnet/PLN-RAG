@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import statistics
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -126,10 +127,21 @@ CASE_FILES = {
     "abstracts": Path("data/benchmarks/cases/abstract_curated_candidates.json"),
 }
 
+
+def _is_truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    text = str(value).strip().lower()
+    return text in {"1", "true", "yes", "y"}
+
 ACTIVE_PARSERS = ("nl2pln", "canonical_pln")
 AVAILABLE_PARSERS = (
     "nl2pln",
     "canonical_pln",
+    "langextract",
+    "canonical_langextract",
     "canonical_pln_1686527",
     "canonical_pln_d8d39afd",
 )
@@ -141,15 +153,30 @@ def _slugify(value: str) -> str:
 
 def _normalize_loaded_case(case: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(case)
-    normalized.setdefault("name", normalized.get("id") or _slugify(normalized["question"]))
+    # Support both legacy benchmark schema (premises/texts + question)
+    # and stress-suite schema (input_text + user_query).
+    if "question" not in normalized and "user_query" in normalized:
+        normalized["question"] = str(normalized["user_query"])
+    normalized.setdefault(
+        "name",
+        normalized.get("id")
+        or normalized.get("case_id")
+        or _slugify(normalized.get("question") or "case"),
+    )
     if "texts" not in normalized:
-        premises = normalized.get("premises", [])
-        if not isinstance(premises, list):
-            raise ValueError(f"Case {normalized['name']} has invalid premises field")
-        normalized["texts"] = [str(item) for item in premises]
+        if "input_text" in normalized:
+            normalized["texts"] = [str(normalized.get("input_text") or "")]
+        else:
+            premises = normalized.get("premises", [])
+            if not isinstance(premises, list):
+                raise ValueError(f"Case {normalized['name']} has invalid premises field")
+            normalized["texts"] = [str(item) for item in premises]
     normalized.setdefault("category", "external")
+    # expected_proof is optional for stress suites.
     if "expected_proof" not in normalized:
-        raise ValueError(f"Case {normalized['name']} is missing expected_proof")
+        normalized["expected_proof"] = None
+    elif normalized["expected_proof"] is not None:
+        normalized["expected_proof"] = _is_truthy(normalized["expected_proof"])
     return normalized
 
 
@@ -157,6 +184,20 @@ def _load_case_file(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     payload["cases"] = [_normalize_loaded_case(case) for case in payload.get("cases", [])]
     return payload
+
+
+def _select_cases_from_file(path: Path, quick: bool) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    payload = _load_case_file(path)
+    cases = payload["cases"][:3] if quick else payload["cases"]
+    metadata = {key: value for key, value in payload.items() if key != "cases"}
+    # Normalize suite metadata keys so output stays consistent.
+    if "suite" not in metadata:
+        metadata["suite"] = metadata.get("suite_id") or path.stem
+    metadata.setdefault("status", "external")
+    metadata.setdefault("source_type", "custom")
+    metadata.setdefault("intended_use", "end_to_end_usefulness")
+    metadata.setdefault("suite_path", str(path))
+    return metadata, cases
 
 
 def _select_cases(suite: str, quick: bool) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -210,6 +251,14 @@ def _get_parser_factory(name: str):
         from parsers.canonical_pln_parser import CanonicalPLNParser
 
         return CanonicalPLNParser
+    if name == "langextract":
+        from parsers.langextract_pln_parser import LangExtractPLNParser
+
+        return LangExtractPLNParser
+    if name == "canonical_langextract":
+        from parsers.canonical_langextract_parser import CanonicalLangExtractParser
+
+        return CanonicalLangExtractParser
     if name == "canonical_pln_1686527":
         from parsers.canonical_pln_1686527_parser import CanonicalPLN1686527Parser
 
@@ -266,6 +315,8 @@ def _compact_ingest_results(results) -> list[dict]:
             "status": item.status,
             "atoms": item.atoms,
             "error": item.error,
+            "rejected_count": getattr(item, "rejected_count", 0),
+            "rejected_samples": getattr(item, "rejected_samples", []),
         }
         for item in results
     ]
@@ -298,7 +349,8 @@ async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
 
         total_seconds = parser_init_seconds + parse_seconds + ingest_seconds + query_seconds
         found = _proof_found(query_response.raw_proof)
-        correct = found == case["expected_proof"]
+        expected = case.get("expected_proof")
+        correct = None if expected is None else (found == expected)
 
         return {
             "case": case,
@@ -331,6 +383,15 @@ async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
                     "raw_proof": query_response.raw_proof,
                     "sources": query_response.sources,
                     "answer": query_response.answer,
+                    "candidate_count": query_response.candidate_count,
+                    "candidate_count_tried": query_response.candidate_count_tried,
+                    "executed_candidate_index": query_response.executed_candidate_index,
+                    "retry_used": query_response.retry_used,
+                    "context_retrieval_seconds": query_response.context_retrieval_seconds,
+                    "parse_query_seconds": query_response.parse_query_seconds,
+                    "reasoning_seconds": query_response.reasoning_seconds,
+                    "source_lookup_seconds": query_response.source_lookup_seconds,
+                    "answer_generation_seconds": query_response.answer_generation_seconds,
                 },
             },
             "proof_found": found,
@@ -377,7 +438,8 @@ async def _benchmark_case_with_service(
 
     total_seconds = parse_seconds + ingest_seconds + query_seconds
     found = _proof_found(query_response.raw_proof)
-    correct = found == case["expected_proof"]
+    expected = case.get("expected_proof")
+    correct = None if expected is None else (found == expected)
     state_after = _knowledge_state(service)
 
     return {
@@ -413,6 +475,15 @@ async def _benchmark_case_with_service(
                 "raw_proof": query_response.raw_proof,
                 "sources": query_response.sources,
                 "answer": query_response.answer,
+                "candidate_count": query_response.candidate_count,
+                "candidate_count_tried": query_response.candidate_count_tried,
+                "executed_candidate_index": query_response.executed_candidate_index,
+                "retry_used": query_response.retry_used,
+                "context_retrieval_seconds": query_response.context_retrieval_seconds,
+                "parse_query_seconds": query_response.parse_query_seconds,
+                "reasoning_seconds": query_response.reasoning_seconds,
+                "source_lookup_seconds": query_response.source_lookup_seconds,
+                "answer_generation_seconds": query_response.answer_generation_seconds,
             },
         },
         "proof_found": found,
@@ -425,6 +496,10 @@ async def _benchmark_parser_cumulative(
     cases: list[dict[str, Any]],
     run_id: str,
     suite_name: str,
+    *,
+    progress: bool = False,
+    parser_index: int = 0,
+    parser_total: int = 0,
 ) -> list[dict[str, Any]]:
     collection, atomspace_path = _configure_suite_environment(parser_name, suite_name, run_id)
     parser_factory = _get_parser_factory(parser_name)
@@ -438,6 +513,17 @@ async def _benchmark_parser_cumulative(
     results: list[dict[str, Any]] = []
     try:
         for index, case in enumerate(cases):
+            if progress:
+                case_id = case.get("case_id") or case.get("id") or case.get("name")
+                label = str(case_id or case.get("name") or "case")
+                prefix = (
+                    f"[{parser_index}/{parser_total}]" if parser_total else ""
+                )
+                print(
+                    f"{prefix}[{parser_name}] START {index + 1}/{len(cases)} {label}",
+                    file=sys.stderr,
+                    flush=True,
+                )
             result = await _benchmark_case_with_service(
                 parser_name,
                 case,
@@ -447,6 +533,18 @@ async def _benchmark_parser_cumulative(
                 parser,
                 service,
             )
+            if progress:
+                q = (result.get("end_to_end") or {}).get("query") or {}
+                total_s = (result.get("timing") or {}).get("total_seconds")
+                proof = bool(result.get("proof_found"))
+                status = q.get("query_status")
+                fb = bool(q.get("fallback_used"))
+                print(
+                    f"{prefix}[{parser_name}] DONE  {index + 1}/{len(cases)} "
+                    f"proof_found={proof} status={status} fallback={fb} total_s={total_s}",
+                    file=sys.stderr,
+                    flush=True,
+                )
             if index == 0:
                 result["timing"]["parser_init_seconds"] = round(parser_init_seconds, 4)
                 result["timing"]["total_seconds"] = round(
@@ -463,7 +561,8 @@ async def _benchmark_parser_cumulative(
 
 def _summarize_parser(results: list[dict]) -> dict:
     total_cases = len(results)
-    correct = sum(1 for result in results if result.get("correct"))
+    correct_known = [result.get("correct") for result in results if result.get("correct") is not None]
+    correct = sum(1 for value in correct_known if value)
     proof_found = sum(1 for result in results if result.get("proof_found"))
     no_query = sum(
         1
@@ -484,6 +583,7 @@ def _summarize_parser(results: list[dict]) -> dict:
     return {
         "cases": total_cases,
         "correct": correct,
+        "correct_known": len(correct_known),
         "proof_found": proof_found,
         "no_query": no_query,
         "weakly_aligned": weakly_aligned,
@@ -522,11 +622,20 @@ async def main() -> int:
         help="Benchmark suite to run",
     )
     cli.add_argument(
+        "--suite-file",
+        help="Optional path to a custom suite JSON file (overrides --suite)",
+    )
+    cli.add_argument(
         "--parsers",
         nargs="+",
         choices=AVAILABLE_PARSERS,
         default=list(ACTIVE_PARSERS),
         help="Parsers to include in this benchmark run",
+    )
+    cli.add_argument(
+        "--progress",
+        action="store_true",
+        help="Print per-case progress to stderr",
     )
     cli.add_argument("--quick", action="store_true", help="Run a reduced representative case set")
     cli.add_argument(
@@ -534,15 +643,46 @@ async def main() -> int:
         default="data/benchmarks",
         help="Directory where benchmark JSON reports are written",
     )
+    cli.add_argument(
+        "--case-ids",
+        action="append",
+        default=[],
+        help="Repeatable case_id to include (e.g. --case-ids A01)",
+    )
+    cli.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="Optional max number of cases to run (after filtering)",
+    )
     args = cli.parse_args()
 
-    suite_metadata, cases = _select_cases(args.suite, args.quick)
+    if args.suite_file:
+        suite_path = Path(args.suite_file)
+        suite_metadata, cases = _select_cases_from_file(suite_path, args.quick)
+    else:
+        suite_metadata, cases = _select_cases(args.suite, args.quick)
+
+    if args.case_ids:
+        wanted = set(args.case_ids)
+        cases = [
+            case
+            for case in cases
+            if case.get("case_id") in wanted
+            or case.get("id") in wanted
+            or case.get("name") in wanted
+        ]
+    if args.limit and args.limit > 0:
+        cases = cases[: args.limit]
     run_id = uuid.uuid4().hex[:8]
+    suite_label = suite_metadata.get("suite") if isinstance(suite_metadata, dict) else None
+    suite_label = suite_label or (Path(args.suite_file).stem if args.suite_file else args.suite)
+
     payload: dict[str, object] = {
         "run_id": run_id,
         "conceptnet_enabled": False,
         "mode": args.mode,
-        "suite": args.suite,
+        "suite": suite_label,
         "suite_metadata": suite_metadata,
         "case_count": len(cases),
         "parsers": {},
@@ -551,7 +691,8 @@ async def main() -> int:
 
     payload["active_parsers"] = list(args.parsers)
 
-    for parser_name in args.parsers:
+    parser_total = len(args.parsers)
+    for parser_index, parser_name in enumerate(args.parsers, start=1):
         results = []
         if args.mode == "cumulative":
             try:
@@ -559,7 +700,10 @@ async def main() -> int:
                     parser_name,
                     cases,
                     run_id,
-                    args.suite,
+                    suite_label,
+                    progress=args.progress,
+                    parser_index=parser_index,
+                    parser_total=parser_total,
                 )
             except Exception as exc:
                 for case in cases:
@@ -606,7 +750,7 @@ async def main() -> int:
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"parser_benchmark_{_slugify(args.suite)}_{_slugify(args.mode)}_{run_id}.json"
+    output_path = output_dir / f"parser_benchmark_{_slugify(suite_label)}_{_slugify(args.mode)}_{run_id}.json"
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     print(json.dumps({"output": str(output_path), "summary": payload["summary"]}, indent=2))
