@@ -12,4 +12,5 @@ berekets_fallback_on_off.json
 .venv
 local-deps/
 data/benchmarks/*
+!data/benchmarks/stress25_v1.json
 data/conceptnet/conceptnet-assertions-5.7.0.csv.gz

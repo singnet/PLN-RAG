@@ -1,0 +1,571 @@
+{
+  "suite_id": "stress25_v1",
+  "description": "15 abstracts, 7 web snippet bundles, 3 entailmentbank. Abstract cases with unclear redistribution rights are flagged for manual copy.",
+  "version": "1.0",
+  "copyright_policy": {
+    "abstracts": "For cases where verbatim abstract reuse was not clearly safe, input_text is left empty and requires_manual_copy=true.",
+    "snippets": "Snippet bundles are original benchmark snippets written for this dataset from public factual topic framing, not verbatim search-result copies.",
+    "entailmentbank": "EntailmentBank cases are included as supporting-premise style text; verify local dataset license/attribution before redistribution."
+  },
+  "cases": [
+    {
+      "case_id": "A01",
+      "name": "A01_digital_diabetes_logbook",
+      "source_type": "abstract",
+      "category": "direct_factual_relation",
+      "input_text": "Background: The treatment of diabetes requires substantial self-management. Digital tools can help reduce the burden of self-management and may improve glycemic control. Objective: This study aims to determine whether the use of a digital diabetes logbook increased the likelihood of achieving optimal glycemic control (glycated hemoglobin [HbA1c] ≤6.5%) after 3 months, based on a secondary analysis of randomized controlled trial (RCT) data. A secondary objective was to evaluate the long-term impact of the logbook on mean blood glucose levels over 3 and 12 months using observational, real-world data (RWD). Methods: Data from 342 participants with type 1 or type 2 diabetes enrolled in the mySugr PRO-RCT were analyzed. A robust logistic regression was performed to examine the likelihood of achieving optimal glycemic control, defined as an HbA1c value ≤6.5% at the 3-month follow-up. The dependent variable was the dichotomous outcome indicating whether this threshold was met. The primary independent variable was group allocation, with baseline HbA1c included as a covariate. For the analysis of RWD, a total of 2861 participants with type 1 or type 2 diabetes were identified using propensity score matching to align their characteristics with those of the RCT participants closely. One-sample t tests were conducted to analyze changes in mean blood glucose separately for each diabetes type, from baseline to 3 months of app use, and from baseline to 12 months of app use (in a subcohort of 1176 participants).Results: The RCT data showed that the likelihood of achieving optimal glycemic control was nearly doubled in the intervention group compared with the control group (odds ratio 2.24, 95% CI 1.12-4.47; P=.02). RWD indicated that mean blood glucose levels significantly improved over 3 months of app use in both groups (type 1: -16.3 mg/dL; 95% CI -20.6 to -12.4; P<.001 and type 2: -27.3 mg/dL, 95% CI -28.7 to -25.9; P<.001). Participants with an estimated HbA1c>8.5% at baseline (before app use) showed the greatest reductions in mean blood glucose (type 1: -82.2 mg/dL; 95% CI -102.0 to -61.8; P<.001; type 2: -104.6 mg/dL, 95% CI -109.1 to -100.3; P<.001). Long-term analyses revealed a sustained reduction in mean blood glucose over a 12-month period, with a mean decrease of -19.8 mg/dL (95% CI -21.8 to -17.9; P<.001) after 12 months of app use in the total RWD sample.Conclusions: The secondary analysis of the RCT demonstrated a significant increase in the likelihood of achieving optimal glycemic control after 3 months of using the mySugr logbook. This finding was supported by observational, real-world data, which showed significant reductions in mean blood glucose after 3 and 12 months of app use-particularly among individuals with elevated baseline HbA1c levels.",
+      "user_query": "Did the digital diabetes logbook improve glycemic control?",
+      "expected_focus": {
+        "predicate_family": "intervention_outcome",
+        "main_entities": [
+          "digital diabetes logbook",
+          "glycemic control"
+        ],
+        "polarity": "positive",
+        "reasoning_type": "lookup"
+      },
+      "notes": "Clean clinical intervention-to-outcome case. Use abstract only.",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/40587847/",
+      "pmid": "40587847",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text."
+    },
+    {
+      "case_id": "A02",
+      "name": "A02_iot_glycemic_control_type2_diabetes",
+      "source_type": "abstract",
+      "category": "direct_factual_relation",
+      "input_text": "The utilization of long-term effect of internet of things (IoT) on glycemic control is controversial. This trial aimed to examine the effect of an IoT-based approach for type 2 diabetes. Materials and methods: This randomized controlled trial enrolled 1,159 adults aged 20-74 years with type 2 diabetes with a HbA1c of 6.0-8.9% (42-74 mmol/mol), who were using a smartphone on a daily basis were randomly assigned to either the IoT-based approach group (ITG) or the control group (CTG). The ITG were supervised to utilize an IoT automated system that demonstrates a summary of lifelogging data (weight, blood pressure, and physical activities) and provides feedback messages that promote behavioral changes in both diet and exercise. The primary end point was a HbA1c change over 52 weeks. Results: Among the patients, 581 were assigned to the ITG and 578 were in the CTG. The changes in HbA1c from baseline to the final measurement at 52 weeks [mean (standard deviation)] were -0.000 (0.6225)% in ITG and - 0.006 (0.6449)% in CTG, respectively (P = 0.8766). In the per protocol set, including ITG using the IoT system almost daily and CTG, excluding those using the application almost daily, the difference in HbA1c from baseline to 52 weeks were -0.098 (0.579)% and 0.027 (0.571)%, respectively (P = 0.0201). We observed no significant difference in the adverse event profile between the groups. Conclusions: The IoT-based approach did not reduce HbA1c in patients with type 2 diabetes. IoT-based intervention using data on the daily glycemic control and HbA1c level may be required to improve glycemic control.",
+      "user_query": "Did the IoT-based intervention reduce HbA1c?",
+      "expected_focus": {
+        "predicate_family": "intervention_outcome",
+        "main_entities": [
+          "IoT-based intervention",
+          "HbA1c"
+        ],
+        "polarity": "negative_or_no_effect",
+        "reasoning_type": "lookup"
+      },
+      "notes": "Negative/non-effect case; tests whether parser preserves non-improvement language.",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/38712947/",
+      "pmid": "38712947",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text."
+    },
+    {
+      "case_id": "A03",
+      "name": "A03_cas9_aav6_beta_globin_hsc",
+      "source_type": "abstract",
+      "category": "direct_factual_relation",
+      "input_text": "CRISPR/Cas9-mediated beta-globin (HBB) gene correction of sickle cell disease (SCD) patient-derived hematopoietic stem cells (HSCs) in combination with autologous transplantation represents a recent paradigm in gene therapy. Although several Cas9-based HBB-correction approaches have been proposed, functional correction of in vivo erythropoiesis has not been investigated previously. Here, we use a humanized globin-cluster SCD mouse model to study Cas9-AAV6-mediated HBB-correction in functional HSCs within the context of autologous transplantation. We discover that long-term multipotent HSCs can be gene corrected ex vivo and stable hemoglobin-A production can be achieved in vivo from HBB-corrected HSCs following autologous transplantation. We observe a direct correlation between increased HBB-corrected myeloid chimerism and normalized in vivo red blood cell (RBC) features, but even low levels of chimerism resulted in robust hemoglobin-A levels. Moreover, this study offers a platform for gene editing of mouse HSCs for both basic and translational research.",
+      "user_query": "What does Cas9-AAV6 correction improve in sickle cell disease cells?",
+      "expected_focus": {
+        "predicate_family": "gene_correction_outcome",
+        "main_entities": [
+          "Cas9-AAV6 correction",
+          "sickle erythropoiesis"
+        ],
+        "polarity": "positive",
+        "reasoning_type": "lookup"
+      },
+      "notes": "Dense biomedical entity case: CRISPR/Cas9, HBB, HSCs, erythropoiesis.",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/33514718/",
+      "pmid": "33514718",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text."
+    },
+    {
+      "case_id": "A04",
+      "name": "A04_semaglutide_comparative_outcomes",
+      "source_type": "abstract",
+      "category": "comparative_claim",
+      "input_text": "Semaglutide is a high-profile glucose-lowering drug that medical decision-makers have acknowledged in recent years. This rapid review aims to provide evidence-based clinical recommendations for the treatment of type 2 diabetes mellitus (T2DM) with semaglutide. Methods: We conducted a rapid review of randomized controlled trial (RCT)-based meta-analyses (MAs) and systematic reviews (SRs) of cost-effectiveness analyses (CEAs) compared to other glucagon-like peptide-1 receptor agonists (GLP-1 RAs) or placebo in patients with T2DM. Prospective cohort real-world studies (RWS) were also retrieved and subjected to MA. Four databases, including PubMed, the Cochrane Library, Embase, and ISPOR, were searched from inception to 5 March 2023. The outcomes of interest were hemoglobin A1c (HbA1c), body weight, major adverse cardiovascular events (MACE), and economic outcomes such as quality-adjusted life-years and total cost. Results: We identified 33 publications: 22 RCT-based MAs, 1 SR of CEAs, and 10 RWS. Evidence showed that semaglutide at usual doses was associated with superior reductions in HbA1c and weight compared to most GLP-1 RAs in patients with T2DM who were drug naive, receiving basal insulin, or using oral hypoglycemic agents, and it was also associated with a lower number of MACE and was more cost-effective. Further, once-weekly semaglutide resulted in a significant reduction in HbA1c levels (-1.1%) and body weight (-4.88 kg) in routine clinical practice. Conclusions: This review consolidates the positive current evidence base for prescribing semaglutide to patients with T2DM, but further rigorous studies are still urgently required to develop practice guidelines as innovative drugs become commercially available.",
+      "user_query": "How does semaglutide compare with other GLP-1 receptor agonists?",
+      "expected_focus": {
+        "predicate_family": "comparative_treatment_outcome",
+        "main_entities": [
+          "semaglutide",
+          "GLP-1 receptor agonists"
+        ],
+        "polarity": "comparative",
+        "reasoning_type": "comparison"
+      },
+      "notes": "Comparative treatment case across glycemic control, weight, cardiovascular safety, and cost-effectiveness.",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/38175486/",
+      "pmid": "38175486",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text."
+    },
+    {
+      "case_id": "A05",
+      "name": "A05_tirzepatide_liraglutide_semaglutide_comparison",
+      "source_type": "abstract",
+      "category": "comparative_claim",
+      "input_text": "Glucagon-like peptide-1 (GLP-1) receptor agonists (liraglutide, semaglutide) and dual glucose-dependent insulinotropic polypeptide (GLP-1/GIP) receptor agonists (tirzepatide) are approved for treatment of type 2 diabetes (T2D) and obesity. Objective: To compare the relative efficacy of tirzepatide, liraglutide, and semaglutide in reducing major adverse cardiovascular events (MACEs) in patients with obstructive sleep apnea (OSA) and T2D. Methods: We performed a retrospective cohort analysis in a large global federated database of patients with OSA and T2D. Two cohorts were generated, both with a treatment arm of patients prescribed tirzepatide. Liraglutide and semaglutide-treated patients provided the reference arms in cohort 1 and cohort 2, respectively. Cohorts underwent propensity-score matching at a 1:1 ratio for confounders. We examined rates of incident MACEs (composite outcome and individual components) over an 18-month follow up, and performed stratified analyses by body mass index, age, sex, and ethnicity. Finally, we assessed incident OSA in a secondary analysis of patients with T2D treated with tirzepatide compared with liraglutide and semaglutide. Results: After matching, each treatment arm included 7,836 patients in cohort 1 and 7,394 patients in cohort 2. Tirzepatide reduced the risk of incident MACEs compared with liraglutide (hazard ratio, 0.58; 95% confidence interval, 0.51-0.66) and semaglutide (0.86; 0.74-0.99). Tirzepatide was more efficacious in younger, male patients of White ethnicity. Moreover, tirzepatide reduced incident OSA compared with liraglutide (0.89; 0.82-0.97) but not semaglutide (0.94; 0.86-1.02). Conclusions: In patients with OSA and T2D, tirzepatide is associated with a lower incidence of MACEs compared with liraglutide and semaglutide. More robust randomized, controlled evidence is needed for these drugs in patients who are at such high risk.",
+      "user_query": "Which treatments are compared for reducing cardiovascular events?",
+      "expected_focus": {
+        "predicate_family": "comparative_treatment_outcome",
+        "main_entities": [
+          "tirzepatide",
+          "liraglutide",
+          "semaglutide",
+          "cardiovascular events"
+        ],
+        "polarity": "comparative",
+        "reasoning_type": "comparison"
+      },
+      "notes": "Explicit multi-treatment comparison case.",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/40590655/",
+      "pmid": "40590655",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text."
+    },
+    {
+      "case_id": "A06",
+      "name": "A06_contact_lens_wettability_friction",
+      "source_type": "abstract",
+      "category": "comparative_claim",
+      "input_text": "Purpose: To evaluate the in vitro wettability and coefficient of friction of a novel amphiphilic polymeric surfactant (APS), poly(oxyethylene)-co-poly(oxybutylene) (PEO-PBO) releasing silicone hydrogel (SiHy) contact lens material (serafilcon A), compared to other reusable SiHy lens materials. Methods: The release of fluorescently-labelled nitrobenzoxadiazole (NBD)-PEO-PBO was evaluated from serafilcon A over 7 days in a vial. The wettability and coefficient of friction of serafilcon A and three contemporary SiHy contact lens materials (senofilcon A; samfilcon A; comfilcon A) were evaluated using an in vitro blink model over their recommended wearing period; t = 0, 1, 7, 14 days for all lens types and t = 30 days for samfilcon A and comfilcon A (n = 4). Sessile drop contact angles were determined and in vitro non-invasive keratographic break-up time (NIKBUT) measurements were assessed on a blink model via the OCULUS Keratograph 5 M. The coefficient of friction was measured using a nano tribometer. Results: The relative fluorescence of NBD-PEO-PBO decreased in serafilcon A by approximately 18 % after 7 days. The amount of NBD-PEO-PBO released on day 7 was 50 % less than the amount released on day 1 (6.5±1.0 vs 3.4±0.5 µg/lens). The reduction in PEO-PBO in the lens also coincided with an increase in contact angles for serafilcon A after 7 days (p < 0.05), although there were no changes in NIKBUT or coefficient of friction (p > 0.05). The other contact lens materials had stable contact angles and NIKBUT over their recommended wearing period (p > 0.05), with the exception of samfilcon A, which had an increase in contact angle after 14 days as compared to t = 0 (p < 0.05). Senofilcon A and samfilcon A also showed an increase in coefficient of friction at 14 and 30 days, respectively, compared to their blister pack values (p < 0.05). Conclusion: The results indicate that serafilcon A gradually depletes its reserve of PEO-PBO over 1 week, but this decrease did not significantly change the lens performance in vitro during this time frame.",
+      "user_query": "How does serafilcon A compare with other reusable silicone hydrogel lens materials?",
+      "expected_focus": {
+        "predicate_family": "material_property_comparison",
+        "main_entities": [
+          "serafilcon A",
+          "silicone hydrogel lens materials",
+          "wettability",
+          "coefficient of friction"
+        ],
+        "polarity": "comparative",
+        "reasoning_type": "comparison"
+      },
+      "notes": "Materials comparison case involving wettability and friction.",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/38423868/",
+      "pmid": "38423868",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text."
+    },
+    {
+      "case_id": "A07",
+      "name": "A07_mendelian_randomization_gut_microbiome_colorectal_cancer",
+      "source_type": "abstract",
+      "category": "causal_mechanistic_claim",
+      "input_text": "The role of the human gut microbiome in colorectal cancer (CRC) is unclear as most studies on the topic are unable to discern correlation from causation. We apply two-sample Mendelian randomization (MR) to estimate the causal relationship between the gut microbiome and CRC. We used summary-level data from independent genome-wide association studies to estimate the causal effect of 14 microbial traits (n = 3890 individuals) on overall CRC (55,168 cases, 65,160 controls) and site-specific CRC risk, conducting several sensitivity analyses to understand the nature of results. Initial MR analysis suggested that a higher abundance of Bifidobacterium and presence of an unclassified group of bacteria within the Bacteroidales order in the gut increased overall and site-specific CRC risk. However, sensitivity analyses suggested that instruments used to estimate relationships were likely complex and involved in many potential horizontal pleiotropic pathways, demonstrating that caution is needed when interpreting MR analyses with gut microbiome exposures. In assessing reverse causality, we did not find strong evidence that CRC causally affected these microbial traits. Whilst our study initially identified potential causal roles for two microbial traits in CRC, importantly, further exploration of these relationships highlighted that these were unlikely to reflect causality.",
+      "user_query": "Does the abstract claim a causal role for gut microbiome in colorectal cancer?",
+      "expected_focus": {
+        "predicate_family": "causal_association",
+        "main_entities": [
+          "gut microbiome",
+          "colorectal cancer"
+        ],
+        "polarity": "qualified",
+        "reasoning_type": "causal"
+      },
+      "notes": "Causality-versus-association case; manually copy the abstract from the source page if license allows.",
+      "source_url": "https://www.nature.com/articles/s41598-023-31840-0",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only if reuse is permitted, and paste it into input_text as one string. Do not include title, authors, journal metadata, references, or license text."
+    },
+    {
+      "case_id": "A08",
+      "name": "A08_microbiota_host_inflammation",
+      "source_type": "abstract",
+      "category": "causal_mechanistic_claim",
+      "input_text": "The study of the intestinal microbiota has begun to shift from cataloging individual members of the commensal community to understanding their contributions to the physiology of the host organism in health and disease. Here, we review the effects of the microbiome on innate and adaptive immunological players from epithelial cells and antigen-presenting cells to innate lymphoid cells and regulatory T cells. We discuss recent studies that have identified diverse microbiota-derived bioactive molecules and their effects on inflammation within the intestine and distally at sites as anatomically remote as the brain. Finally, we highlight new insights into how the microbiome influences the host response to infection, vaccination and cancer, as well as susceptibility to autoimmune and neurodegenerative disorders.",
+      "user_query": "How can microbiota affect inflammation?",
+      "expected_focus": {
+        "predicate_family": "mechanistic_regulation",
+        "main_entities": [
+          "microbiota",
+          "host immune system",
+          "inflammation"
+        ],
+        "polarity": "positive_or_regulatory",
+        "reasoning_type": "causal"
+      },
+      "notes": "Mechanistic review-style abstract; good for microbiota-derived molecule and immunity relations.",
+      "source_url": "https://www.nature.com/articles/ni.3780",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only if reuse is permitted, and paste it into input_text as one string. Do not include title, authors, journal metadata, references, or license text."
+    },
+    {
+      "case_id": "A09",
+      "name": "A09_sodium_heparin_perovskite_solar_cells",
+      "source_type": "abstract",
+      "category": "causal_mechanistic_claim",
+      "input_text": "Defective and mechanically weak interfaces substantially undermine both the efficiency and stability of perovskite solar cells (PSCs). Here we introduce a linear polymer, heparin sodium, as a multifunctional interface bridge layer in n–i–p PSCs. Unlike commonly employed small-molecule interface modification/passivation materials, heparin sodium features functional groups and ions including COO−, SO3− and Na+ distributed along the top and bottom sides of its backbone. It thus serves as a bridge connecting the SnO2 electron transport layer and the perovskite film through robust chemical bonding, mitigating defects and enhancing heterointerface bonding in PSCs. The power conversion efficiency (PCE) of the resulting rigid devices is 26.61% (certified 26.54%), positioning it among the highest-efficiency PSCs. We also fabricate flexible SnO2/heparin sodium-based PSCs that achieve a PCE of 25.23%. The heparin sodium-based devices demonstrate excellent operational and thermal stability. After 1,800 h under maximum power point tracking under simulated 1-Sun conditions, 94.9% of the initial PCE is retained. The devices also maintain 95.2% of their initial PCE after ageing at 85°C for 1,800h.",
+      "user_query": "Why does sodium heparin improve perovskite solar cells?",
+      "expected_focus": {
+        "predicate_family": "material_mechanism_outcome",
+        "main_entities": [
+          "sodium heparin",
+          "perovskite solar cells",
+          "efficiency",
+          "stability"
+        ],
+        "polarity": "positive",
+        "reasoning_type": "causal"
+      },
+      "notes": "Mechanism-chain case: additive/passivation/bonding to device performance.",
+      "source_url": "https://www.nature.com/articles/s41566-025-01676-3",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only if reuse is permitted, and paste it into input_text as one string. Do not include title, authors, journal metadata, references, or license text."
+    },
+    {
+      "case_id": "A10",
+      "name": "A10_biochemical_hematological_markers_covid_severity",
+      "source_type": "abstract",
+      "category": "indicator_proxy_language",
+      "input_text": "Background: The global threat of COVID-19 has created the need for researchers to investigate the disease's progression, especially through the use of biomarkers to inform interventions. This study aims to assess the correlations of laboratory parameters to determine the severity of COVID-19 infection. Methods: This study was conducted among 191 COVID-19 patients in Sumeru Hospital, Lalitpur, Nepal. According to their clinical outcomes, these patients were divided into severe and nonsevere groups. Inflammatory markers such as LDH, D-dimer, CRP, ferritin, complete blood cell count, liver function tests, and renal function tests were performed. Binary logistic regression analysis determined relative risk factors associated with severe COVID-19. The area under the curve (AUC) was calculated with ROC curves to assess the potential predictive value of risk factors. Results: Out of 191 patients, 38 (19.8%) subjects died due to COVID-19 complications, while 156 (81.7%) survived and were discharged from hospital. The COVID-19 severity was found in patients with older age and comorbidities such as CKD, HTN, DM, COPD, and pneumonia. Parameters such as d-dimer, CRP, LDH, SGPT, neutrophil, lymphocyte count, and LMR were significant independent risk factors for the severity of the disease. The AUC was highest for d-dimer (AUC = 0.874) with a sensitivity of 82.2% and specificity of 81.2%. Similarly, the cut-off values for other factors were age >54.5 years, D-dimer >0.91 ng/ml, CRP >82.4 mg/dl, neutrophil >78.5%, LDH >600 U/L, and SGPT >35.5 U/L, respectively. Conclusion: Endorsement of biochemical and hematological parameters with their cut-off values also aids in predicting COVID-19 severity. The biomarkers such as D-dimer, CRP levels, LDH, ALT, and neutrophil count could be used to predict disease severity. So, timely analysis of these markers might allow early prediction of disease progression.",
+      "user_query": "Which biomarkers predict COVID-19 severity?",
+      "expected_focus": {
+        "predicate_family": "biomarker_indicator",
+        "main_entities": [
+          "biomarkers",
+          "COVID-19 severity"
+        ],
+        "polarity": "positive",
+        "reasoning_type": "indicator"
+      },
+      "notes": "Proxy/indicator case involving biochemical and hematological markers.",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/37900669/",
+      "pmid": "37900669",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text."
+    },
+    {
+      "case_id": "A11",
+      "name": "A11_serological_biomarkers_inflammation_covid_severity",
+      "source_type": "abstract",
+      "category": "indicator_proxy_language",
+      "input_text": "Background: Patients with severe coronavirus disease 2019 (COVID-19) develop acute respiratory distress and multi-system organ failure and are associated with poor prognosis and high mortality. Thus, there is an urgent need to identify early diagnostic and prognostic biomarkers to determine the risk of developing serious illness. Methods: We retrospectively analyzed 114 patients with COVID-19 at the Jinyintan Hospital, Wuhan based on their clinical and laboratory data. Patients were categorized into severe and mild to moderate disease groups. We analyzed the potential of serological inflammation indicators in predicting the severity of COVID-19 in patients using univariate and multivariate logistic regression, receiver operating characteristic curves, and nomogram analysis. The Spearman method was used to understand the correlation between the serological biomarkers and duration of hospital stay. Results: Patients with severe disease had reduced neutrophils and lymphocytes; severe coagulation dysfunction; altered content of biochemical factors (such as urea, lactate dehydrogenase); elevated high sensitivity C-reactive protein levels, neutrophil-lymphocyte, platelet-lymphocyte, and derived neutrophil-lymphocyte ratios, high sensitivity C-reactive protein-prealbumin ratio (HsCPAR), systemic immune-inflammation index, and high sensitivity C-reactive protein-albumin ratio (HsCAR); and low lymphocyte-monocyte ratio, prognostic nutritional index (PNI), and albumin-to-fibrinogen ratio. PNI, HsCAR, and HsCPAR correlated with the risk of severe disease. The nomogram combining the three parameters showed good discrimination with a C-index of 0.873 and reliable calibration. Moreover, HsCAR and HsCPAR correlated with duration of hospital stay. Conclusion: Taken together, PNI, HsCAR, and HsCPAR may serve as accurate biomarkers for the prediction of disease severity in patients with COVID-19 upon admission/hospitalization.",
+      "user_query": "Can serological inflammation indicators predict COVID-19 severity?",
+      "expected_focus": {
+        "predicate_family": "biomarker_indicator",
+        "main_entities": [
+          "serological inflammation indicators",
+          "COVID-19 severity"
+        ],
+        "polarity": "positive",
+        "reasoning_type": "indicator"
+      },
+      "notes": "Similar target to A10 with different surface wording.",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/33045571/",
+      "pmid": "33045571",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text."
+    },
+    {
+      "case_id": "A12",
+      "name": "A12_contact_angle_hydrophilicity_hydrophobicity",
+      "source_type": "abstract",
+      "category": "indicator_proxy_language",
+      "input_text": "Hypothesis: The wetting behavior of a liquid drop on surfaces with varying hydrophilicity and hydrophobicity is crucial for fundamental research and practical applications. The conventional 90° contact angle threshold for distinguishing hydrophilic and hydrophobic surfaces has been debated. Experiments: This study systematically investigates advancing contact angles and wetting transitions on polydopamine-coated NOA81 substrates patterned with regular arrays of square micro-pillars. By controlling both the intrinsic surface wettability and microstructured roughness, we explore how these factors influence wetting behavior. Findings: The intrinsic advancing contact angles of the flat polydopamine-coated substrates (θAf) was tuned from 36.1° to 80.7°. Introducing square-pillar roughness substantially broadened the advancing contact angle (22° to 158°), revealing distinct roughness-dependent wetting behaviors for each θAf. Two transition-capability regimes were identified: when θAf > 80°, roughening enables a hydrophobic Wenzel-to-Cassie transition; while θAf < 55°, increasing roughness induces a hydrophilic Wenzel-to-hemiwicking (penetrating) transition. These results demonstrate that the characteristic θAf governs whether roughening activates hydrophobic or hydrophilic wetting pathways on square-pillar microstructured surfaces. The framework established here refines our understanding of roughness-mediated wetting transitions and provides practical guidance for designing microstructured surfaces with tailored wetting properties.",
+      "user_query": "What does contact angle indicate about hydrophilicity or hydrophobicity?",
+      "expected_focus": {
+        "predicate_family": "measurement_indicator",
+        "main_entities": [
+          "contact angle",
+          "hydrophilicity",
+          "hydrophobicity"
+        ],
+        "polarity": "qualified",
+        "reasoning_type": "indicator"
+      },
+      "notes": "Proxy-language case: measurement threshold and wetting behavior.",
+      "source_url": "https://pubmed.ncbi.nlm.nih.gov/41478190/",
+      "pmid": "41478190",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text."
+    },
+    {
+      "case_id": "A13",
+      "name": "A13_big_data_perovskite_stability_analysis",
+      "source_type": "abstract",
+      "category": "multi_sentence_implicit_inference",
+      "input_text": "During the last decade lead halide perovskites have shown great potential for photovoltaic applications. However, the stability of perovskite solar cells still restricts commercialization, and lack of properly implemented unified stability testing and disseminating standards makes it difficult to compare historical stability data for evaluating promising routes towards better device stability. Here, we propose a single indicator to describe device stability that normalizes the stability results with respect to different environmental stress conditions which enables a direct comparison of different stability results. Based on this indicator and an open dataset of heterogeneous stability data of over 7000 devices, we have conducted a statistical analysis to assess the effect of different stability improvement strategies. This provides important insights for achieving more stable perovskite solar cells and we also provide suggestions for future directions in the perovskite solar cell field based on big data utilization.",
+      "user_query": "Why is comparing perovskite stability difficult?",
+      "expected_focus": {
+        "predicate_family": "measurement_comparability_limitation",
+        "main_entities": [
+          "perovskite stability",
+          "measurement conditions",
+          "database analysis"
+        ],
+        "polarity": "qualified",
+        "reasoning_type": "multi_hop"
+      },
+      "notes": "Implicit-inference case involving large databases and nonuniform stability measurements.",
+      "source_url": "https://www.nature.com/articles/s41467-022-35400-4",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only if reuse is permitted, and paste it into input_text as one string. Do not include title, authors, journal metadata, references, or license text."
+    },
+    {
+      "case_id": "A14",
+      "name": "A14_perovskite_stability_follows_efficiency",
+      "source_type": "abstract",
+      "category": "multi_sentence_implicit_inference",
+      "input_text": "While perovskite solar cells have reached competitive efficiency values during the last decade, stability issues remain a critical challenge to be addressed for pushing this technology towards commercialisation. In this study, we analyse a large homogeneous dataset of Maximum Power Point Tracking (MPPT) operational ageing data that we collected with a custom-built High-throughput Ageing System in the past 3 years. In total, 2,245 MPPT ageing curves are analysed which were obtained under controlled conditions (continuous illumination, controlled temperature and atmosphere) from devices comprising various lead-halide perovskite absorbers, charge selective layers, contact layers, and architectures. In a high-level statistical analysis, we find a correlation between the maximum reached power conversion efficiency (PCE) and the relative PCE loss observed after 150-hours of ageing, with more efficient cells statistically also showing higher stability. Additionally, using the unsupervised machine learning method self-organising map, we cluster this dataset based on the degradation curve shapes. We find a correlation between the frequency of particular shapes of degradation curves and the maximum reached PCE.",
+      "user_query": "What relationship is reported between efficiency and stability?",
+      "expected_focus": {
+        "predicate_family": "property_relationship",
+        "main_entities": [
+          "perovskite solar cell efficiency",
+          "perovskite solar cell stability"
+        ],
+        "polarity": "positive_or_associative",
+        "reasoning_type": "multi_hop"
+      },
+      "notes": "Tests whether parser avoids overclaiming causality from correlation/relationship phrasing.",
+      "source_url": "https://www.nature.com/articles/s41467-023-40585-3",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only if reuse is permitted, and paste it into input_text as one string. Do not include title, authors, journal metadata, references, or license text."
+    },
+    {
+      "case_id": "A15",
+      "name": "A15_microbiome_causality_consensus_statement",
+      "source_type": "abstract",
+      "category": "ambiguous_hard_scientific_phrasing",
+      "input_text": "The gut microbiome comprises trillions of microorganisms and profoundly influences human health by modulating metabolism, immune responses and neuronal functions. Disruption in gut microbiome composition is implicated in various inflammatory conditions, metabolic disorders and neurodegenerative diseases. However, determining the underlying mechanisms and establishing cause and effect is extremely difficult. Preclinical models offer crucial insights into the role of the gut microbiome in diseases and help identify potential therapeutic interventions. The Human Microbiome Action Consortium initiated a Delphi survey to assess the utility of preclinical models, including animal and cell-based models, in elucidating the causal role of the gut microbiome in these diseases. The Delphi survey aimed to address the complexity of selecting appropriate preclinical models to investigate disease causality and to study host–microbiome interactions effectively. We adopted a structured approach encompassing a literature review, expert workshops and the Delphi questionnaire to gather insights from a diverse range of stakeholders. Experts were requested to evaluate the strengths, limitations, and suitability of these models in addressing the causal relationship between the gut microbiome and disease pathogenesis. The resulting consensus statements and recommendations provide valuable insights for selecting preclinical models in future studies of gut microbiome-related diseases.",
+      "user_query": "What methodological approaches help establish causality in microbiome research?",
+      "expected_focus": {
+        "predicate_family": "methodological_recommendation",
+        "main_entities": [
+          "causality",
+          "microbiome research",
+          "preclinical models",
+          "therapeutic applications"
+        ],
+        "polarity": "qualified",
+        "reasoning_type": "multi_hop"
+      },
+      "notes": "Hard consensus/review-style case with qualified methodological language.",
+      "source_url": "https://www.nature.com/articles/s41575-025-01041-3",
+      "requires_manual_copy": true,
+      "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+      "copy_instructions": "Open the source_url, copy the article abstract only if reuse is permitted, and paste it into input_text as one string. Do not include title, authors, journal metadata, references, or license text."
+    },
+    {
+      "case_id": "S01",
+      "name": "S01_sodium_heparin_perovskite_snippets",
+      "source_type": "snippets",
+      "category": "short_noisy_snippet",
+      "input_text": "Sodium heparin has been reported as an additive strategy for perovskite solar cells, with claims of improved device efficiency and stability.\n---\nThe proposed mechanism links sodium heparin to interface defect passivation and stronger interfacial bonding in perovskite devices.\n---\nSearch snippets on this topic often describe sodium heparin as improving perovskite solar cell performance by reducing defects and stabilizing interfaces.",
+      "user_query": "What role does sodium heparin play in perovskite solar cells?",
+      "expected_focus": {
+        "predicate_family": "material_mechanism_outcome",
+        "main_entities": [
+          "sodium heparin",
+          "perovskite solar cells",
+          "interface defects",
+          "stability"
+        ],
+        "polarity": "positive",
+        "reasoning_type": "causal"
+      },
+      "notes": "Original benchmark snippet bundle; not copied verbatim from search results.",
+      "requires_manual_copy": false
+    },
+    {
+      "case_id": "S02",
+      "name": "S02_covid_biomarkers_severity_snippets",
+      "source_type": "snippets",
+      "category": "short_noisy_snippet",
+      "input_text": "Several COVID-19 studies report that elevated D-dimer, C-reactive protein, lactate dehydrogenase, and altered blood-cell counts are associated with more severe disease.\n---\nInflammatory and coagulation markers are frequently discussed as predictors or indicators of COVID-19 severity.\n---\nSearch results on COVID-19 severity commonly mention D-dimer and CRP as biomarkers linked to poor clinical outcomes.",
+      "user_query": "Which blood markers are associated with severe COVID-19?",
+      "expected_focus": {
+        "predicate_family": "biomarker_indicator",
+        "main_entities": [
+          "D-dimer",
+          "CRP",
+          "LDH",
+          "COVID-19 severity"
+        ],
+        "polarity": "positive",
+        "reasoning_type": "indicator"
+      },
+      "notes": "Original benchmark snippet bundle; designed to test marker/entity canonicalization.",
+      "requires_manual_copy": false
+    },
+    {
+      "case_id": "S03",
+      "name": "S03_semaglutide_comparison_snippets",
+      "source_type": "snippets",
+      "category": "multi_source_redundant_snippets",
+      "input_text": "Semaglutide is a GLP-1 receptor agonist used for type 2 diabetes and weight management, often evaluated by HbA1c reduction and body-weight outcomes.\n---\nComparative reviews describe semaglutide as producing strong glycemic-control and weight-loss effects relative to several other GLP-1 receptor agonists.\n---\nSome sources also compare semaglutide with other incretin-based therapies on cardiovascular outcomes, safety, and cost-effectiveness.",
+      "user_query": "How does semaglutide compare with other GLP-1 receptor agonists?",
+      "expected_focus": {
+        "predicate_family": "comparative_treatment_outcome",
+        "main_entities": [
+          "semaglutide",
+          "GLP-1 receptor agonists",
+          "HbA1c",
+          "weight"
+        ],
+        "polarity": "comparative",
+        "reasoning_type": "comparison"
+      },
+      "notes": "Original benchmark snippet bundle; overlaps abstract cases to compare clean-vs-noisy parsing.",
+      "requires_manual_copy": false
+    },
+    {
+      "case_id": "S04",
+      "name": "S04_contact_angle_wettability_snippets",
+      "source_type": "snippets",
+      "category": "multi_source_redundant_snippets",
+      "input_text": "Contact angle is commonly used as a measurement of surface wettability.\n---\nLower water contact angles generally indicate more hydrophilic wetting behavior, while higher angles indicate more hydrophobic behavior.\n---\nA 90-degree contact-angle threshold is often used as a rough divider between hydrophilic and hydrophobic surfaces, though the interpretation can be context-dependent.\n---\nSearch snippets on wetting behavior often connect advancing contact angle, hydrophilicity, hydrophobicity, and surface-energy concepts.",
+      "user_query": "What does contact angle tell us about wettability?",
+      "expected_focus": {
+        "predicate_family": "measurement_indicator",
+        "main_entities": [
+          "contact angle",
+          "wettability",
+          "hydrophilicity",
+          "hydrophobicity"
+        ],
+        "polarity": "qualified",
+        "reasoning_type": "indicator"
+      },
+      "notes": "Original benchmark snippet bundle; tests proxy measurement language.",
+      "requires_manual_copy": false
+    },
+    {
+      "case_id": "S05",
+      "name": "S05_gut_microbiome_colorectal_cancer_causality_snippets",
+      "source_type": "snippets",
+      "category": "conflicting_or_partially_overlapping_snippets",
+      "input_text": "Many studies report associations between gut microbiome composition and colorectal cancer risk or progression.\n---\nMendelian randomization studies attempt to distinguish correlation from causation by using genetic variants as instrumental variables.\n---\nSome snippets describe possible causal roles for particular microbial taxa, while others emphasize that microbiome-cancer associations do not automatically establish causality.\n---\nThe evidence base is mixed and often qualified by study design, population, and microbiome measurement limitations.",
+      "user_query": "Is the gut microbiome causally linked to colorectal cancer?",
+      "expected_focus": {
+        "predicate_family": "causal_association",
+        "main_entities": [
+          "gut microbiome",
+          "colorectal cancer",
+          "Mendelian randomization"
+        ],
+        "polarity": "qualified",
+        "reasoning_type": "causal"
+      },
+      "notes": "Original benchmark snippet bundle; tests association-versus-causation discipline.",
+      "requires_manual_copy": false
+    },
+    {
+      "case_id": "S06",
+      "name": "S06_digital_diabetes_logbook_snippets",
+      "source_type": "snippets",
+      "category": "underspecified_entity_context",
+      "input_text": "A digital diabetes logbook can record glucose measurements, medication use, meals, and related self-management data.\n---\nClinical studies of diabetes logbook tools often evaluate whether structured logging improves glycemic control.\n---\nGlycemic control is commonly measured with HbA1c, and some trials define optimal control using a threshold such as HbA1c below 6.5%.\n---\nSearch snippets may refer only to a logbook improving diabetes control without repeating the full intervention name.",
+      "user_query": "Did the logbook improve diabetes control?",
+      "expected_focus": {
+        "predicate_family": "intervention_outcome",
+        "main_entities": [
+          "digital diabetes logbook",
+          "glycemic control",
+          "HbA1c"
+        ],
+        "polarity": "positive_or_qualified",
+        "reasoning_type": "lookup"
+      },
+      "notes": "Original benchmark snippet bundle; tests underspecified 'logbook' and 'control' binding.",
+      "requires_manual_copy": false
+    },
+    {
+      "case_id": "S07",
+      "name": "S07_perovskite_stability_efficiency_snippets",
+      "source_type": "snippets",
+      "category": "underspecified_entity_context",
+      "input_text": "Perovskite solar cell research often evaluates both power-conversion efficiency and operational stability.\n---\nLarge database studies have examined whether stability trends follow efficiency trends across published perovskite devices.\n---\nSearch snippets sometimes compress the finding as 'stability follows efficiency', which can be misread as a causal claim.\n---\nThe relationship is usually discussed as a data-driven association or trend rather than a simple guarantee that higher efficiency causes longer lifetime.",
+      "user_query": "Does higher efficiency imply better stability in perovskite cells?",
+      "expected_focus": {
+        "predicate_family": "property_relationship",
+        "main_entities": [
+          "perovskite solar cell efficiency",
+          "perovskite solar cell stability"
+        ],
+        "polarity": "qualified",
+        "reasoning_type": "multi_hop"
+      },
+      "notes": "Original benchmark snippet bundle; tests ambiguous relation phrasing.",
+      "requires_manual_copy": false
+    },
+    {
+      "case_id": "E01",
+      "name": "E01_mercury_7186778_venus_brightness",
+      "source_type": "entailmentbank",
+      "category": "simple_2_step_entailment",
+      "input_text": "More light gets reflected on highly reflective things.\nVenus is covered in highly reflective clouds.\nAs the light reflected off of an object increases, the object will appear to be brighter.\nVenus reflects more sunlight toward Earth than other planets.",
+      "user_query": "Why does Venus appear brighter than other planets?",
+      "expected_focus": {
+        "predicate_family": "brightness_explanation",
+        "main_entities": [
+          "Venus",
+          "reflected sunlight",
+          "highly reflective clouds"
+        ],
+        "polarity": "positive",
+        "reasoning_type": "multi_hop"
+      },
+      "notes": "EntailmentBank-style premises for Mercury_7186778.",
+      "source_url": "https://github.com/allenai/entailment_bank",
+      "requires_manual_copy": false
+    },
+    {
+      "case_id": "E02",
+      "name": "E02_nysedregents_2004_4_1_daylight_june",
+      "source_type": "entailmentbank",
+      "category": "three_step_entailment",
+      "input_text": "The amount of daylight is greatest in the summer.\nJune is during the summer in the northern hemisphere.\nThe United States is located in the northern hemisphere.\nNew York State is a state located in the United States of America.\nNew York State is located in the northern hemisphere.\nJune is during the summer for New York State.",
+      "user_query": "During which month does New York State have the greatest daylight?",
+      "expected_focus": {
+        "predicate_family": "season_daylight_relation",
+        "main_entities": [
+          "New York State",
+          "June",
+          "summer",
+          "daylight"
+        ],
+        "polarity": "positive",
+        "reasoning_type": "multi_hop"
+      },
+      "notes": "EntailmentBank-style premises for NYSEDREGENTS_2004_4_1.",
+      "source_url": "https://github.com/allenai/entailment_bank",
+      "requires_manual_copy": false
+    },
+    {
+      "case_id": "E03",
+      "name": "E03_akde_ed_2012_4_22_sun_brightness",
+      "source_type": "entailmentbank",
+      "category": "harder_multi_intermediate_entailment",
+      "input_text": "A star produces light.\nA source of something produces that something.\nStars are a source of light.\nAs a source of light becomes closer, the light will appear brighter.\nThe sun is the star that is closest to Earth.\nThe stars in the night sky are very far away from Earth.\nThe sun is closer to Earth than other stars are to Earth.\nThe sun is brighter than other stars because the sun is closer to Earth than other stars.",
+      "user_query": "Why does the Sun appear brighter than the stars seen in the night sky?",
+      "expected_focus": {
+        "predicate_family": "apparent_brightness_explanation",
+        "main_entities": [
+          "Sun",
+          "stars",
+          "Earth",
+          "distance",
+          "brightness"
+        ],
+        "polarity": "positive",
+        "reasoning_type": "multi_hop"
+      },
+      "notes": "EntailmentBank-style premises for AKDE&ED_2012_4_22.",
+      "source_url": "https://github.com/allenai/entailment_bank",
+      "requires_manual_copy": false
+    }
+  ]
+}
