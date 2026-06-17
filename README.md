@@ -123,6 +123,17 @@ it may try later fallback candidates produced by the parser.
 ConceptNet can be loaded as readonly background knowledge and indexed into the
 same Qdrant collection as normal ingested facts.
 
+The repository tracks generated ConceptNet runtime artifacts so ConceptNet can be
+enabled without committing the raw ConceptNet dump:
+
+- `data/conceptnet/conceptnet_background.metta`
+- `data/conceptnet/conceptnet_background.jsonl`
+- `data/conceptnet/conceptnet_manifest.json`
+
+The raw dump `data/conceptnet/conceptnet-assertions-5.7.0.csv.gz` is intentionally
+ignored because it is large. It is only needed when rebuilding the generated
+artifacts.
+
 ```bash
 CONCEPTNET_ENABLED=true
 CONCEPTNET_AUTOLOAD=true
@@ -130,18 +141,23 @@ CONCEPTNET_ATOMSPACE_PATH=data/conceptnet/conceptnet_background.metta
 CONCEPTNET_VECTOR_PAYLOAD_PATH=data/conceptnet/conceptnet_background.jsonl
 CONCEPTNET_COVERAGE_PERCENT=100.0
 CONCEPTNET_SAMPLE_SEED=42
-CONCEPTNET_AUTO_REBUILD_ON_CHANGE=true
+CONCEPTNET_AUTO_REBUILD_ON_CHANGE=false
 ```
 
 Background points use the normal `nl` / `pln` payload schema with extra metadata
 such as `source=conceptnet` and `background=true`.
 
-To build the aligned background files from a raw ConceptNet dump:
+To rebuild the aligned background files from a raw ConceptNet dump, first place
+the dump at `data/conceptnet/conceptnet-assertions-5.7.0.csv.gz`, then run:
 
 ```bash
 cp "/path/to/conceptnet-assertions-5.7.0.csv.gz" data/conceptnet/
 python scripts/conceptnet/export_conceptnet.py
 ```
+
+Set `CONCEPTNET_AUTO_REBUILD_ON_CHANGE=true` only on machines that have the raw
+dump available and should regenerate artifacts automatically when the ConceptNet
+export settings change.
 
 Coverage is controlled at export time. For example:
 

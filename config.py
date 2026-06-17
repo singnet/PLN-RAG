@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     conceptnet_min_weight: float = 2.0
     conceptnet_coverage_percent: float = 100.0
     conceptnet_sample_seed: int = 42
-    conceptnet_auto_rebuild_on_change: bool = True
+    conceptnet_auto_rebuild_on_change: bool = False
     conceptnet_reindex_on_reset: bool = True
     conceptnet_startup_fail_open: bool = True
 
