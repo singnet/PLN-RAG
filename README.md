@@ -4,6 +4,12 @@ A REST API service for Probabilistic Logic Network (PLN) based retrieval-augment
 Ingests natural language text, converts it to PLN atoms via a pluggable semantic parser,
 stores facts in a PeTTaChainer atomspace, and answers questions via logical proof.
 
+Current service assumptions:
+
+- standalone self-hosted service
+- one shared AtomSpace / knowledge base
+- no multi-user isolation or tenant separation
+
 ## Architecture
 
 ```
@@ -57,12 +63,12 @@ curl -X POST http://localhost:8000/ingest \
   -d '{"texts": ["People who eat fish are smart.", "Kebede eats fish."]}'
 ```
 
-### POST /query
-Ask a question against the knowledge base.
+### POST /reason
+Run a reasoning request against the knowledge base.
 ```bash
-curl -X POST http://localhost:8000/query \
+curl -X POST http://localhost:8000/reason \
   -H "Content-Type: application/json" \
-  -d '{"question": "Is Kebede smart?"}'
+  -d '{"query": "Is Kebede smart?"}'
 ```
 
 ### DELETE /reset
@@ -82,6 +88,11 @@ curl -X DELETE http://localhost:8000/reset \
 ### GET /health
 ```bash
 curl http://localhost:8000/health
+```
+
+### GET /ready
+```bash
+curl http://localhost:8000/ready
 ```
 
 ## Switching parsers
