@@ -29,6 +29,25 @@ class VectorStore:
         resp.raise_for_status()
         return resp.json()["embedding"]
 
+    def is_qdrant_available(self) -> tuple[bool, str]:
+        try:
+            resp = self._client.get(f"{self._qdrant}/collections")
+            resp.raise_for_status()
+            return True, "ok"
+        except Exception as exc:
+            return False, str(exc)
+
+    def is_ollama_available(self) -> tuple[bool, str]:
+        base_url = self._ollama
+        if "/api/embeddings" in base_url:
+            base_url = base_url.rsplit("/api/embeddings", 1)[0]
+        try:
+            resp = self._client.get(base_url)
+            resp.raise_for_status()
+            return True, "ok"
+        except Exception as exc:
+            return False, str(exc)
+
     def _ensure_collection(self, vector_size: int):
         if self._vector_size == vector_size:
             return
