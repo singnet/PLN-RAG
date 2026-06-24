@@ -137,7 +137,7 @@ class ConceptNetManager:
         except Exception as exc:
             self._set_status(indexing=False, indexed_count=indexed, expected_count=expected, last_error=str(exc))
             print(f"[ConceptNet] Vector indexing failed: {exc}")
-            raise
+            return
 
     def _iter_records(self, path: str):
         with open(path, "r", encoding="utf-8") as handle:
@@ -154,6 +154,21 @@ class ConceptNetManager:
         if not self._cfg.conceptnet_auto_rebuild_on_change:
             return False
 
+        input_exists = os.path.exists(self._cfg.conceptnet_input_file)
+        artifact_paths = [
+            self._cfg.conceptnet_atomspace_path,
+            self._cfg.conceptnet_vector_payload_path,
+            self._cfg.conceptnet_manifest_path,
+        ]
+        artifacts_exist = all(os.path.exists(path) for path in artifact_paths)
+
+        if not input_exists:
+            self._handle_missing(
+                "ConceptNet raw input file not found; using committed generated artifacts if available: "
+                f"{self._cfg.conceptnet_input_file}"
+            )
+            return False
+
         required_paths = [
             self._cfg.conceptnet_input_file,
             self._cfg.conceptnet_atomspace_path,
@@ -161,8 +176,10 @@ class ConceptNetManager:
             self._cfg.conceptnet_manifest_path,
         ]
         if not all(os.path.exists(path) for path in required_paths):
-            self._rebuild_artifacts()
-            return True
+            if not artifacts_exist:
+                self._rebuild_artifacts()
+                return True
+            return False
 
         manifest = self._load_manifest()
         if manifest is None or self._manifest_mismatch(manifest):
@@ -212,6 +229,11 @@ class ConceptNetManager:
         return os.path.abspath(str(path))
 
     def _rebuild_artifacts(self):
+        if not os.path.exists(self._cfg.conceptnet_input_file):
+            self._handle_missing(
+                f"ConceptNet raw input file not found: {self._cfg.conceptnet_input_file}"
+            )
+            return
         input_dir = os.path.dirname(self._cfg.conceptnet_atomspace_path)
         os.makedirs(input_dir, exist_ok=True)
         command = [
@@ -233,7 +255,14 @@ class ConceptNetManager:
             str(self._cfg.conceptnet_sample_seed),
         ]
         print("[ConceptNet] Rebuilding background artifacts...")
-        subprocess.run(command, check=True)
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as exc:
+            self._set_status(last_error=str(exc))
+            if self._cfg.conceptnet_startup_fail_open:
+                print(f"[ConceptNet] Warning: artifact rebuild failed: {exc}")
+                return
+            raise
         print("[ConceptNet] Background artifacts rebuilt.")
 
     def _handle_missing(self, message: str):
