@@ -11,7 +11,7 @@ from core.reasoner import Reasoner
 from core.answer_generator import AnswerGenerator
 from core.conceptnet import ConceptNetManager
 from storage.vector_store import VectorStore
-from api.models import IngestItemResult, QueryResponse
+from api.models import IngestItemResult, ReasonResponse
 
 
 class PLNRAGService:
@@ -246,34 +246,34 @@ class PLNRAGService:
 
     #  Query
 
-    async def query(self, question: str) -> QueryResponse:
+    async def reason(self, query: str) -> ReasonResponse:
         cfg = get_settings()
         # 1. Retrieve context for translation
         t0 = time.perf_counter()
-        context, _ = self._vector_store.retrieve_context(question, top_k=self._context_top_k)
+        context, _ = self._vector_store.retrieve_context(query, top_k=self._context_top_k)
         context = self._enrich_context(context)
         context_retrieval_seconds = time.perf_counter() - t0
 
-        # 2. Parse question → PLN query
+        # 2. Parse query text → PLN query
         t1 = time.perf_counter()
         if hasattr(self._parser, "parse_query"):
-            parse_result = self._parser.parse_query(question, context)
+            parse_result = self._parser.parse_query(query, context)
         else:
-            parse_result = self._parser.parse(question, context)
+            parse_result = self._parser.parse(query, context)
         parse_query_seconds = time.perf_counter() - t1
 
         original_query = parse_result.queries[0] if parse_result.queries else ""
         if not parse_result.queries:
-            return QueryResponse(
-                question=question,
+            return ReasonResponse(
+                query=query,
                 pln_query="",
                 original_query="",
                 executed_query="",
                 fallback_used=False,
                 query_status="no_query",
-                raw_proof="",
+                proof="",
                 sources=[],
-                answer="I couldn't translate this question into a logical query.",
+                answer="I couldn't translate this request into a logical query.",
                 context_retrieval_seconds=round(context_retrieval_seconds, 4),
                 parse_query_seconds=round(parse_query_seconds, 4),
                 reasoning_seconds=0.0,
@@ -316,7 +316,7 @@ class PLNRAGService:
         if not proof_traces and hasattr(self._parser, "retry_parse_query"):
             try:
                 retry = getattr(self._parser, "retry_parse_query")
-                retry_result = retry(question, context, executed_query)
+                retry_result = retry(query, context, executed_query)
                 if retry_result and retry_result.queries:
                     retry_used = True
                     more = (
@@ -343,9 +343,9 @@ class PLNRAGService:
 
         reasoning_seconds = time.perf_counter() - t2
 
-        raw_proof = str(proof_traces)
+        proof = str(proof_traces)
         fallback_used = bool(executed_query and original_query and executed_query != original_query)
-        query_status = self._classify_query_status(question, original_query, fallback_used)
+        query_status = self._classify_query_status(query, original_query, fallback_used)
 
         # 5. Reverse-lookup NL sources from proof atoms
         t3 = time.perf_counter()
@@ -359,7 +359,7 @@ class PLNRAGService:
         # 6. Generate natural language answer
         t4 = time.perf_counter()
         if cfg.answer_generation_enabled:
-            answer = self._answer_gen.generate(question, proof_traces)
+            answer = self._answer_gen.generate(query, proof_traces)
             answer_generation_seconds = time.perf_counter() - t4
         else:
             # Benchmarks often disable answer generation; avoid emitting a misleading
@@ -372,14 +372,14 @@ class PLNRAGService:
                 "knowledge base, so the failure may come from query shape mismatch or missing witness facts."
             )
 
-        return QueryResponse(
-            question=question,
+        return ReasonResponse(
+            query=query,
             pln_query=executed_query,
             original_query=original_query,
             executed_query=executed_query,
             fallback_used=fallback_used,
             query_status=query_status,
-            raw_proof=raw_proof,
+            proof=proof,
             sources=sources,
             answer=answer,
             candidate_count=candidate_count_total,
@@ -394,14 +394,14 @@ class PLNRAGService:
         )
 
     def _classify_query_status(
-        self, question: str, original_query: str, fallback_used: bool
+        self, query: str, original_query: str, fallback_used: bool
     ) -> str:
         if not original_query:
             return "no_query"
         if fallback_used:
             return "weakly_aligned"
 
-        normalized = question.strip().lower()
+        normalized = query.strip().lower()
         is_yes_no = normalized.startswith(
             (
                 "is ",
@@ -491,4 +491,34 @@ class PLNRAGService:
             "conceptnet_vectors_expected": conceptnet["expected_count"],
             "conceptnet_last_error": conceptnet["last_error"],
             "status": "degraded" if conceptnet["last_error"] else "ok",
+        }
+
+    def ready(self) -> dict:
+        conceptnet = self._conceptnet.status()
+        qdrant_ready, qdrant_detail = self._vector_store.is_qdrant_available()
+        ollama_ready, ollama_detail = self._vector_store.is_ollama_available()
+        reasoner_ready = self._reasoner is not None
+
+        conceptnet_status = "disabled"
+        if conceptnet["enabled"]:
+            conceptnet_status = "degraded" if conceptnet["last_error"] else "ready"
+
+        ready = reasoner_ready and qdrant_ready and ollama_ready
+        status = "ready" if ready else "unavailable"
+        if ready and conceptnet_status == "degraded":
+            status = "degraded"
+
+        return {
+            "status": status,
+            "parser": self._parser.__class__.__name__,
+            "reasoner_ready": reasoner_ready,
+            "qdrant_ready": qdrant_ready,
+            "ollama_ready": ollama_ready,
+            "conceptnet_enabled": conceptnet["enabled"],
+            "conceptnet_status": conceptnet_status,
+            "conceptnet_last_error": conceptnet["last_error"],
+            "details": {
+                "qdrant": qdrant_detail,
+                "ollama": ollama_detail,
+            },
         }
