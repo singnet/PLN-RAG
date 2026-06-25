@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import List
 
@@ -6,6 +7,9 @@ import dspy
 from config import get_settings
 from core.parser import ParseResult, SemanticParser
 from core.symbol_normalization import canonical_symbol, normalize_text, pluralize, singularize
+
+
+logger = logging.getLogger(__name__)
 
 
 class CanonicalPLNParser(SemanticParser):
@@ -159,9 +163,9 @@ class CanonicalPLNParser(SemanticParser):
                 queries = self._plan_queries(question=texts[0], queries=queries, statements=statements, context=context)
 
             return ParseResult(statements=statements, queries=queries)
-        except Exception as e:
+        except Exception:
             preview = texts[0] if texts else ""
-            print(f"[CanonicalPLNParser] Failed for '{preview}': {e}")
+            logger.exception("CanonicalPLN parse failed for preview %r", preview[:80])
             return ParseResult()
 
     def _build_parser_inputs_batch(

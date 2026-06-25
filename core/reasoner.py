@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import threading
@@ -6,6 +7,9 @@ from config import get_settings
 from core.symbol_normalization import canonical_symbol
 
 from pettachainer.pettachainer import PeTTaChainer
+
+
+logger = logging.getLogger(__name__)
 
 
 class Reasoner:
@@ -33,9 +37,9 @@ class Reasoner:
         if not os.path.exists(self._atomspace_path):
             os.makedirs(os.path.dirname(self._atomspace_path), exist_ok=True)
             return
-        print(f"[Reasoner] Loading atomspace from {self._atomspace_path}...")
+        logger.info("Loading atomspace from %s", self._atomspace_path)
         self._load_file(self._atomspace_path)
-        print("[Reasoner] Atomspace loaded.")
+        logger.info("Atomspace loaded.")
 
     def _load_file(self, path: str):
         if not os.path.exists(path):
@@ -46,17 +50,17 @@ class Reasoner:
                 if atom:
                     try:
                         self._handler.add_atom(atom)
-                    except Exception as e:
-                        print(f"[Reasoner] Warning: skipping atom '{atom}': {e}")
+                    except Exception as exc:
+                        logger.warning("Skipping atom %r: %s", atom, exc)
 
     def load_background_file(self, path: str):
         normalized = os.path.abspath(path)
         if normalized in self._background_files:
             return
-        print(f"[Reasoner] Loading background atomspace from {path}...")
+        logger.info("Loading background atomspace from %s", path)
         self._load_file(path)
         self._background_files.add(normalized)
-        print("[Reasoner] Background atomspace loaded.")
+        logger.info("Background atomspace loaded.")
 
     def add_statements(self, statements: List[str]) -> List[str]:
         """
@@ -86,9 +90,9 @@ class Reasoner:
                         self._handler.add_atom(clean)
                         f.write(clean + "\n")
                         added.append(clean)
-                    except Exception as e:
-                        err = str(e)
-                        print(f"[Reasoner] Failed to add atom '{clean}': {err}")
+                    except Exception as exc:
+                        err = str(exc)
+                        logger.warning("Failed to add atom %r: %s", clean, err)
                         rejected.append({"stmt": clean, "error": err})
         return added, rejected
 
@@ -104,8 +108,8 @@ class Reasoner:
         try:
             result = self._handler.query(pln_query, timeout_sec=self._query_timeout)
             return result if result else []
-        except Exception as e:
-            print(f"[Reasoner] Query failed for '{pln_query}': {e}")
+        except Exception as exc:
+            logger.warning("Query failed for %r: %s", pln_query, exc)
             return []
 
     def _query_exact_fact(self, pln_query: str) -> List[str]:
@@ -196,7 +200,7 @@ class Reasoner:
             self._background_files = set()
             if os.path.exists(self._atomspace_path):
                 os.remove(self._atomspace_path)
-        print("[Reasoner] Atomspace reset.")
+        logger.info("Atomspace reset.")
 
     @property
     def size(self) -> int:

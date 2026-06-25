@@ -1,6 +1,10 @@
+import logging
 import dspy
 from typing import List
 from config import get_settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class _ProofToAnswer(dspy.Signature):
@@ -38,6 +42,6 @@ class AnswerGenerator:
         try:
             result = self._predict(question=question, proof=proof_str)
             return result.answer
-        except Exception as e:
-            print(f"[AnswerGenerator] Failed: {e}")
+        except Exception:
+            logger.exception("Answer generation failed.")
             return "I was unable to generate an answer due to an internal error."

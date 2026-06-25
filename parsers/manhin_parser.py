@@ -1,8 +1,12 @@
+import logging
 import os
 import sys
 from typing import List
 from config import get_settings
 from core.parser import SemanticParser, ParseResult
+
+
+logger = logging.getLogger(__name__)
 
 
 class ManhinParser(SemanticParser):
@@ -54,7 +58,7 @@ class ManhinParser(SemanticParser):
                 model=self._openai_model,
             )
             if result is None:
-                print(f"[ManhinParser] Failed for '{text}'")
+                logger.warning("Manhin parser returned no result for preview %r", text[:80])
                 return ParseResult()
 
             _type_defs, stmts, _queries, extra_exprs, _sent_links = result
@@ -65,8 +69,8 @@ class ManhinParser(SemanticParser):
 
             return ParseResult(statements=all_stmts, queries=[])
 
-        except Exception as e:
-            print(f"[ManhinParser] Exception for '{text}': {e}")
+        except Exception:
+            logger.exception("Manhin parse failed for preview %r", text[:80])
             return ParseResult()
 
     def parse_query(self, text: str, context: List[str]) -> ParseResult:
@@ -86,6 +90,6 @@ class ManhinParser(SemanticParser):
                 statements=list(dict.fromkeys(stmts + extra_exprs)),
                 queries=queries
             )
-        except Exception as e:
-            print(f"[ManhinParser] Query exception for '{text}': {e}")
+        except Exception:
+            logger.exception("Manhin query parse failed for preview %r", text[:80])
             return ParseResult()

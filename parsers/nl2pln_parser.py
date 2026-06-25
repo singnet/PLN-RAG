@@ -1,7 +1,11 @@
+import logging
 from typing import List
 import dspy
 from core.parser import SemanticParser, ParseResult
 from config import get_settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class NL2PLNParser(SemanticParser):
@@ -36,8 +40,8 @@ class NL2PLNParser(SemanticParser):
                 statements=result.statements or [],
                 queries=result.queries or []
             )
-        except Exception as e:
-            print(f"[NL2PLNParser] Failed for '{text}': {e}")
+        except Exception:
+            logger.exception("NL2PLN parse failed for text preview %r", text[:80])
             return ParseResult()
 
     def parse_batch(self, texts: List[str], context: List[str]) -> ParseResult:
@@ -54,7 +58,7 @@ class NL2PLNParser(SemanticParser):
                 statements=result.statements or [],
                 queries=result.queries or [],
             )
-        except Exception as e:
+        except Exception:
             preview = texts[0] if texts else ""
-            print(f"[NL2PLNParser] Failed for batch '{preview}': {e}")
+            logger.exception("NL2PLN batch parse failed for preview %r", preview[:80])
             return ParseResult()
