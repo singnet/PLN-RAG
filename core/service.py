@@ -1,8 +1,8 @@
 import asyncio
+import logging
 import re
-import ast
 import time
-from typing import List, Tuple
+from typing import List
 
 from config import get_settings
 from core.chunker import Chunker
@@ -12,6 +12,9 @@ from core.answer_generator import AnswerGenerator
 from core.conceptnet import ConceptNetManager
 from storage.vector_store import VectorStore
 from api.models import IngestItemResult, ReasonResponse
+
+
+logger = logging.getLogger(__name__)
 
 
 class PLNRAGService:
@@ -31,7 +34,7 @@ class PLNRAGService:
         self._reasoner = Reasoner()
         self._vector_store = VectorStore()
         self._conceptnet = ConceptNetManager()
-        self._answer_gen = AnswerGenerator()
+        self._answer_gen: AnswerGenerator | None = None
         self._context_top_k = cfg.context_top_k
         self._query_fallback_enabled = cfg.query_fallback_enabled
         self._conceptnet.ensure_loaded(self._reasoner, self._vector_store)
@@ -44,8 +47,9 @@ class PLNRAGService:
         all previously ingested atoms as context.
         """
         results = []
+        loop = asyncio.get_running_loop()
         for text in texts:
-            result = await asyncio.get_event_loop().run_in_executor(
+            result = await loop.run_in_executor(
                 None, self._ingest_single, text
             )
             results.append(result)
@@ -84,7 +88,7 @@ class PLNRAGService:
 
                     if not parse_result.statements:
                         empty_results += 1
-                        print(f"[Service] No statements for batch: '{batch_text[:60]}...'")
+                        logger.warning("No statements for batch preview %r", batch_text[:60])
                         continue
 
                     valid, rejected_local = self._validate_statements(parse_result.statements)
@@ -110,7 +114,7 @@ class PLNRAGService:
 
                     if not parse_result.statements:
                         empty_results += 1
-                        print(f"[Service] No statements for chunk: '{chunk[:60]}...'")
+                        logger.warning("No statements for chunk preview %r", chunk[:60])
                         continue
 
                     # 4. Add to atomspace via reasoner
@@ -150,14 +154,12 @@ class PLNRAGService:
                 rejected_samples=[r.get("stmt", "") for r in rejected[:3] if r.get("stmt")],
             )
 
-        except Exception as e:
-            import traceback
-
-            traceback.print_exc()
+        except Exception as exc:
+            logger.exception("Ingest failed for preview %r", text[:80])
             return IngestItemResult(
                 text=text,
                 status="failed",
-                error=str(e),
+                error=str(exc),
                 chunk_count=0,
                 batch_count=0,
                 batch_sizes=[],
@@ -286,7 +288,10 @@ class PLNRAGService:
             valid, rejected_local = self._validate_statements(parse_result.statements)
             if rejected_local:
                 for item in rejected_local[:2]:
-                    print(f"[Service] Dropping malformed query-support statement: {item.get('error')}")
+                    logger.warning(
+                        "Dropping malformed query-support statement: %s",
+                        item.get("error"),
+                    )
             self._reasoner.add_statements(valid)
 
         # 4. Run reasoning via PeTTaChainer against ordered candidates
@@ -339,7 +344,7 @@ class PLNRAGService:
                         if proof_traces:
                             break
             except Exception as exc:
-                print(f"[Service] retry_parse_query failed: {exc}")
+                logger.warning("retry_parse_query failed: %s", exc)
 
         reasoning_seconds = time.perf_counter() - t2
 
@@ -359,6 +364,8 @@ class PLNRAGService:
         # 6. Generate natural language answer
         t4 = time.perf_counter()
         if cfg.answer_generation_enabled:
+            if self._answer_gen is None:
+                self._answer_gen = AnswerGenerator()
             answer = self._answer_gen.generate(query, proof_traces)
             answer_generation_seconds = time.perf_counter() - t4
         else:
@@ -441,28 +448,11 @@ class PLNRAGService:
                 if "STV" not in match and len(match) >= 5:
                     atoms_to_search.add(match)
 
-        sources = set()
         if max_atoms > 0 and len(atoms_to_search) > max_atoms:
             atoms_to_search = set(list(atoms_to_search)[:max_atoms])
-        for atom_str in atoms_to_search:
-            try:
-                vector = self._vector_store.embed(atom_str)
-                ctx, _ = self._vector_store.retrieve_context(atom_str, top_k=1)
-                # retrieve_context returns atoms, not NL — direct search needed
-                resp = self._vector_store._client.post(
-                    f"{self._vector_store._qdrant}/collections"
-                    f"/{self._vector_store._collection}/points/search",
-                    json={"vector": vector, "limit": 1, "with_payload": True},
-                )
-                results = resp.json().get("result", [])
-                if results and results[0].get("score", 0) > 0.6:
-                    nl = results[0].get("payload", {}).get("nl")
-                    if nl:
-                        sources.add(nl)
-            except Exception:
-                pass
-
-        return list(sources)
+        return self._vector_store.lookup_sources_by_atoms(
+            list(atoms_to_search), max_atoms=max_atoms, score_threshold=0.6
+        )
 
     #  Reset
 
@@ -522,3 +512,6 @@ class PLNRAGService:
                 "ollama": ollama_detail,
             },
         }
+
+    def close(self):
+        self._vector_store.close()
