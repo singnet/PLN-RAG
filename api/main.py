@@ -1,3 +1,4 @@
+import logging
 import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
@@ -14,18 +15,29 @@ from config import get_settings
 
 _start_time = time.time()
 _service: PLNRAGService | None = None
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _service
     cfg = get_settings()
-    print(f"[Startup] Loading parser: {cfg.parser}")
-    parser = get_parser()
-    _service = PLNRAGService(parser)
-    print("[Startup] Service ready.")
-    yield
-    print("[Shutdown] Cleaning up.")
+    logger.info("Loading parser: %s", cfg.parser)
+    try:
+        parser = get_parser()
+        _service = PLNRAGService(parser)
+        logger.info("Service ready.")
+        yield
+    except Exception:
+        logger.exception("Application startup failed.")
+        raise
+    finally:
+        logger.info("Cleaning up service resources.")
+        if _service is not None:
+            try:
+                _service.close()
+            except Exception:
+                logger.exception("Service cleanup failed.")
 
 
 app = FastAPI(
@@ -48,6 +60,7 @@ def get_service() -> PLNRAGService:
 def ensure_dependencies_ready(svc: PLNRAGService):
     info = svc.ready()
     if info["status"] == "unavailable":
+        logger.warning("Request rejected because dependencies are unavailable: %s", info["details"])
         raise HTTPException(
             status_code=503,
             detail={
