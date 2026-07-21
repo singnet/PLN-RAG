@@ -34,7 +34,7 @@ class PLNRAGService:
         self._reasoner = Reasoner()
         self._vector_store = VectorStore()
         self._conceptnet = ConceptNetManager()
-        self._answer_gen: AnswerGenerator | None = None
+        self._answer_gen = AnswerGenerator()
         self._context_top_k = cfg.context_top_k
         self._query_fallback_enabled = cfg.query_fallback_enabled
         self._conceptnet.ensure_loaded(self._reasoner, self._vector_store)
@@ -364,8 +364,6 @@ class PLNRAGService:
         # 6. Generate natural language answer
         t4 = time.perf_counter()
         if cfg.answer_generation_enabled:
-            if self._answer_gen is None:
-                self._answer_gen = AnswerGenerator()
             answer = self._answer_gen.generate(query, proof_traces)
             answer_generation_seconds = time.perf_counter() - t4
         else:
