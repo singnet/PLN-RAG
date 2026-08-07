@@ -5,6 +5,7 @@ from typing import List
 import dspy
 
 from config import get_settings
+from core import query_scoring
 from core.parser import ParseResult, SemanticParser
 from core.symbol_normalization import canonical_symbol, normalize_text, pluralize, singularize
 
@@ -746,28 +747,10 @@ class CanonicalPLNParser(SemanticParser):
         conclusions: list[dict],
         is_yes_no: bool,
     ) -> int | None:
-        matching_facts = [sig for sig in facts if self._same_shape(query, sig)]
-        matching_conclusions = [sig for sig in conclusions if self._same_shape(query, sig)]
-
-        if is_yes_no and query["variables"]:
-            if not self._has_witness_path(query, matching_facts, matching_conclusions):
-                return None
-
-        score = 0
-        if matching_facts:
-            score += 6
-        if matching_conclusions:
-            score += 4
-        if not query["variables"]:
-            score += 3 if is_yes_no else 1
-        else:
-            score += 3 if not is_yes_no else 0
-        if self._is_fully_grounded_from_signature(query, matching_facts):
-            score += 2
-        return score if score > 0 else None
+        return query_scoring.score_query_candidate(query, facts, conclusions, is_yes_no)
 
     def _same_shape(self, left: dict, right: dict) -> bool:
-        return left["head"] == right["head"] and left["arity"] == right["arity"]
+        return query_scoring.same_shape(left, right)
 
     def _has_witness_path(
         self,
@@ -775,23 +758,10 @@ class CanonicalPLNParser(SemanticParser):
         matching_facts: list[dict],
         matching_conclusions: list[dict],
     ) -> bool:
-        if not query["variables"]:
-            return True
-        for signature in matching_facts + matching_conclusions:
-            if self._signature_can_bind(query, signature):
-                return True
-        return False
+        return query_scoring.has_witness_path(query, matching_facts, matching_conclusions)
 
     def _signature_can_bind(self, query: dict, signature: dict) -> bool:
-        saw_witness = False
-        for q_arg, s_arg in zip(query["args"], signature["args"]):
-            if q_arg.startswith(("$", "?")):
-                if not s_arg.startswith(("$", "?")):
-                    saw_witness = True
-                continue
-            if q_arg != s_arg:
-                return False
-        return saw_witness or not query["variables"]
+        return query_scoring.signature_can_bind(query, signature)
 
     def _preserves_grounded_args(
         self, query: dict, signature: dict, question_symbols: set[str]
@@ -811,10 +781,7 @@ class CanonicalPLNParser(SemanticParser):
     def _is_fully_grounded_from_signature(
         self, query: dict, matching_facts: list[dict]
     ) -> bool:
-        for signature in matching_facts:
-            if signature["args"] == query["args"]:
-                return True
-        return False
+        return query_scoring.is_fully_grounded_from_signature(query, matching_facts)
 
     def _is_yes_no_question(self, question: str) -> bool:
         tokens = self._normalize_text(question).split()

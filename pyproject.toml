@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q --strict-markers"
+markers = [
+    "requires_llm: needs a reachable LLM endpoint (deselect with -m 'not requires_llm')",
+    "requires_services: needs Qdrant/Ollama (deselect with -m 'not requires_services')",
+]

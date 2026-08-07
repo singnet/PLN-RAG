@@ -274,6 +274,59 @@ def _get_parser_factory(name: str):
     raise ValueError(f"Unsupported parser '{name}'")
 
 
+def _preflight_llm() -> tuple[bool, str]:
+    """Make one real LLM call before spending an hour on a run that cannot work.
+
+    Deliberately goes through dspy with the same model and key the parsers use,
+    rather than probing a hardcoded endpoint: a relay, a custom base_url or a
+    permissions-scoped key all behave differently on a synthetic probe than on
+    the actual completion path.
+    """
+    cfg = get_settings()
+    try:
+        import dspy
+
+        lm = dspy.LM(cfg.openai_model, api_key=cfg.openai_api_key, cache=False)
+        reply = lm("Reply with the single word: ok", max_tokens=5)
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+    if not reply:
+        return False, "LLM returned an empty response"
+    return True, ""
+
+
+def _preflight_reasoner() -> tuple[bool, str]:
+    """Check backward chaining still works before blaming a parser for zero proofs.
+
+    Reasoner.query catches every exception and returns [], so a broken chainer
+    yields a clean exit and proof_found=0 for every case. That is not
+    distinguishable from a hard suite by the summary alone, since a low proof
+    count is a legitimate isolated-mode result. Uses a throwaway chainer so the
+    persistent atomspace is untouched.
+    """
+    try:
+        from pettachainer import PeTTaChainer
+
+        chainer = PeTTaChainer()
+        for atom in (
+            "(: edge_ab (Edge A B) (STV 1.0 1.0))",
+            "(: edge_bc (Edge B C) (STV 1.0 1.0))",
+            "(: edge_to_path (Implication (Premises (Edge $x $y)) "
+            "(Conclusions (Path $x $y))) (CTV (STV 1.0 1.0) (STV 0.0 1.0)))",
+            "(: path_step (Implication (Premises (Path $x $y) (Edge $y $z)) "
+            "(Conclusions (Path $x $z))) (CTV (STV 1.0 1.0) (STV 0.0 1.0)))",
+        ):
+            chainer.add_atom(atom)
+        seeds = chainer.select_facts(["(Edge A B)", "(Edge B C)"])
+        chainer.forward_chain(seeds, steps=50)
+        proofs = chainer.query("(: $prf (Path A C) $tv)", steps=10, timeout_sec=60)
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+    if not proofs:
+        return False, "no proof returned for a known-derivable fact (Path A C)"
+    return True, ""
+
+
 def _run_parse(parser: object, text: str, context: list[str], is_query: bool):
     if is_query and hasattr(parser, "parse_query"):
         return parser.parse_query(text, context)
@@ -559,6 +612,28 @@ async def _benchmark_parser_cumulative(
     return results
 
 
+def _validity_warnings(summary: dict[str, dict]) -> list[str]:
+    """Flag summaries that look like infrastructure failure rather than a result.
+
+    Parsers swallow exceptions and return an empty ParseResult, so a dead LLM
+    produces a clean exit code and a report full of zeros. Without this, such a
+    run is indistinguishable from a genuine finding.
+    """
+    warnings: list[str] = []
+    for parser_name, stats in summary.items():
+        cases = stats.get("cases", 0)
+        if not cases:
+            continue
+        if stats.get("no_query", 0) == cases:
+            warnings.append(
+                f"{parser_name}: every case produced no_query ({cases}/{cases}). "
+                "This is the signature of a failing LLM, not a parser result."
+            )
+        if stats.get("errors", 0) == cases:
+            warnings.append(f"{parser_name}: every case raised ({cases}/{cases}).")
+    return warnings
+
+
 def _summarize_parser(results: list[dict]) -> dict:
     total_cases = len(results)
     correct_known = [result.get("correct") for result in results if result.get("correct") is not None]
@@ -588,6 +663,7 @@ def _summarize_parser(results: list[dict]) -> dict:
         "no_query": no_query,
         "weakly_aligned": weakly_aligned,
         "fallback_used": fallback_used,
+        "errors": sum(1 for result in results if result.get("error")),
         "avg_latency_seconds": round(sum(latencies) / total_cases, 4) if total_cases else 0.0,
         "median_latency_seconds": round(statistics.median(latencies), 4) if latencies else 0.0,
     }
@@ -650,12 +726,43 @@ async def main() -> int:
         help="Repeatable case_id to include (e.g. --case-ids A01)",
     )
     cli.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip the LLM reachability check (only for runs that need no LLM)",
+    )
+    cli.add_argument(
         "--limit",
         type=int,
         default=0,
         help="Optional max number of cases to run (after filtering)",
     )
     args = cli.parse_args()
+
+    if not args.skip_preflight:
+        ok, detail = _preflight_llm()
+        if not ok:
+            print(
+                "Pre-flight failed: the configured LLM is not reachable.\n"
+                f"  {detail}\n"
+                "Parsers swallow this error and return no atoms, so the run would "
+                "finish with an all-zero report and exit 0. Aborting instead.\n"
+                "Use --skip-preflight to override.",
+                file=sys.stderr,
+            )
+            return 2
+
+        ok, detail = _preflight_reasoner()
+        if not ok:
+            print(
+                "Pre-flight failed: backward chaining is not working.\n"
+                f"  {detail}\n"
+                "Reasoner.query swallows this and returns no proofs, so the run "
+                "would report proof_found=0 for every case and exit 0. Aborting "
+                "instead. Check the PeTTa/PeTTaChainer pins in the Dockerfile.\n"
+                "Use --skip-preflight to override.",
+                file=sys.stderr,
+            )
+            return 2
 
     if args.suite_file:
         suite_path = Path(args.suite_file)
@@ -748,6 +855,10 @@ async def main() -> int:
         payload["parsers"][parser_name] = results
         payload["summary"][parser_name] = _summarize_parser(results)
 
+    warnings = _validity_warnings(payload["summary"])
+    payload["valid"] = not warnings
+    payload["validity_warnings"] = warnings
+
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"parser_benchmark_{_slugify(suite_label)}_{_slugify(args.mode)}_{run_id}.json"
@@ -756,6 +867,13 @@ async def main() -> int:
     print(json.dumps({"output": str(output_path), "summary": payload["summary"]}, indent=2))
     print()
     print(_markdown_summary(payload["summary"]))
+
+    if warnings:
+        print(file=sys.stderr)
+        print("Report marked invalid — do not use it as a baseline:", file=sys.stderr)
+        for warning in warnings:
+            print(f"  - {warning}", file=sys.stderr)
+        return 1
     return 0
 
 
