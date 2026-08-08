@@ -1,13 +1,3 @@
-"""Identity resolution: what must merge, and much more importantly what must not.
-
-The tests are weighted deliberately towards non-merges. Today a bad parse costs a
-missing proof; a bad merge costs a *confident wrong proof* with a valid-looking
-trace, which is strictly worse and much harder to notice. So every case that could
-plausibly over-merge is pinned, and the ones that should merge are pinned along
-with the evidence that justified them, so a weight change cannot quietly turn a
-three-signal merge into a one-signal one.
-"""
-
 import pytest
 
 from core.senf.extractor import extract_senf

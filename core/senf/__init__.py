@@ -1,10 +1,3 @@
-"""SENF: a sidecar entity/frame representation over canonicalized PLN atoms.
-
-Nothing in the running system imports this package yet. It is introduced ahead of
-its consumers so the deterministic layers can be tested in isolation before any
-parser depends on them.
-"""
-
 from core.senf.identity import (
     DEFAULT_IDENTITY_THRESHOLD,
     IdentityEdge,

@@ -1,10 +1,3 @@
-"""Unit tests for the deterministic SENF extractor.
-
-Table-driven where the cases are genuinely parallel. Atoms are taken from shapes
-the parsers actually emit — see the stress25 baseline artifact, where IsA (58
-occurrences) and InGroup (18) dominate and arities run from 1 to 5.
-"""
-
 import pytest
 
 from core.senf.extractor import SENFExtractor, extract_senf

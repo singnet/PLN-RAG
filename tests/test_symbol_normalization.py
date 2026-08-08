@@ -34,6 +34,30 @@ class TestSingularize:
     def test_singularize(self, word, expected):
         assert singularize(word) == expected
 
+    @pytest.mark.parametrize(
+        "word",
+        [
+            "diabetes",
+            "lens",
+            "series",
+            "species",
+            "physics",
+            "premises",
+        ],
+    )
+    def test_singular_nouns_ending_in_s_are_preserved(self, word):
+        """Version 2. These previously became diabete/len/sery/specy/physic.
+
+        The mangling was deterministic, so intra-KB matching still worked; it broke
+        joins against external vocabularies keyed on real words (ConceptNet nodes,
+        the SENF exemplar registry).
+        """
+        assert singularize(word) == word
+
+    def test_exception_list_survives_canonical_symbol(self):
+        assert canonical_symbol("type 2 diabetes") == "type_2_diabetes"
+        assert canonical_symbol("contact lens material") == "contact_lens_material"
+
     def test_short_word_preserved(self):
         assert singularize("is") == "is"
         assert singularize("as") == "as"

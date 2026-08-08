@@ -320,10 +320,37 @@ class PLNPostprocessor:
                 continue
             planned.append((score, query))
         if not planned:
-            return queries[:1]
+            return self.dedupe_preserve_order(
+                queries[:1]
+                + self.derive_extra_candidates(queries, facts, conclusions, question)
+            )
         planned.sort(key=lambda item: item[0], reverse=True)
         ordered = [query for _, query in planned]
+        ordered.extend(
+            self.derive_extra_candidates(ordered, facts, conclusions, question)
+        )
         return self.dedupe_preserve_order(ordered)
+
+    def derive_extra_candidates(
+        self,
+        queries: List[str],
+        facts: list[dict],
+        conclusions: list[dict],
+        question: str,
+    ) -> List[str]:
+        parsed = [
+            sig for sig in (self.parse_query_signature(q) for q in queries) if sig
+        ]
+        constants: List[str] = []
+        for token in normalize_text(question).split():
+            symbol = canonical_symbol(token, lemmatize=True)
+            if not symbol or symbol in constants:
+                continue
+            if any(symbol in sig["args"] for sig in facts + conclusions):
+                constants.append(symbol)
+        return query_scoring.derive_extra_candidates(
+            parsed, facts, conclusions, constants
+        )
 
     def collect_available_signatures(self, statements: List[str], context: List[str]) -> tuple[list[dict], list[dict]]:
         facts: list[dict] = []

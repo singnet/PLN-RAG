@@ -67,6 +67,39 @@ class TestRejected:
         assert err == reason
 
 
+class TestZeroArityAtoms:
+    """Observed in stress25 case S02.
+
+    The parser emitted `(Conclusions (AssociatedWithSevereDisease))` while the query
+    asked `(: $prf (AssociatedWithSevereDisease $marker) $tv)`. A 0-ary conclusion can
+    never unify with a 1-ary goal, so the rule was unreachable and the only symptom
+    was a missing proof.
+    """
+
+    def test_zero_arity_conclusion_is_rejected(self, validate):
+        ok, err = validate(
+            "(: r (Implication (Premises (P a)) (Conclusions (AssociatedWithSevereDisease)))"
+            " (STV 1.0 1.0))"
+        )
+        assert not ok
+        assert err == "zero_arity_atom"
+
+    def test_zero_arity_fact_is_rejected(self, validate):
+        ok, err = validate("(: p (Lonely) (STV 1.0 1.0))")
+        assert not ok
+        assert err == "zero_arity_atom"
+
+    @pytest.mark.parametrize("stmt", [VALID_FACT, VALID_RULE])
+    def test_well_formed_statements_are_unaffected(self, validate, stmt):
+        ok, err = validate(stmt)
+        assert ok, err
+
+    def test_structural_heads_may_be_empty(self, validate):
+        """`Not`/`And` wrap other atoms; an empty one is odd but not the S02 bug."""
+        ok, _ = validate("(: r (Implication (Premises (And)) (Conclusions (P a))) (STV 1.0 1.0))")
+        assert ok
+
+
 class TestBridgeAtomShape:
     """The C6 constraint, pinned as a test rather than a comment.
 

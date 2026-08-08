@@ -208,7 +208,24 @@ class PLNRAGService:
         # Enforce implication schema to avoid reasoner syntax errors.
         if "Implication" in stmt and ("(Premises" not in stmt or "(Conclusions" not in stmt):
             return False, "bad_implication_shape"
+        if self._has_zero_arity_atom(stmt):
+            return False, "zero_arity_atom"
         return True, ""
+
+    _ZERO_ARITY_EXEMPT = frozenset({"Premises", "Conclusions", "And", "Or", "Not"})
+
+    def _has_zero_arity_atom(self, stmt: str) -> bool:
+        """A predicate applied to no arguments can never unify with a query.
+
+        Observed as `(Conclusions (AssociatedWithSevereDisease))` against the query
+        `(: $prf (AssociatedWithSevereDisease $marker) $tv)`: the rule fires but the
+        conclusion is a different symbol than the one asked for, so the proof is
+        unreachable and the failure surfaces only as a missing proof.
+        """
+        for head in re.findall(r"\(([A-Za-z][A-Za-z0-9_]*)\s*\)", stmt):
+            if head not in self._ZERO_ARITY_EXEMPT:
+                return True
+        return False
 
     def _parens_balanced(self, text: str) -> bool:
         depth = 0

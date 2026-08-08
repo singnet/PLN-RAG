@@ -1,11 +1,3 @@
-"""Shared query-candidate scoring.
-
-Extracted from parsers/canonical_pln_parser.py and core/pln_postprocessor.py, which
-carried byte-equivalent copies. Divergence between them fails silently: candidates get
-ranked differently, the reasoner is asked the wrong question, and the symptom is a missing
-proof rather than an error.
-"""
-
 from typing import Optional
 
 
@@ -41,6 +33,63 @@ def is_fully_grounded_from_signature(query: dict, matching_facts: list[dict]) ->
         if signature["args"] == query["args"]:
             return True
     return False
+
+
+def signature_to_query(signature: dict) -> str:
+    args = " ".join(signature["args"])
+    return f"(: $prf ({signature['head']} {args}) $tv)"
+
+
+def _ground_with_constants(signature: dict, constants: list[str]) -> Optional[dict]:
+    # Signatures are not guaranteed to carry a "variables" key; only parsed
+    # queries are. Read variable-ness off the args instead.
+    args: list[str] = []
+    available = [c for c in constants if c not in signature["args"]]
+    for arg in signature["args"]:
+        if arg.startswith(("$", "?")):
+            if not available:
+                return None
+            args.append(available.pop(0))
+        else:
+            args.append(arg)
+    return {"head": signature["head"], "args": args, "arity": len(args), "variables": []}
+
+
+def derive_extra_candidates(
+    existing: list[dict],
+    facts: list[dict],
+    conclusions: list[dict],
+    question_constants: list[str],
+    limit: int = 4,
+) -> list[str]:
+    """Extend a candidate list with queries the KB could plausibly answer.
+
+    The planner can only rank what the generator emitted, and the generator emits a
+    single candidate for almost every question, so QUERY_FALLBACK_ENABLED and
+    QUERY_CANDIDATE_MAX_TRIES never engage. Derive further candidates from KB
+    conclusion and fact signatures whose head/arity the generator did not cover,
+    grounding free slots with constants named in the question.
+
+    Conclusions come first: those need a rule to fire, which is the case the
+    generator is worst at guessing. Capped because each extra candidate costs up to
+    one full CHAINING_TIMEOUT in the service's fallback loop.
+    """
+    covered = {(sig["head"], sig["arity"]) for sig in existing}
+    out: list[str] = []
+    for signature in conclusions + facts:
+        if len(out) >= limit:
+            break
+        if signature["arity"] == 0:
+            continue
+        key = (signature["head"], signature["arity"])
+        if key in covered:
+            continue
+        grounded = _ground_with_constants(signature, question_constants)
+        if grounded is None:
+            continue
+        covered.add(key)
+        out.append(signature_to_query(grounded))
+    return out
 
 
 def score_query_candidate(

@@ -1,0 +1,333 @@
+{
+  "gold_version": 1,
+  "suite_id": "stress25_v1",
+  "notes": "Gold answers for stress25. Authored from each case's own input_text and user_query; benchmark artifacts were not consulted while writing entity slots. `support` quotes the sentence that licenses the answer -- an entity with no quotable support does not belong here. Entity slots deliberately EXCLUDE the question's own topic terms: crediting `sun` for \"why is the Sun brighter\" or `contact_angle` for \"what does contact angle indicate\" would score a restatement of the question as an answer. `verdict` is null wherever the corpus itself is hedged, because a conclusion atom cannot express \"qualified\" and inventing that signal would be a fake number. Aliases include predicate-fused forms (e.g. reduce_hb_a1c) because parsers routinely fuse the measure into the predicate head. All aliases are canonicalized through core.symbol_normalization.canonical_symbol before matching, so both sides share one symbol space.",
+  "cases": {
+    "A01": {
+      "question": "Did the digital diabetes logbook improve glycemic control?",
+      "answer_shape": "verdict",
+      "verdict": "positive",
+      "match": "any",
+      "entities": [
+        ["optimal_glycemic_control", "glycemic_control", "improve_glycemic_control", "increases_likelihood", "increase_likelihood"],
+        ["blood_glucose", "mean_blood_glucose"]
+      ],
+      "expected_proof": true,
+      "support": "The secondary analysis of the RCT demonstrated a significant increase in the likelihood of achieving optimal glycemic control after 3 months of using the mySugr logbook."
+    },
+    "A02": {
+      "question": "Did the IoT-based intervention reduce HbA1c?",
+      "answer_shape": "verdict",
+      "verdict": "negative",
+      "match": "any",
+      "entities": [
+        ["hb_a1c", "hba1c", "reduce_hb_a1c", "reduces_hb_a1c"]
+      ],
+      "expected_proof": true,
+      "support": "Conclusions: The IoT-based approach did not reduce HbA1c in patients with type 2 diabetes.",
+      "note": "The only case in the suite whose corpus states a negative result outright, so it is the one place a negation verdict is fairly gradable."
+    },
+    "A03": {
+      "question": "What does Cas9-AAV6 correction improve in sickle cell disease cells?",
+      "answer_shape": "entity",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["hemoglobin_a", "hemoglobin", "hemoglobin_a_production"],
+        ["red_blood_cell", "rbc", "erythropoiesis"]
+      ],
+      "expected_proof": true,
+      "support": "stable hemoglobin-A production can be achieved in vivo from HBB-corrected HSCs following autologous transplantation"
+    },
+    "A04": {
+      "question": "How does semaglutide compare with other GLP-1 receptor agonists?",
+      "answer_shape": "entity_set",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["superior", "superior_reduction", "greater_reduction"],
+        ["hb_a1c", "hba1c"],
+        ["body_weight", "weight"],
+        ["mace", "major_adverse_cardiovascular_event", "cost_effective"]
+      ],
+      "expected_proof": true,
+      "support": "semaglutide at usual doses was associated with superior reductions in HbA1c and weight compared to most GLP-1 RAs"
+    },
+    "A05": {
+      "question": "Which treatments are compared for reducing cardiovascular events?",
+      "answer_shape": "entity_set",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["tirzepatide"],
+        ["liraglutide"],
+        ["semaglutide"]
+      ],
+      "expected_proof": true,
+      "support": "To compare the relative efficacy of tirzepatide, liraglutide, and semaglutide in reducing major adverse cardiovascular events (MACEs)"
+    },
+    "A06": {
+      "question": "How does serafilcon A compare with other reusable silicone hydrogel lens materials?",
+      "answer_shape": "entity_set",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["senofilcon_a", "samfilcon_a", "comfilcon_a"],
+        ["coefficient_of_friction", "friction"],
+        ["peo_pbo", "amphiphilic_polymeric_surfactant", "aps"]
+      ],
+      "expected_proof": true,
+      "support": "The other contact lens materials had stable contact angles and NIKBUT over their recommended wearing period (p > 0.05), with the exception of samfilcon A",
+      "note": "`contact_angle` and `wettability` are excluded as topic terms -- they appear in the question's own framing."
+    },
+    "A07": {
+      "question": "Does the abstract claim a causal role for gut microbiome in colorectal cancer?",
+      "answer_shape": "verdict",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["unlikely", "unlikely_to_reflect_causality", "not_causal", "no_causal_role"],
+        ["caution", "horizontal_pleiotropic", "pleiotropy", "sensitivity_analysis"]
+      ],
+      "expected_proof": true,
+      "support": "further exploration of these relationships highlighted that these were unlikely to reflect causality",
+      "note": "The answer is 'no'. verdict is left null rather than 'negative' because a correct answer can carry the negation inside a predicate head, e.g. (UnlikelyCausal ...), which a Not-wrapping check would wrongly reject. Note the abstract's opening line about studies being 'unable to discern correlation from causation' describes OTHER studies, not this one's finding, so proving that is not an answer."
+    },
+    "A08": {
+      "question": "How can microbiota affect inflammation?",
+      "answer_shape": "reason",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["bioactive_molecule", "microbiota_derived_bioactive_molecule", "bioactive"],
+        ["immune", "immune_system", "immunological", "innate_lymphoid_cell", "regulatory_t_cell", "antigen_presenting_cell", "epithelial_cell"]
+      ],
+      "expected_proof": true,
+      "support": "we review the effects of the microbiome on innate and adaptive immunological players ... diverse microbiota-derived bioactive molecules and their effects on inflammation",
+      "note": "`inflammation` is excluded as a topic term; the answer is the mechanism, not the outcome named in the question."
+    },
+    "A09": {
+      "question": "Why does sodium heparin improve perovskite solar cells?",
+      "answer_shape": "reason",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["bridge", "bridge_layer", "interface_bridge"],
+        ["defect", "mitigate_defect", "passivation", "defect_passivation"],
+        ["bonding", "chemical_bonding", "heterointerface_bonding"]
+      ],
+      "expected_proof": true,
+      "support": "It thus serves as a bridge connecting the SnO2 electron transport layer and the perovskite film through robust chemical bonding, mitigating defects and enhancing heterointerface bonding in PSCs."
+    },
+    "A10": {
+      "question": "Which biomarkers predict COVID-19 severity?",
+      "answer_shape": "entity_set",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["d_dimer", "ddimer"],
+        ["crp", "c_reactive_protein"],
+        ["ldh", "lactate_dehydrogenase"],
+        ["alt", "sgpt"],
+        ["neutrophil", "neutrophil_count"]
+      ],
+      "expected_proof": true,
+      "support": "The biomarkers such as D-dimer, CRP levels, LDH, ALT, and neutrophil count could be used to predict disease severity."
+    },
+    "A11": {
+      "question": "Can serological inflammation indicators predict COVID-19 severity?",
+      "answer_shape": "verdict",
+      "verdict": "positive",
+      "match": "any",
+      "entities": [
+        ["pni", "prognostic_nutritional_index"],
+        ["hscar", "high_sensitivity_c_reactive_protein_albumin_ratio"],
+        ["hscpar", "high_sensitivity_c_reactive_protein_prealbumin_ratio"]
+      ],
+      "expected_proof": true,
+      "support": "PNI, HsCAR, and HsCPAR may serve as accurate biomarkers for the prediction of disease severity in patients with COVID-19 upon admission/hospitalization."
+    },
+    "A12": {
+      "question": "What does contact angle indicate about hydrophilicity or hydrophobicity?",
+      "answer_shape": "reason",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["threshold", "contact_angle_threshold", "ninety_degree", "debated"],
+        ["advancing_contact_angle", "intrinsic_advancing_contact_angle"],
+        ["wenzel", "cassie", "hemiwicking"]
+      ],
+      "expected_proof": true,
+      "support": "The conventional 90° contact angle threshold for distinguishing hydrophilic and hydrophobic surfaces has been debated.",
+      "note": "Bare `contact_angle` is deliberately absent. The baseline proved (DistinguishesSurfaceHydrophilicityHydrophobicity angle), and any substring or loose match would score that restatement as an answer."
+    },
+    "A13": {
+      "question": "Why is comparing perovskite stability difficult?",
+      "answer_shape": "reason",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["standard", "testing_standard", "unified_stability_testing", "disseminating_standard"],
+        ["stress_condition", "environmental_stress_condition", "measurement_condition"]
+      ],
+      "expected_proof": true,
+      "support": "lack of properly implemented unified stability testing and disseminating standards makes it difficult to compare historical stability data"
+    },
+    "A14": {
+      "question": "What relationship is reported between efficiency and stability?",
+      "answer_shape": "entity",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["correlation", "correlate", "correlated"],
+        ["higher_stability", "more_stable", "better_stability"]
+      ],
+      "expected_proof": true,
+      "support": "we find a correlation between the maximum reached power conversion efficiency (PCE) and the relative PCE loss observed after 150-hours of ageing, with more efficient cells statistically also showing higher stability"
+    },
+    "A15": {
+      "question": "What methodological approaches help establish causality in microbiome research?",
+      "answer_shape": "entity_set",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["preclinical_model", "preclinical", "animal_model", "cell_based_model"],
+        ["delphi", "delphi_survey", "consensus"]
+      ],
+      "expected_proof": true,
+      "support": "Preclinical models offer crucial insights into the role of the gut microbiome in diseases and help identify potential therapeutic interventions."
+    },
+    "S01": {
+      "question": "What role does sodium heparin play in perovskite solar cells?",
+      "answer_shape": "reason",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["defect", "interface_defect", "passivation", "defect_passivation"],
+        ["bonding", "interfacial_bonding"],
+        ["efficiency", "stability"]
+      ],
+      "expected_proof": true,
+      "support": "The proposed mechanism links sodium heparin to interface defect passivation and stronger interfacial bonding in perovskite devices."
+    },
+    "S02": {
+      "question": "Which blood markers are associated with severe COVID-19?",
+      "answer_shape": "entity_set",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["d_dimer", "ddimer"],
+        ["crp", "c_reactive_protein"],
+        ["ldh", "lactate_dehydrogenase"],
+        ["blood_cell_count", "altered_blood_cell_count"]
+      ],
+      "expected_proof": true,
+      "support": "Several COVID-19 studies report that elevated D-dimer, C-reactive protein, lactate dehydrogenase, and altered blood-cell counts are associated with more severe disease."
+    },
+    "S03": {
+      "question": "How does semaglutide compare with other GLP-1 receptor agonists?",
+      "answer_shape": "entity_set",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["hb_a1c", "hba1c", "glycemic_control"],
+        ["weight", "body_weight", "weight_loss"],
+        ["strong", "superior", "effective"]
+      ],
+      "expected_proof": true,
+      "support": "Comparative reviews describe semaglutide as producing strong glycemic-control and weight-loss effects relative to several other GLP-1 receptor agonists."
+    },
+    "S04": {
+      "question": "What does contact angle tell us about wettability?",
+      "answer_shape": "reason",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["hydrophilic", "hydrophilicity"],
+        ["hydrophobic", "hydrophobicity"],
+        ["threshold", "ninety_degree", "divider"]
+      ],
+      "expected_proof": true,
+      "support": "Lower water contact angles generally indicate more hydrophilic wetting behavior, while higher angles indicate more hydrophobic behavior.",
+      "note": "`contact_angle` and `wettability` are excluded as topic terms; the answer is the direction of the relation."
+    },
+    "S05": {
+      "question": "Is the gut microbiome causally linked to colorectal cancer?",
+      "answer_shape": "verdict",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["association", "associates", "associated"],
+        ["mendelian_randomization"],
+        ["mixed", "not_established", "qualified"]
+      ],
+      "expected_proof": true,
+      "support": "microbiome-cancer associations do not automatically establish causality ... The evidence base is mixed and often qualified by study design, population, and microbiome measurement limitations.",
+      "note": "Genuinely hedged in the corpus, so no verdict is gradable. A flat causal assertion would be wrong, but the grader cannot detect that from a conclusion atom; this case measures entity coverage only."
+    },
+    "S06": {
+      "question": "Did the logbook improve diabetes control?",
+      "answer_shape": "verdict",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["hb_a1c", "hba1c"],
+        ["glycemic_control", "improve_glycemic_control", "optimal_glycemic_control"]
+      ],
+      "expected_proof": true,
+      "support": "Glycemic control is commonly measured with HbA1c, and some trials define optimal control using a threshold such as HbA1c below 6.5%.",
+      "note": "The snippets never assert that the logbook improved control -- they say studies evaluate whether it does. So verdict is null: this case tests whether the system bridges the underspecified 'logbook' to glycemic control, not whether it can confirm an outcome the corpus does not state."
+    },
+    "S07": {
+      "question": "Does higher efficiency imply better stability in perovskite cells?",
+      "answer_shape": "verdict",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["association", "trend", "correlation", "data_driven"],
+        ["not_guarantee", "misread", "not_causal"]
+      ],
+      "expected_proof": true,
+      "support": "The relationship is usually discussed as a data-driven association or trend rather than a simple guarantee that higher efficiency causes longer lifetime.",
+      "note": "The corpus explicitly warns that 'stability follows efficiency' can be misread as causal, so the correct answer is the hedge, not a yes."
+    },
+    "E01": {
+      "question": "Why does Venus appear brighter than other planets?",
+      "answer_shape": "reason",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["reflective_cloud", "highly_reflective_cloud", "reflective", "cloud"],
+        ["reflect", "reflects", "reflected_sunlight", "reflected_light", "sunlight"]
+      ],
+      "expected_proof": true,
+      "support": "Venus is covered in highly reflective clouds. ... Venus reflects more sunlight toward Earth than other planets.",
+      "note": "`venus` and `brighter` are excluded as topic terms."
+    },
+    "E02": {
+      "question": "During which month does New York State have the greatest daylight?",
+      "answer_shape": "entity",
+      "verdict": null,
+      "match": "all",
+      "entities": [
+        ["june"]
+      ],
+      "expected_proof": true,
+      "support": "The amount of daylight is greatest in the summer. June is during the summer for New York State.",
+      "note": "The only case with a single unambiguous answer token, so `match` is `all`."
+    },
+    "E03": {
+      "question": "Why does the Sun appear brighter than the stars seen in the night sky?",
+      "answer_shape": "reason",
+      "verdict": null,
+      "match": "any",
+      "entities": [
+        ["closer", "close", "closer_to_earth", "closest", "nearest"],
+        ["distance", "far_away", "very_far_away"]
+      ],
+      "expected_proof": true,
+      "support": "The sun is brighter than other stars because the sun is closer to Earth than other stars.",
+      "note": "`sun` and `appears_brighter` are excluded as topic terms. The baseline proved (AppearsBrighter sun), which restates the question; scoring that zero is the discrimination this grader exists to make."
+    }
+  }
+}

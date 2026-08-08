@@ -1,11 +1,3 @@
-"""Guards against unpinned VCS dependencies in requirements.txt.
-
-A `git+...@<branch>` reference resolves to whatever upstream HEAD happens to be
-at build time. That is how the build broke without any local change: upstream
-moved the branch to a hard `dspy==3.2.1` pin that conflicts with ours, while the
-already-built image kept working, so nothing surfaced until the next rebuild.
-"""
-
 import re
 from pathlib import Path
 

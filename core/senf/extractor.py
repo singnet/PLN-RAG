@@ -1,18 +1,3 @@
-"""Deterministic SENF extraction from canonicalized PLN atoms.
-
-No LLM and no network: this consumes atoms a parser has already produced and
-re-reads them as entities and frames. Determinism is the point — the same atoms
-and text must always yield the same SENF, or identity resolution downstream
-becomes unreproducible across runs.
-
-Every symbol this module emits goes through `core.symbol_normalization`. It never
-reimplements normalization: symbol-space fragmentation between ingest-time and
-query-time rules is the documented top integration risk for this project, and it
-fails as an unprovable query rather than as an error.
-
-Nothing imports this module yet.
-"""
-
 import logging
 import re
 from typing import Optional
@@ -22,19 +7,10 @@ from core.senf.types import Literal, Mention, MentionType, Role, SENF, SENFFrame
 
 logger = logging.getLogger(__name__)
 
-# Role names by argument position, used when the predicate head has no override.
-# Deliberately shallow: beyond the third argument the positional convention
-# carries no real linguistic content, so those roles are numbered instead of
-# being given names that would imply more than we know.
 _POSITIONAL_ROLES = ("Agent", "Patient", "Instrument")
 
-# Unary predicates predicate something *of* their single argument; calling that
-# argument an Agent would be wrong for the common case ((Substantial x)).
 _UNARY_ROLE = "Theme"
 
-# Heads whose argument order carries a known meaning. Keys are canonical heads as
-# emitted by the parsers (see canonical_pln_parser._PREDICATE_ALIASES, which
-# already folds isa/is_a/kind_of onto IsA and located_at onto AtLocation).
 _ROLE_OVERRIDES: dict[str, tuple[str, ...]] = {
     "IsA": ("Instance", "Class"),
     "AtLocation": ("Theme", "Location"),
@@ -69,11 +45,7 @@ def _is_variable(token: str) -> bool:
 
 
 def _split_top_level(body: str) -> list[str]:
-    """Split a parenthesized body into head and arguments, keeping nesting intact.
-
-    `(Implication (Premises (Edge $x $y)) ...)` must yield the Premises group as
-    one token rather than being flattened, or nested frames are lost.
-    """
+    #Split a parenthesized body into head and arguments, keeping nesting intact.
     tokens: list[str] = []
     depth = 0
     current: list[str] = []
@@ -114,7 +86,7 @@ def _strip_outer_parens(expr: str) -> Optional[str]:
 
 
 def _split_statement(statement: str) -> Optional[tuple[str, str]]:
-    """Return (atom_name, body_expression) for `(: name body (STV ...))`."""
+    # Return (atom_name, body_expression) for `(: name body (STV ...))`.
     match = _ATOM_RE.match(statement.strip())
     if not match:
         return None
@@ -147,13 +119,7 @@ def _role_name_for(head: str, index: int, arity: int) -> str:
 
 
 class SENFExtractor:
-    """Turns canonicalized atoms plus their source text into a `SENF`.
-
-    Stateless across calls by design. The parser that will own this (C5) keeps
-    SENF keyed by sentence_id in its own state; making the extractor stateful
-    would add a second, differently-scoped history alongside the service's
-    sequential-ingest one.
-    """
+    # Turns canonicalized atoms plus their source text into a `SENF`.
 
     def __init__(self, max_mentions_per_sentence: int = 64):
         self._max_mentions = max_mentions_per_sentence
@@ -194,7 +160,7 @@ class SENFExtractor:
         mention_index: dict[str, Mention],
         polarity: bool,
     ) -> None:
-        """Descend through structural wrappers, emitting a frame per predication."""
+        # Descend through structural wrappers, emitting a frame per predication.
         inner = _strip_outer_parens(expr)
         if inner is None:
             return
@@ -296,13 +262,8 @@ class SENFExtractor:
 
 
 def _find_surface(symbol: str, text: str) -> tuple[Optional[str], Optional[tuple[int, int]]]:
-    """Locate the text span a canonical symbol came from, if it is still there.
+    # Locate the text span a canonical symbol came from, if it is still there.
 
-    Canonicalization lemmatizes and snake_cases, so an exact search usually fails;
-    this matches the parts with a tolerant suffix so `fish_eater` still finds
-    "Fish Eaters". Returning None is fine — the span is diagnostic, not load
-    bearing.
-    """
     if not symbol or not text:
         return None, None
     parts = [part for part in symbol.split("_") if part]
@@ -328,11 +289,6 @@ def _infer_mention_type(
     text: str,
     span: Optional[tuple[int, int]],
 ) -> MentionType:
-    """Classify a mention from the surface form, since symbols are all lowercase.
-
-    Capitalization away from the start of the text is the only reliable evidence
-    of a proper noun here; sentence-initial words are capitalized regardless.
-    """
     if symbol in _PRONOUNS:
         return "pronoun"
     if not surface or span is None:
@@ -350,5 +306,4 @@ def extract_senf(
     statements: list[str],
     max_mentions_per_sentence: int = 64,
 ) -> SENF:
-    """Convenience wrapper for callers that do not need to hold an extractor."""
     return SENFExtractor(max_mentions_per_sentence).extract(sentence_id, text, statements)

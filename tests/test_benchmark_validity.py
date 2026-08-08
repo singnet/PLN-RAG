@@ -70,6 +70,59 @@ class TestSummarizeParser:
     def test_no_error_key_counts_zero(self):
         assert bp._summarize_parser([{"proof_found": True}])["errors"] == 0
 
+    def test_answer_fields_are_absent_when_nothing_was_graded(self):
+        stats = bp._summarize_parser([{"proof_found": True}])
+        assert stats["answer_graded"] == 0
+        assert stats["answer_correct"] == 0
+
+    def test_ungraded_cases_stay_out_of_the_denominator(self):
+        results = [
+            {"proof_found": True, "answer_correct": True, "answer_score": 1.0},
+            {"proof_found": True, "answer_correct": None, "answer_score": None},
+        ]
+        stats = bp._summarize_parser(results)
+        assert (stats["answer_graded"], stats["answer_correct"]) == (1, 1)
+        assert stats["mean_answer_score"] == 1.0
+
+
+class TestGoldIntegration:
+    def test_missing_sibling_gold_is_not_an_error(self):
+        assert bp._resolve_gold(None, {"suite_path": "data/benchmarks/smoke.json"}, "smoke") == (
+            {},
+            None,
+        )
+
+    def test_explicit_missing_gold_raises(self):
+        with pytest.raises(OSError):
+            bp._resolve_gold("data/benchmarks/nope_gold.json", {}, "smoke")
+
+    def test_gold_supplies_expected_proof_only_where_absent(self):
+        cases = [
+            {"case_id": "E02", "expected_proof": None},
+            {"case_id": "E03", "expected_proof": False},
+            {"case_id": "Z99", "expected_proof": None},
+        ]
+        gold = {
+            "E02": {"expected_proof": True},
+            "E03": {"expected_proof": True},
+        }
+        bp._apply_gold_expectations(cases, gold)
+        assert [c["expected_proof"] for c in cases] == [True, False, None]
+
+    def test_grading_is_skipped_without_gold(self):
+        results = [{"proof_found": True}]
+        bp._apply_grading(results, {})
+        assert "answer_correct" not in results[0]
+
+    def test_unreadable_case_is_recorded_not_raised(self):
+        """One malformed case must not discard the other 24 results."""
+        results = [
+            {"case": {"case_id": "E02"}, "proof_found": True, "end_to_end": {"query": {}}},
+        ]
+        bp._apply_grading(results, {"E02": {"entities": [["june"]], "match": "any"}})
+        assert results[0]["answer_correct"] is None
+        assert results[0]["answer_reason"].startswith("ungradable:")
+
 
 class FakeChainer:
     """Stands in for PeTTaChainer. `proofs` is what backward chaining returns."""

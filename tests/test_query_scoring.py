@@ -128,12 +128,6 @@ class TestScoreQueryCandidate:
 
 
 class TestDelegationParity:
-    """Both historical call sites must agree with the shared implementation.
-
-    They carried duplicate copies before C1; this is the regression guard against
-    them drifting apart again.
-    """
-
     @pytest.mark.parametrize(
         "query,facts,conclusions,is_yes_no",
         [
@@ -148,3 +142,72 @@ class TestDelegationParity:
 
         expected = query_scoring.score_query_candidate(query, facts, conclusions, is_yes_no)
         assert PLNPostprocessor().score_query_candidate(query, facts, conclusions, is_yes_no) == expected
+
+
+class TestDeriveExtraCandidates:
+
+    def test_uncovered_conclusion_becomes_a_candidate(self):
+        out = query_scoring.derive_extra_candidates(
+            existing=[q("Smart", "kebede")],
+            facts=[],
+            conclusions=[sig("Brighter", "venus")],
+            question_constants=[],
+        )
+        assert out == ["(: $prf (Brighter venus) $tv)"]
+
+    def test_head_arity_already_covered_is_skipped(self):
+        assert query_scoring.derive_extra_candidates(
+            existing=[q("Smart", "$x")],
+            facts=[sig("Smart", "kebede")],
+            conclusions=[],
+            question_constants=[],
+        ) == []
+
+    def test_conclusions_rank_before_facts(self):
+        out = query_scoring.derive_extra_candidates(
+            existing=[],
+            facts=[sig("Eats", "kebede", "fish")],
+            conclusions=[sig("Smart", "kebede")],
+            question_constants=[],
+        )
+        assert out[0] == "(: $prf (Smart kebede) $tv)"
+
+    def test_free_slot_is_grounded_from_question_constants(self):
+        out = query_scoring.derive_extra_candidates(
+            existing=[],
+            facts=[],
+            conclusions=[sig("Smart", "$person")],
+            question_constants=["kebede"],
+        )
+        assert out == ["(: $prf (Smart kebede) $tv)"]
+
+    def test_variable_signature_without_constants_is_dropped(self):
+        assert query_scoring.derive_extra_candidates(
+            existing=[],
+            facts=[],
+            conclusions=[sig("Smart", "$person")],
+            question_constants=[],
+        ) == []
+
+    def test_limit_caps_output(self):
+        conclusions = [sig(f"P{i}", "a") for i in range(10)]
+        out = query_scoring.derive_extra_candidates([], [], conclusions, [], limit=3)
+        assert len(out) == 3
+
+    def test_same_head_different_arity_is_not_covered(self):
+        out = query_scoring.derive_extra_candidates(
+            existing=[q("Smart", "kebede")],
+            facts=[],
+            conclusions=[sig("Smart", "kebede", "very")],
+            question_constants=[],
+        )
+        assert out == ["(: $prf (Smart kebede very) $tv)"]
+
+    def test_zero_arity_signature_is_never_emitted(self):
+        """Would render as `(: $prf (Head ) $tv)`. Seen in stress25 S02."""
+        assert query_scoring.derive_extra_candidates(
+            existing=[],
+            facts=[],
+            conclusions=[{"head": "AssociatedWithSevereDisease", "arity": 0, "args": []}],
+            question_constants=[],
+        ) == []

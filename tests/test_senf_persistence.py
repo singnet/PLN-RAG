@@ -1,13 +1,3 @@
-"""SENF payload round-trip through the vector store payload.
-
-The contract these pin down is asymmetric on purpose. Writing is strict — a SENF
-serializes to exactly one JSON-safe shape. Reading is permissive — a point may
-predate SENF entirely, or come from a newer deploy sharing the collection, and
-either must read back as "no prior SENF" rather than breaking retrieval for the
-whole batch. The pre-SENF behavior is the fallback, so a missing or unusable blob
-has to be indistinguishable from a parser that never emitted one.
-"""
-
 import json
 
 import pytest

@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+import benchmark_grading as bg
 from config import get_settings
 from core.service import PLNRAGService
 
@@ -198,6 +199,62 @@ def _select_cases_from_file(path: Path, quick: bool) -> tuple[dict[str, Any], li
     metadata.setdefault("intended_use", "end_to_end_usefulness")
     metadata.setdefault("suite_path", str(path))
     return metadata, cases
+
+
+def _resolve_gold(
+    explicit: str | None, suite_metadata: dict[str, Any], suite_label: str
+) -> tuple[dict[str, Any], str | None]:
+    """Locate the gold file: explicit path, else a sibling `<suite>_gold.json`.
+
+    A missing sibling is normal; a missing explicit `--gold-file` is an error, since the caller
+    asked for grading and would otherwise get a silently ungraded run.
+    """
+    if explicit:
+        path = Path(explicit)
+    else:
+        suite_path = suite_metadata.get("suite_path")
+        directory = Path(suite_path).parent if suite_path else Path("data/benchmarks")
+        path = directory / f"{suite_label}_gold.json"
+        if not path.exists():
+            return {}, None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    cases = payload.get("cases")
+    if not isinstance(cases, dict):
+        raise ValueError(f"{path}: expected a 'cases' object")
+    return cases, str(path)
+
+
+def _apply_gold_expectations(cases: list[dict[str, Any]], gold_cases: dict[str, Any]) -> None:
+    """Fill in `expected_proof` from gold where the suite does not state one."""
+    for case in cases:
+        if case.get("expected_proof") is not None:
+            continue
+        gold = gold_cases.get(case.get("case_id") or case.get("id") or case.get("name"))
+        if gold and gold.get("expected_proof") is not None:
+            case["expected_proof"] = bool(gold["expected_proof"])
+
+
+def _apply_grading(results: list[dict[str, Any]], gold_cases: dict[str, Any]) -> None:
+    """Merge answer grades into each result in place, before summarizing.
+
+    A benchmark costs ~28 minutes per parser, so a gold or artifact defect is recorded on the
+    case rather than raised and losing the run.
+    """
+    if not gold_cases:
+        return
+    for result in results:
+        try:
+            row = bg.grade_results(gold_cases, [result])[0]
+        except bg.ArtifactSchemaError as exc:
+            result["answer_correct"] = None
+            result["answer_score"] = None
+            result["answer_reason"] = f"ungradable: {exc}"
+            result["verdict_gradable"] = False
+            result["matched_entities"] = []
+            continue
+        for field in ("answer_correct", "answer_score", "answer_reason",
+                      "verdict_gradable", "matched_entities"):
+            result[field] = row[field]
 
 
 def _select_cases(suite: str, quick: bool) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -655,11 +712,20 @@ def _summarize_parser(results: list[dict]) -> dict:
         if result.get("end_to_end", {}).get("query", {}).get("fallback_used")
     )
     latencies = [result.get("timing", {}).get("total_seconds", 0.0) for result in results]
+    answer_graded = [result for result in results if result.get("answer_correct") is not None]
+    answer_scores = [result.get("answer_score") or 0.0 for result in answer_graded]
     return {
         "cases": total_cases,
         "correct": correct,
         "correct_known": len(correct_known),
         "proof_found": proof_found,
+        # `correct` above is proof presence against expectation; these grade the conclusion.
+        "answer_correct": sum(1 for result in answer_graded if result["answer_correct"]),
+        "answer_graded": len(answer_graded),
+        "mean_answer_score": (
+            round(sum(answer_scores) / len(answer_scores), 4) if answer_scores else 0.0
+        ),
+        "verdict_graded": sum(1 for result in answer_graded if result.get("verdict_gradable")),
         "no_query": no_query,
         "weakly_aligned": weakly_aligned,
         "fallback_used": fallback_used,
@@ -670,17 +736,23 @@ def _summarize_parser(results: list[dict]) -> dict:
 
 
 def _markdown_summary(summary: dict[str, dict]) -> str:
+    # `ProofExp` was labelled `Correct`, which read as answer correctness; it has always meant
+    # "proof presence matched expectation".
     lines = [
-        "| Parser | Cases | Correct | Proof Found | No Query | Weak Align | Fallback | Avg Latency | Median Latency |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Parser | Cases | ProofExp | AnsCorrect | AnsScore | Proof Found | No Query | Weak Align | Fallback | Avg Latency | Median Latency |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for parser_name, stats in summary.items():
+        graded = stats.get("answer_graded", 0)
+        answer = f"{stats.get('answer_correct', 0)}/{graded}" if graded else "-"
         lines.append(
-            f"| {parser_name} | {stats['cases']} | {stats['correct']} | {stats['proof_found']} | "
+            f"| {parser_name} | {stats['cases']} | {stats['correct']} | {answer} | "
+            f"{stats.get('mean_answer_score', 0.0):.3f} | {stats['proof_found']} | "
             f"{stats['no_query']} | {stats['weakly_aligned']} | {stats['fallback_used']} | "
             f"{stats['avg_latency_seconds']:.4f}s | {stats['median_latency_seconds']:.4f}s |"
         )
     return "\n".join(lines)
+
 
 
 async def main() -> int:
@@ -700,6 +772,10 @@ async def main() -> int:
     cli.add_argument(
         "--suite-file",
         help="Optional path to a custom suite JSON file (overrides --suite)",
+    )
+    cli.add_argument(
+        "--gold-file",
+        help="Gold answers for answer grading; defaults to a sibling <suite>_gold.json",
     )
     cli.add_argument(
         "--parsers",
@@ -785,12 +861,16 @@ async def main() -> int:
     suite_label = suite_metadata.get("suite") if isinstance(suite_metadata, dict) else None
     suite_label = suite_label or (Path(args.suite_file).stem if args.suite_file else args.suite)
 
+    gold_cases, gold_file = _resolve_gold(args.gold_file, suite_metadata or {}, suite_label)
+    _apply_gold_expectations(cases, gold_cases)
+
     payload: dict[str, object] = {
         "run_id": run_id,
         "conceptnet_enabled": False,
         "mode": args.mode,
         "suite": suite_label,
         "suite_metadata": suite_metadata,
+        "gold_file": gold_file,
         "case_count": len(cases),
         "parsers": {},
         "summary": {},
@@ -853,6 +933,7 @@ async def main() -> int:
                     }
                 results.append(result)
         payload["parsers"][parser_name] = results
+        _apply_grading(results, gold_cases)
         payload["summary"][parser_name] = _summarize_parser(results)
 
     warnings = _validity_warnings(payload["summary"])

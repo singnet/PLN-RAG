@@ -520,8 +520,15 @@ class CanonicalPLNParser(SemanticParser):
                     question, queries, facts, conclusions
                 )
                 heuristic = self._build_heuristic_question_queries(question)
-                return self._dedupe_preserve_order(queries + fallback + heuristic)
-            return queries[:1]
+                return self._dedupe_preserve_order(
+                    queries + fallback + heuristic + self._derive_extra_candidates(
+                        queries, facts, conclusions, question
+                    )
+                )
+            return self._dedupe_preserve_order(
+                queries[:1]
+                + self._derive_extra_candidates(queries, facts, conclusions, question)
+            )
 
         planned.sort(key=lambda item: item[0], reverse=True)
         ordered = [query for _, query in planned]
@@ -536,7 +543,37 @@ class CanonicalPLNParser(SemanticParser):
             )
             ordered.extend(fallback)
             ordered.extend(self._build_heuristic_question_queries(question))
+        ordered.extend(
+            self._derive_extra_candidates(ordered, facts, conclusions, question)
+        )
         return self._dedupe_preserve_order(ordered)
+
+    def _derive_extra_candidates(
+        self,
+        queries: List[str],
+        facts: list[dict],
+        conclusions: list[dict],
+        question: str,
+    ) -> List[str]:
+        parsed = [
+            sig for sig in (self._parse_query_signature(q) for q in queries) if sig
+        ]
+        constants = [
+            symbol
+            for symbol in self._question_symbols(question)
+            if any(symbol in sig["args"] for sig in facts + conclusions)
+        ]
+        return query_scoring.derive_extra_candidates(
+            parsed, facts, conclusions, constants
+        )
+
+    def _question_symbols(self, question: str) -> List[str]:
+        symbols: List[str] = []
+        for token in self._normalize_text(question).split():
+            canonical = self._canonical_symbol(token)
+            if canonical and canonical not in symbols:
+                symbols.append(canonical)
+        return symbols
 
     def _build_heuristic_question_queries(self, question: str) -> List[str]:
         normalized = self._normalize_text(question).strip("?. ")
