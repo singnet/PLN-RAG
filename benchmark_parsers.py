@@ -308,6 +308,10 @@ def _get_parser_factory(name: str):
         from parsers.canonical_pln_parser import CanonicalPLNParser
 
         return CanonicalPLNParser
+    if name == "canonical_senf_pln":
+        from parsers.canonical_senf_pln_parser import CanonicalSENFPLNParser
+
+        return CanonicalSENFPLNParser
     if name == "langextract":
         from parsers.langextract_pln_parser import LangExtractPLNParser
 

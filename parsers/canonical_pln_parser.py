@@ -134,6 +134,10 @@ class CanonicalPLNParser(SemanticParser):
                     statements + self._materialize_grounded_premise_facts(texts, statements)
                 )
 
+            statements, queries = self._post_filter_hook(
+                texts, statements, queries, context, is_query
+            )
+
             question_text = " ".join(texts)
             queries = self._plan_queries(question=question_text, queries=queries, statements=statements, context=context)
 
@@ -161,6 +165,9 @@ class CanonicalPLNParser(SemanticParser):
                 )
                 statements = [self._prune_generic_sortal_premises(stmt) for stmt in statements]
                 statements = self._filter_statements(statements)
+                statements, queries = self._post_filter_hook(
+                    texts, statements, queries, context, is_query
+                )
                 queries = self._plan_queries(question=texts[0], queries=queries, statements=statements, context=context)
 
             return ParseResult(statements=statements, queries=queries)
@@ -168,6 +175,22 @@ class CanonicalPLNParser(SemanticParser):
             preview = texts[0] if texts else ""
             logger.exception("CanonicalPLN parse failed for preview %r", preview[:80])
             return ParseResult()
+
+    def _post_filter_hook(
+        self,
+        texts: List[str],
+        statements: List[str],
+        queries: List[str],
+        context: List[str],
+        is_query: bool,
+    ) -> tuple[List[str], List[str]]:
+        """Last chance to rewrite symbols before candidates are scored.
+
+        Runs after filtering and before `_plan_queries`, so a subclass sees final atoms and its
+        rewrites are reflected in candidate ranking. Statements and queries must be rewritten
+        together or symbols diverge and queries stop matching.
+        """
+        return statements, queries
 
     def _build_parser_inputs_batch(
         self, texts: List[str], context: List[str], is_query: bool, concepts: List[str]
