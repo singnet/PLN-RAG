@@ -1,10 +1,3 @@
-"""Characterization tests for query candidate scoring.
-
-These lock the CURRENT scoring behavior so the C1 extraction (and the C7/C8 scoring
-extensions) are provably behavior-preserving. Weights here are the observed constants,
-not aspirational values - if a change is intended, change the test deliberately.
-"""
-
 import pytest
 
 from core import query_scoring
@@ -142,6 +135,106 @@ class TestDelegationParity:
 
         expected = query_scoring.score_query_candidate(query, facts, conclusions, is_yes_no)
         assert PLNPostprocessor().score_query_candidate(query, facts, conclusions, is_yes_no) == expected
+
+
+SENF_CASES = [
+    (q("Smart", "kebede"), [sig("Smart", "kebede")], [], True),
+    (q("Smart", "$x"), [sig("Smart", "kebede")], [], False),
+    (q("Eats", "kebede", "fish"), [sig("Eats", "kebede", "fish")], [], True),
+    (q("Smart", "kebede"), [], [sig("Smart", "kebede")], False),
+]
+
+
+class TestSENFSignals:
+    """C7 adds weave-derived signals. Weight zero must reproduce C1 exactly."""
+
+    @pytest.mark.parametrize("query,facts,conclusions,is_yes_no", SENF_CASES)
+    def test_zero_weights_reproduce_the_unextended_score(
+        self, query, facts, conclusions, is_yes_no
+    ):
+        baseline = query_scoring.score_query_candidate(query, facts, conclusions, is_yes_no)
+        zeroed = query_scoring.SENFSignals(
+            grounded_symbols=frozenset({"kebede", "fish"}),
+            role_signatures=frozenset({("Smart", "kebede")}),
+            distortion=1.0,
+        )
+
+        assert (
+            query_scoring.score_query_candidate(
+                query, facts, conclusions, is_yes_no, senf=zeroed
+            )
+            == baseline
+        )
+
+    @pytest.mark.parametrize("query,facts,conclusions,is_yes_no", SENF_CASES)
+    def test_omitting_signals_reproduces_the_unextended_score(
+        self, query, facts, conclusions, is_yes_no
+    ):
+        assert query_scoring.score_query_candidate(
+            query, facts, conclusions, is_yes_no, senf=None
+        ) == query_scoring.score_query_candidate(query, facts, conclusions, is_yes_no)
+
+    def test_a_grounded_candidate_outranks_an_ungrounded_one(self):
+        signals = query_scoring.SENFSignals(
+            grounded_symbols=frozenset({"kebede"}), source_grounding_weight=3
+        )
+        facts = [sig("Smart", "kebede"), sig("Smart", "almaz")]
+
+        grounded = query_scoring.score_query_candidate(
+            q("Smart", "kebede"), facts, [], True, senf=signals
+        )
+        ungrounded = query_scoring.score_query_candidate(
+            q("Smart", "almaz"), facts, [], True, senf=signals
+        )
+
+        assert grounded > ungrounded
+
+    def test_role_compatibility_rewards_a_matching_signature(self):
+        signals = query_scoring.SENFSignals(
+            role_signatures=frozenset({("Smart", "kebede")}), role_compat_weight=2
+        )
+        facts = [sig("Smart", "kebede"), sig("Tall", "kebede")]
+
+        matching = query_scoring.score_query_candidate(
+            q("Smart", "kebede"), facts, [], True, senf=signals
+        )
+        other = query_scoring.score_query_candidate(
+            q("Tall", "kebede"), facts, [], True, senf=signals
+        )
+
+        assert matching > other
+
+    def test_a_variable_only_candidate_takes_no_grounding_credit(self):
+        signals = query_scoring.SENFSignals(
+            grounded_symbols=frozenset({"kebede"}), source_grounding_weight=3
+        )
+
+        assert query_scoring.score_query_candidate(
+            q("Smart", "$x"), [sig("Smart", "kebede")], [], False, senf=signals
+        ) == query_scoring.score_query_candidate(
+            q("Smart", "$x"), [sig("Smart", "kebede")], [], False
+        )
+
+    def test_distortion_can_reject_a_wholly_unsupported_question(self):
+        signals = query_scoring.SENFSignals(distortion=1.0, distortion_weight=99)
+
+        assert (
+            query_scoring.score_query_candidate(
+                q("Smart", "kebede"), [sig("Smart", "kebede")], [], True, senf=signals
+            )
+            is None
+        )
+
+    def test_rejection_still_beats_any_positive_signal(self):
+        """The witness-path veto is a soundness gate; no bonus may overturn it."""
+        signals = query_scoring.SENFSignals(
+            grounded_symbols=frozenset({"kebede"}), source_grounding_weight=99
+        )
+
+        assert (
+            query_scoring.score_query_candidate(q("Smart", "$x"), [], [], True, senf=signals)
+            is None
+        )
 
 
 class TestDeriveExtraCandidates:

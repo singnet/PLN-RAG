@@ -1,4 +1,52 @@
+from dataclasses import dataclass
 from typing import Optional
+
+
+@dataclass(frozen=True)
+class SENFSignals:
+    """Weave-derived evidence about a question, plus the weights to score it with.
+
+    Weights default to zero so that constructing this without configuring it
+    reproduces the pre-SENF ranking exactly; the parser supplies real weights.
+    """
+
+    grounded_symbols: frozenset[str] = frozenset()
+    role_signatures: frozenset[tuple[str, str]] = frozenset()
+    distortion: float = 0.0
+    source_grounding_weight: int = 0
+    role_compat_weight: int = 0
+    distortion_weight: int = 0
+
+    @property
+    def active(self) -> bool:
+        return bool(
+            self.source_grounding_weight
+            or self.role_compat_weight
+            or self.distortion_weight
+        )
+
+    def bonus(self, query: dict) -> int:
+        """Additive adjustment for one candidate. Zero weights give zero."""
+        if not self.active:
+            return 0
+
+        constants = [arg for arg in query["args"] if not arg.startswith(("$", "?"))]
+        total = 0
+
+        if self.source_grounding_weight and constants:
+            if all(arg in self.grounded_symbols for arg in constants):
+                total += self.source_grounding_weight
+
+        if self.role_compat_weight and self.role_signatures:
+            if any((query["head"], arg) in self.role_signatures for arg in constants):
+                total += self.role_compat_weight
+
+        # Distortion is a property of the question, not the candidate, so it shifts
+        # every candidate equally and cannot reorder them. It is applied anyway so a
+        # wholly ungrounded question ranks below the `score > 0` floor and is
+        # rejected rather than executed on a guess.
+        total -= round(self.distortion * self.distortion_weight)
+        return total
 
 
 def same_shape(left: dict, right: dict) -> bool:
@@ -97,6 +145,7 @@ def score_query_candidate(
     facts: list[dict],
     conclusions: list[dict],
     is_yes_no: bool,
+    senf: Optional[SENFSignals] = None,
 ) -> Optional[int]:
     """Rank a query candidate. Returns None to reject it outright."""
     matching_facts = [sig for sig in facts if same_shape(query, sig)]
@@ -117,4 +166,6 @@ def score_query_candidate(
         score += 3 if not is_yes_no else 0
     if is_fully_grounded_from_signature(query, matching_facts):
         score += 2
+    if senf is not None:
+        score += senf.bonus(query)
     return score if score > 0 else None

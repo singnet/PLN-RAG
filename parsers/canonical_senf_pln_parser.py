@@ -1,11 +1,13 @@
 import logging
 import re
-from typing import List
+from typing import List, Optional
 
 from config import get_settings
+from core import query_scoring
 from core.senf.extractor import extract_senf
 from core.senf.identity import resolve_identity
 from core.senf.types import SENF, senf_from_payload
+from core.senf.weave import WeaveResult, weave
 from parsers.canonical_pln_parser import CanonicalPLNParser
 
 
@@ -25,12 +27,16 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._context_top_k = cfg.senf_context_top_k
         self._max_frames = cfg.senf_session_max_frames
         self._use_vector_context = cfg.senf_use_vector_context
+        self._source_grounding_weight = cfg.senf_source_grounding_weight
+        self._role_compat_weight = cfg.senf_role_compat_weight
+        self._distortion_weight = cfg.senf_distortion_weight
         self._vector_store = None
         self.reset()
 
     def reset(self) -> None:
         self._session: List[SENF] = []
         self._sentence_counter = 0
+        self._weave: Optional[WeaveResult] = None
 
     def _post_filter_hook(
         self,
@@ -40,6 +46,11 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         context: List[str],
         is_query: bool,
     ) -> tuple[List[str], List[str]]:
+        if is_query:
+            # Cleared before the empty-input guard: a question that yields no atoms
+            # must not inherit the previous question's grounding.
+            self._weave = None
+
         if not statements and not queries:
             return statements, queries
 
@@ -50,9 +61,10 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             if senf.is_empty:
                 return statements, queries
 
-            graph = resolve_identity(
-                self._prior_senfs(text) + [senf], threshold=self._threshold
-            )
+            prior = self._prior_senfs(text)
+            graph = resolve_identity(prior + [senf], threshold=self._threshold)
+            if is_query:
+                self._weave = weave(senf, prior, resolve=graph.resolve)
             if not graph.representatives:
                 self._remember(senf, is_query)
                 return statements, queries
@@ -64,6 +76,29 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         except Exception:
             logger.exception("SENF identity resolution failed; using canonical_pln output")
             return statements, queries
+
+    def _score_query_candidate(
+        self,
+        query: dict,
+        facts: list[dict],
+        conclusions: list[dict],
+        is_yes_no: bool,
+    ) -> int | None:
+        return query_scoring.score_query_candidate(
+            query, facts, conclusions, is_yes_no, senf=self._senf_signals()
+        )
+
+    def _senf_signals(self) -> Optional[query_scoring.SENFSignals]:
+        if self._weave is None:
+            return None
+        return query_scoring.SENFSignals(
+            grounded_symbols=self._weave.grounded_symbols,
+            role_signatures=self._weave.role_signatures,
+            distortion=self._weave.distortion,
+            source_grounding_weight=self._source_grounding_weight,
+            role_compat_weight=self._role_compat_weight,
+            distortion_weight=self._distortion_weight,
+        )
 
     def _prior_senfs(self, text: str) -> List[SENF]:
         """Session SENF first, then anything the vector store recalls for this text."""

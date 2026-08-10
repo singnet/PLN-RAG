@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     senf_context_top_k: int = 10
     senf_session_max_frames: int = 200
     senf_use_vector_context: bool = True
+    # Weave-derived query scoring (C7). Zero reproduces pre-SENF ranking exactly.
+    senf_source_grounding_weight: int = 3
+    senf_role_compat_weight: int = 2
+    senf_distortion_weight: int = 0
 
     model_config = ConfigDict(
         env_file=".env",

@@ -183,6 +183,55 @@ class TestSettings:
         assert parser._max_frames == cfg.senf_session_max_frames
 
 
+class TestWeaveScoring:
+    def test_no_weave_means_no_senf_signals(self, parser):
+        """Ingest never builds a weave, so scoring must stay pre-SENF there."""
+        assert parser._senf_signals() is None
+
+    def test_a_question_builds_a_weave_against_prior_sentences(self, parser):
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+        hook(
+            parser,
+            "Does the camera have a wide lens?",
+            [CAMERA],
+            ["(: $prf (HasProperty camera wide_lens) $tv)"],
+            is_query=True,
+        )
+
+        assert parser._weave is not None
+        assert "camera" in parser._weave.grounded_symbols
+
+    def test_the_weave_does_not_leak_into_the_next_question(self, parser):
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+        hook(parser, "Is it expensive?", [PRONOUN], is_query=True)
+        first = parser._weave
+
+        hook(parser, "Nothing at all.", [], [], is_query=True)
+
+        assert parser._weave is not first
+
+    def test_signals_carry_the_configured_weights(self, parser):
+        from config import get_settings
+
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+        hook(parser, "Does the camera have a wide lens?", [CAMERA], is_query=True)
+        signals = parser._senf_signals()
+        cfg = get_settings()
+
+        assert signals.source_grounding_weight == cfg.senf_source_grounding_weight
+        assert signals.role_compat_weight == cfg.senf_role_compat_weight
+
+    def test_scoring_without_a_weave_matches_the_base_parser(self, parser):
+        from core import query_scoring
+
+        query = {"head": "Smart", "arity": 1, "args": ["kebede"], "variables": []}
+        facts = [{"head": "Smart", "arity": 1, "args": ["kebede"]}]
+
+        assert parser._score_query_candidate(
+            query, facts, [], True
+        ) == query_scoring.score_query_candidate(query, facts, [], True)
+
+
 class TestFactoryRegistration:
     def test_benchmark_factory_resolves_the_name(self):
         import benchmark_parsers as bp

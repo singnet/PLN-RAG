@@ -9,9 +9,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_IDENTITY_THRESHOLD = 0.75
 DEFAULT_MAX_MENTIONS_PER_SENTENCE = 32
 
-# Election order for a cluster representative. A proper name is the most
-# informative symbol to rewrite towards; a pronoun is the least.
+# Election order for a cluster representative, applied only after specificity.
+# A pronoun is never informative enough to win, whatever its shape.
 _TYPE_PRIORITY = {"proper": 0, "nominal": 1, "common": 2, "pronoun": 3}
+
+# How many tokens a compound may add over a bare symbol and still read as the same
+# entity. One covers the real pattern (kebede / kebede_alemu, hsc / mouse_hsc);
+# beyond that a shared leading or trailing word is a topic, not a coreference.
+_MAX_NAME_EXTENSION_TOKENS = 1
 
 # Subject-ish role slots. A pronoun's antecedent is far more often the prominent
 # argument of a nearby frame than a peripheral one.
@@ -174,18 +179,30 @@ def _entity_evidence(
 
     bare, compound = _bare_and_compound(left_symbol, right_symbol)
     if bare is not None and compound is not None:
-        if compound.rsplit("_", 1)[-1] == bare:
+        if (
+            compound.rsplit("_", 1)[-1] == bare
+            and compound.count("_") - bare.count("_") <= _MAX_NAME_EXTENSION_TOKENS
+        ):
             # A bare head against a compound built on it: eater / fish_eater.
             found.append("head_lemma")
-        elif compound.split("_", 1)[0] == bare and "proper" in (
-            left.mention_type,
-            right.mention_type,
+        elif (
+            compound.split("_", 1)[0] == bare
+            and compound.count("_") - bare.count("_") <= _MAX_NAME_EXTENSION_TOKENS
+            and "proper" in (
+                left.mention_type,
+                right.mention_type,
+            )
         ):
             # A name gaining or shedding tokens: kebede / kebede_alemu. Gated on
             # properness because fish / fish_eater has the identical shape and is a
             # contrast rather than a coreference. The gate is one-sided on purpose:
             # a sentence-initial name reads as `common` to the extractor, which is
             # exactly the case this needs to catch.
+            #
+            # Bounded by token distance because properness does not discriminate an
+            # organisation named after a qualifier: `human` and
+            # `human_microbiome_action_consortium` are both proper and share a
+            # leading token, but denote different entities.
             found.append("name_extension")
 
     left_kind, right_kind = kinds.get(left_symbol), kinds.get(right_symbol)
@@ -524,10 +541,17 @@ class IdentityResolver:
             if left_root != right_root:
                 parent[right_root] = left_root
 
-        ranks: dict[str, tuple[int, int, str]] = {}
+        ranks: dict[str, tuple[int, int, int, int, str]] = {}
         for position, mention in enumerate(mentions):
             symbol = mention.canonical_symbol
-            candidate = (_TYPE_PRIORITY.get(mention.mention_type, 9), position, symbol)
+            type_rank = _TYPE_PRIORITY.get(mention.mention_type, 9)
+            candidate = (
+                1 if mention.mention_type == "pronoun" else 0,
+                -symbol.count("_"),
+                type_rank,
+                position,
+                symbol,
+            )
             if symbol not in ranks or candidate < ranks[symbol]:
                 ranks[symbol] = candidate
 
@@ -539,7 +563,7 @@ class IdentityResolver:
         for members in clusters.values():
             if len(members) < 2:
                 continue
-            winner = min(members, key=lambda s: ranks.get(s, (9, 0, s)))
+            winner = min(members, key=lambda s: ranks.get(s, (0, 0, 9, 0, s)))
             for member in members:
                 representatives[member] = winner
         return representatives

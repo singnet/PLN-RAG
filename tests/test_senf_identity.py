@@ -73,6 +73,63 @@ def test_representative_election_prefers_the_entity_over_the_pronoun():
     assert graph.merge_count == 1
 
 
+def test_a_qualifier_named_organisation_does_not_merge_with_its_first_token():
+    """Observed on stress25/A15: `human` merged into the consortium's name.
+
+    Both are proper and share a leading token, so `proper_compat` + `name_extension`
+    cleared the threshold — rewriting "influences human health" into "influences
+    consortium health". Properness cannot discriminate here; token distance can.
+    """
+    graph = resolve_identity(
+        [
+            extract_senf(
+                "s1",
+                "The Human Microbiome Action Consortium met.",
+                ["(: a (Met human_microbiome_action_consortium) (STV 1.0 1.0))"],
+            ),
+            extract_senf(
+                "s2",
+                "A survey was initiated by Human.",
+                ["(: b (Initiated human delphi_survey) (STV 1.0 1.0))"],
+            ),
+        ]
+    )
+
+    assert merged_symbols(graph) == []
+    assert graph.resolve("human") == "human"
+
+
+def test_specificity_outranks_mention_type():
+    """Observed on stress25/A03: `hsc` parsed as proper, `mouse_hsc` as nominal.
+
+    Type priority alone therefore preferred the bare symbol and dropped the
+    `mouse` qualifier, which distinguishes the entity.
+    """
+    graph = resolve_identity(
+        [
+            extract_senf(
+                "s1",
+                "Mouse HSC were edited.",
+                ["(: a (IsA mouse_hsc hematopoietic_stem_cell) (STV 1.0 1.0))"],
+            ),
+            extract_senf(
+                "s2",
+                "HSC were transplanted.",
+                ["(: b (IsA hsc hematopoietic_stem_cell) (STV 1.0 1.0))"],
+            ),
+        ]
+    )
+
+    assert graph.resolve("hsc") == "mouse_hsc"
+
+
+def test_a_pronoun_never_wins_however_compound_it_looks():
+    """Specificity is ranked first, so the pronoun guard must not be shape-based."""
+    graph = resolve_identity(_camera_and_pronoun())
+
+    assert graph.resolve("it") == "camera"
+
+
 # --- the non-merges ----------------------------------------------------------
 
 
@@ -202,6 +259,8 @@ def test_cataphora_is_not_resolved():
 
 
 def test_a_name_gaining_tokens_merges_towards_the_fuller_name():
+    """`kebede` / `kebede_alemu` (one token gained) stays a merge, so the token
+    bound does not amputate the genuine pattern."""
     graph = resolve_identity(
         [
             extract_senf(

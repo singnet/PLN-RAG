@@ -141,6 +141,7 @@ ACTIVE_PARSERS = ("nl2pln", "canonical_pln")
 AVAILABLE_PARSERS = (
     "nl2pln",
     "canonical_pln",
+    "canonical_senf_pln",
     "langextract",
     "canonical_langextract",
     "canonical_pln_1686527",
