@@ -1,7 +1,11 @@
+import logging
 from typing import List
 
 from core.parser import ParseResult
 from parsers.canonical_pln_parser import CanonicalPLNParser
+
+
+logger = logging.getLogger(__name__)
 
 
 class CanonicalPLNPrevParser(CanonicalPLNParser):
@@ -60,6 +64,6 @@ class CanonicalPLNPrevParser(CanonicalPLNParser):
                 statements = self._filter_statements(statements)
 
             return ParseResult(statements=statements, queries=queries)
-        except Exception as e:
-            print(f"[CanonicalPLNPrevParser] Failed for '{text}': {e}")
+        except Exception:
+            logger.exception("CanonicalPLNPrev parse failed for preview %r", text[:80])
             return ParseResult()

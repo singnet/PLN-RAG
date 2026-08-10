@@ -15,4 +15,4 @@ httpx>=0.27.0
 python-dotenv>=1.0.0
 more-itertools>=10.0.0
 langextract>=1.0.0
-git+https://github.com/rTreutlein/NL2PLN.git@feature/pln-premises-conclusions
+git+https://github.com/rTreutlein/NL2PLN.git@b5dc5839b6f7c5804e20fd2fd00945bd112548b7

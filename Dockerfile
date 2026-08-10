@@ -26,7 +26,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PETTA_COMMIT=e1490899cefc67c128d5311ff4861f9997674957
-ENV PETTACHAINER_COMMIT=d21b93b5132a7fc8722f64d57b74fb7c3a8d1faa
+ENV PETTACHAINER_COMMIT=02a85c63be6a735f50f50e1084a717b3256b8406
 
 RUN apt-get update && apt-get install -y \
     software-properties-common \
@@ -44,7 +44,9 @@ COPY --from=builder /usr/local/lib/python3.10/dist-packages /usr/local/lib/pytho
 # Clone PeTTa and PeTTaChainer
 WORKDIR /deps
 RUN git clone https://github.com/trueagi-io/PeTTa.git && \
-    git -C /deps/PeTTa checkout ${PETTA_COMMIT} && \
+    (git -C /deps/PeTTa checkout ${PETTA_COMMIT} || \
+     (git -C /deps/PeTTa fetch origin ${PETTA_COMMIT} && \
+      git -C /deps/PeTTa checkout FETCH_HEAD)) && \
     git clone https://github.com/rTreutlein/PeTTaChainer.git && \
     git -C /deps/PeTTaChainer checkout ${PETTACHAINER_COMMIT}
 

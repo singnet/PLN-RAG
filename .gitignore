@@ -5,6 +5,7 @@ __pycache__/
 data/atomspace/
 data/faiss/
 *.metta
+!data/conceptnet/conceptnet_background.metta
 docs/reference/
 *matrix*.json
 *_sanity.json

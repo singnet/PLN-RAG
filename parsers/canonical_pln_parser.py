@@ -1,11 +1,14 @@
+import logging
 import re
 from typing import List
 
-import dspy
-
 from config import get_settings
+from core.lm import create_lm
 from core.parser import ParseResult, SemanticParser
 from core.symbol_normalization import canonical_symbol, normalize_text, pluralize, singularize
+
+
+logger = logging.getLogger(__name__)
 
 
 class CanonicalPLNParser(SemanticParser):
@@ -58,10 +61,8 @@ class CanonicalPLNParser(SemanticParser):
         self._pln_spec = pln_spec
         self._module = NL2PLNModule()
         self._module.load(cfg.canonical_pln_nl2pln_module_path)
+        self._module.set_lm(create_lm())
         self._nl2pln = self._module.nl2pln
-
-        lm = dspy.LM(cfg.openai_model, api_key=cfg.openai_api_key, cache=False)
-        dspy.configure(lm=lm, temperature=0.1, max_tokens=4000)
 
     def parse(self, text: str, context: List[str]) -> ParseResult:
         return self._parse_with_mode(text, context, is_query=False)
@@ -159,9 +160,9 @@ class CanonicalPLNParser(SemanticParser):
                 queries = self._plan_queries(question=texts[0], queries=queries, statements=statements, context=context)
 
             return ParseResult(statements=statements, queries=queries)
-        except Exception as e:
+        except Exception:
             preview = texts[0] if texts else ""
-            print(f"[CanonicalPLNParser] Failed for '{preview}': {e}")
+            logger.exception("CanonicalPLN parse failed for preview %r", preview[:80])
             return ParseResult()
 
     def _build_parser_inputs_batch(
