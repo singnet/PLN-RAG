@@ -17,6 +17,26 @@ logger = logging.getLogger(__name__)
 _TOKEN_RE = re.compile(r"[$?]?[A-Za-z_][A-Za-z0-9_]*")
 
 
+def _telemetry(
+    senf: SENF,
+    graph=None,
+    weave_result: Optional[WeaveResult] = None,
+    rewritten: int = 0,
+) -> dict:
+    """Counts read off state the hook already built. Nothing is recomputed."""
+    return {
+        "frame_count": len(senf.frames),
+        "mention_count": len(senf.mentions),
+        "identity_edge_count": len(graph.edges) if graph else 0,
+        "merge_count": graph.merge_count if graph else 0,
+        "rewritten_atom_count": rewritten,
+        "weave_distortion": (
+            round(weave_result.distortion, 4) if weave_result else None
+        ),
+        "weave_pair_count": len(weave_result.pairs) if weave_result else 0,
+    }
+
+
 class CanonicalSENFPLNParser(CanonicalPLNParser):
     """canonical_pln with symbols unified across sentences by SENF identity resolution."""
 
@@ -37,6 +57,15 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._session: List[SENF] = []
         self._sentence_counter = 0
         self._weave: Optional[WeaveResult] = None
+        self._telemetry: Optional[dict] = None
+
+    def senf_telemetry(self) -> Optional[dict]:
+        """Counts from the most recent hook call, or None if it never ran.
+
+        Probed by the service through `hasattr`, so the base parser reporting
+        nothing needs no coordination here.
+        """
+        return dict(self._telemetry) if self._telemetry else None
 
     def _post_filter_hook(
         self,
@@ -46,6 +75,7 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         context: List[str],
         is_query: bool,
     ) -> tuple[List[str], List[str]]:
+        self._telemetry = None
         if is_query:
             # Cleared before the empty-input guard: a question that yields no atoms
             # must not inherit the previous question's grounding.
@@ -59,20 +89,33 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             self._sentence_counter += 1
             senf = extract_senf(f"s{self._sentence_counter}", text, statements + queries)
             if senf.is_empty:
+                self._telemetry = _telemetry(senf)
                 return statements, queries
 
             prior = self._prior_senfs(text)
             graph = resolve_identity(prior + [senf], threshold=self._threshold)
             if is_query:
                 self._weave = weave(senf, prior, resolve=graph.resolve)
+            # Only a question owns a weave; on ingest self._weave still holds the
+            # previous question's, which is not this call's telemetry.
+            reported = self._weave if is_query else None
             if not graph.representatives:
+                self._telemetry = _telemetry(senf, graph, reported)
                 self._remember(senf, is_query)
                 return statements, queries
 
-            statements = [self._rewrite(stmt, graph) for stmt in statements]
-            queries = [self._rewrite(query, graph) for query in queries]
+            rewritten_statements = [self._rewrite(stmt, graph) for stmt in statements]
+            rewritten_queries = [self._rewrite(query, graph) for query in queries]
+            changed = sum(
+                1
+                for before, after in zip(
+                    statements + queries, rewritten_statements + rewritten_queries
+                )
+                if before != after
+            )
+            self._telemetry = _telemetry(senf, graph, reported, changed)
             self._remember(senf, is_query)
-            return statements, queries
+            return rewritten_statements, rewritten_queries
         except Exception:
             logger.exception("SENF identity resolution failed; using canonical_pln output")
             return statements, queries

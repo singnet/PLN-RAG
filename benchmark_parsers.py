@@ -507,6 +507,7 @@ async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
                     "reasoning_seconds": query_response.reasoning_seconds,
                     "source_lookup_seconds": query_response.source_lookup_seconds,
                     "answer_generation_seconds": query_response.answer_generation_seconds,
+                    "senf": query_response.senf,
                 },
             },
             "proof_found": found,
@@ -599,6 +600,7 @@ async def _benchmark_case_with_service(
                 "reasoning_seconds": query_response.reasoning_seconds,
                 "source_lookup_seconds": query_response.source_lookup_seconds,
                 "answer_generation_seconds": query_response.answer_generation_seconds,
+                "senf": query_response.senf,
             },
         },
         "proof_found": found,
@@ -719,6 +721,16 @@ def _summarize_parser(results: list[dict]) -> dict:
     latencies = [result.get("timing", {}).get("total_seconds", 0.0) for result in results]
     answer_graded = [result for result in results if result.get("answer_correct") is not None]
     answer_scores = [result.get("answer_score") or 0.0 for result in answer_graded]
+    senf_reports = [
+        report
+        for result in results
+        if (report := result.get("end_to_end", {}).get("query", {}).get("senf"))
+    ]
+    distortions = [
+        report["weave_distortion"]
+        for report in senf_reports
+        if report.get("weave_distortion") is not None
+    ]
     return {
         "cases": total_cases,
         "correct": correct,
@@ -734,6 +746,19 @@ def _summarize_parser(results: list[dict]) -> dict:
         "no_query": no_query,
         "weakly_aligned": weakly_aligned,
         "fallback_used": fallback_used,
+        # Absent for parsers that report no diagnostics, so a zero is distinguishable
+        # from "this parser has no SENF stage".
+        "senf_reported": len(senf_reports),
+        "senf_merges": sum(report.get("merge_count", 0) for report in senf_reports),
+        "senf_rewritten_atoms": sum(
+            report.get("rewritten_atom_count", 0) for report in senf_reports
+        ),
+        "senf_cases_with_merge": sum(
+            1 for report in senf_reports if report.get("merge_count")
+        ),
+        "mean_weave_distortion": (
+            round(sum(distortions) / len(distortions), 4) if distortions else None
+        ),
         "errors": sum(1 for result in results if result.get("error")),
         "avg_latency_seconds": round(sum(latencies) / total_cases, 4) if total_cases else 0.0,
         "median_latency_seconds": round(statistics.median(latencies), 4) if latencies else 0.0,
@@ -744,16 +769,23 @@ def _markdown_summary(summary: dict[str, dict]) -> str:
     # `ProofExp` was labelled `Correct`, which read as answer correctness; it has always meant
     # "proof presence matched expectation".
     lines = [
-        "| Parser | Cases | ProofExp | AnsCorrect | AnsScore | Proof Found | No Query | Weak Align | Fallback | Avg Latency | Median Latency |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Parser | Cases | ProofExp | AnsCorrect | AnsScore | Proof Found | No Query | Weak Align | Fallback | Merges | Avg Latency | Median Latency |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for parser_name, stats in summary.items():
         graded = stats.get("answer_graded", 0)
         answer = f"{stats.get('answer_correct', 0)}/{graded}" if graded else "-"
+        # A dash means the parser has no SENF stage, which is not the same as zero merges.
+        merges = (
+            f"{stats.get('senf_merges', 0)} ({stats.get('senf_cases_with_merge', 0)}c)"
+            if stats.get("senf_reported")
+            else "-"
+        )
         lines.append(
             f"| {parser_name} | {stats['cases']} | {stats['correct']} | {answer} | "
             f"{stats.get('mean_answer_score', 0.0):.3f} | {stats['proof_found']} | "
             f"{stats['no_query']} | {stats['weakly_aligned']} | {stats['fallback_used']} | "
+            f"{merges} | "
             f"{stats['avg_latency_seconds']:.4f}s | {stats['median_latency_seconds']:.4f}s |"
         )
     return "\n".join(lines)

@@ -298,6 +298,7 @@ class PLNRAGService:
                 reasoning_seconds=0.0,
                 source_lookup_seconds=0.0,
                 answer_generation_seconds=0.0,
+                senf=self._parser_diagnostics(),
             )
 
         # 3. Add any supporting statements the parser generated for the query
@@ -413,7 +414,19 @@ class PLNRAGService:
             reasoning_seconds=round(reasoning_seconds, 4),
             source_lookup_seconds=round(source_lookup_seconds, 4),
             answer_generation_seconds=round(answer_generation_seconds, 4),
+            senf=self._parser_diagnostics(),
         )
+
+    def _parser_diagnostics(self) -> dict | None:
+        """Optional per-parser diagnostics. Never fails a query."""
+        report = getattr(self._parser, "senf_telemetry", None)
+        if report is None:
+            return None
+        try:
+            return report()
+        except Exception:
+            logger.warning("parser diagnostics failed", exc_info=True)
+            return None
 
     def _classify_query_status(
         self, query: str, original_query: str, fallback_used: bool

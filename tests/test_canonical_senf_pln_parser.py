@@ -232,6 +232,62 @@ class TestWeaveScoring:
         ) == query_scoring.score_query_candidate(query, facts, [], True)
 
 
+class TestTelemetry:
+    """C9 reports counts the hook already computed; it must not change any output."""
+
+    def test_no_telemetry_before_anything_is_parsed(self, parser):
+        assert parser.senf_telemetry() is None
+
+    def test_a_question_reports_frames_and_weave(self, parser):
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+        hook(
+            parser,
+            "Does the camera have a wide lens?",
+            [CAMERA],
+            ["(: $prf (HasProperty camera wide_lens) $tv)"],
+            is_query=True,
+        )
+        report = parser.senf_telemetry()
+
+        assert report["frame_count"] > 0
+        assert report["weave_distortion"] is not None
+        assert report["weave_pair_count"] >= 1
+
+    def test_a_merge_is_counted_and_attributed_to_atoms(self, parser):
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+        hook(parser, "It is expensive.", [PRONOUN])
+        report = parser.senf_telemetry()
+
+        # The two are reported separately because identity merging without any atom
+        # changing is a distinct failure from identity finding nothing.
+        assert report["merge_count"] >= 1
+        assert report["rewritten_atom_count"] >= 1
+
+    def test_ingest_does_not_report_the_previous_questions_weave(self, parser):
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+        hook(parser, "Is it expensive?", [PRONOUN], is_query=True)
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+
+        assert parser.senf_telemetry()["weave_distortion"] is None
+
+    def test_reset_clears_telemetry(self, parser):
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+        assert parser.senf_telemetry() is not None
+
+        parser.reset()
+
+        assert parser.senf_telemetry() is None
+
+    def test_telemetry_is_a_copy_a_caller_cannot_corrupt(self, parser):
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+        parser.senf_telemetry()["frame_count"] = 999
+
+        assert parser.senf_telemetry()["frame_count"] != 999
+
+    def test_the_base_parser_reports_nothing(self):
+        assert not hasattr(CanonicalPLNParser, "senf_telemetry")
+
+
 class TestFactoryRegistration:
     def test_benchmark_factory_resolves_the_name(self):
         import benchmark_parsers as bp
