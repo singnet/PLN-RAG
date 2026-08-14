@@ -56,3 +56,17 @@ def weave_bridge_atoms(weave: WeaveResult) -> list[str]:
             f"(STV {tv.strength} {tv.weight}))"
         )
     return atoms
+
+
+def predicate_bridge_atoms(weave: WeaveResult) -> list[str]:
+    atoms: list[str] = []
+    for index, mapping in enumerate(weave.predicate_maps):
+        if mapping.source_head == mapping.query_head:
+            continue
+        tv = transport_truth(1.0, 1.0, mapping.cost)
+        atoms.append(
+            f"(: senf_predicate_{index}_{_safe(mapping.source_head)}_{_safe(mapping.query_head)} "
+            f"(PredicateBridge {mapping.source_head} {mapping.query_head}) "
+            f"(STV {tv.strength} {tv.weight}))"
+        )
+    return atoms

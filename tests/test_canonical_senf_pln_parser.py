@@ -100,6 +100,17 @@ class TestSymbolRewriting:
     def test_empty_input_short_circuits(self, parser):
         assert hook(parser, "Nothing here.", [], []) == ([], [])
 
+    def test_ungrounded_base_output_is_not_admitted_to_senf(self, parser):
+        hook(
+            parser,
+            "The camera has a wide lens.",
+            [CAMERA, "(: noise (Invented ghost_entity) (STV 1.0 1.0))"],
+        )
+
+        report = parser.senf_telemetry()
+        assert report["frame_count"] == 1
+        assert report["mention_count"] == 2
+
 
 class TestSessionState:
     def test_reset_clears_the_antecedent(self, parser):
@@ -252,6 +263,61 @@ class TestWeaveScoring:
         assert parser._score_query_candidate(
             query, facts, [], True
         ) == query_scoring.score_query_candidate(query, facts, [], True)
+
+    def test_query_planning_uses_the_supported_predicate_family(self, parser):
+        from core.senf.weave import build_weaves
+
+        source = extract_senf(
+            "s1",
+            "The camera is at the lab.",
+            ["(: a (AtLocation camera lab) (STV 1.0 1.0))"],
+        )
+        query = extract_senf(
+            "q1",
+            "Is the camera located in the lab?",
+            ["(: $prf (LocatedIn camera lab) $tv)"],
+        )
+        parser._weaves = build_weaves(query, [source])
+        parser._weave = parser._weaves[0]
+
+        planned = parser._plan_queries(
+            "Is the camera located in the lab?",
+            ["(: $prf (LocatedIn camera lab) $tv)"],
+            [],
+            ["(: a (AtLocation camera lab) (STV 1.0 1.0))"],
+        )
+
+        assert planned == ["(: $prf (AtLocation camera lab) $tv)"]
+
+    def test_query_planning_rejects_predicates_from_an_older_case(self, parser):
+        source = extract_senf(
+            "s2", "The camera has a wide lens.", [CAMERA]
+        )
+        query = extract_senf(
+            "q2",
+            "Does the camera have a wide lens?",
+            ["(: $prf (HasProperty camera wide_lens) $tv)"],
+        )
+        from core.senf.weave import build_weaves
+
+        parser._weaves = build_weaves(query, [source])
+        parser._weave = parser._weaves[0]
+        parser._query_source_heads = frozenset({"HasProperty"})
+
+        planned = parser._plan_queries(
+            "Does the camera have a wide lens?",
+            [
+                "(: $prf (ImprovesOutcome tirzepatide) $tv)",
+                "(: $prf (HasProperty camera wide_lens) $tv)",
+            ],
+            [],
+            [
+                "(: old (ImprovesOutcome tirzepatide) (STV 1.0 1.0))",
+                CAMERA,
+            ],
+        )
+
+        assert planned == ["(: $prf (HasProperty camera wide_lens) $tv)"]
 
 
 class TestTelemetry:

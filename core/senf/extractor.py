@@ -45,7 +45,7 @@ def _is_variable(token: str) -> bool:
 
 
 def _split_top_level(body: str) -> list[str]:
-    #Split a parenthesized body into head and arguments, keeping nesting intact.
+    # Split a parenthesized body into head and arguments, keeping nesting intact.
     tokens: list[str] = []
     depth = 0
     current: list[str] = []

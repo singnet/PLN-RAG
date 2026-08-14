@@ -1,7 +1,7 @@
 import pytest
 
 from core.senf.extractor import extract_senf
-from core.senf.bridge import transport_truth
+from core.senf.bridge import predicate_bridge_atoms, transport_truth
 from core.senf.exemplars import score_exemplars
 from core.senf.weave import EntityMap, MIN_PAIR_SCORE, build_weaves, weave
 
@@ -146,3 +146,37 @@ class TestPaperFeatures:
 
         assert 0.0 < high.strength < low.strength < 1.0
         assert 0.0 < high.weight < low.weight < 1.0
+
+    def test_unrelated_predicates_do_not_align_only_because_entities_match(self):
+        source = senf_for(
+            "s1", "The camera is smart.", ["(: a (Smart camera) (STV 1.0 1.0))"]
+        )
+        query = senf_for(
+            "q1",
+            "Is the camera expensive?",
+            ["(: b (Expensive camera) (STV 1.0 1.0))"],
+        )
+
+        assert weave(query, [source]).pairs == ()
+
+    def test_compatible_predicates_produce_an_explicit_bridge(self):
+        source = senf_for(
+            "s1",
+            "The camera is at the lab.",
+            ["(: a (AtLocation camera lab) (STV 1.0 1.0))"],
+        )
+        query = senf_for(
+            "q1",
+            "Is the camera located in the lab?",
+            ["(: b (LocatedIn camera lab) (STV 1.0 1.0))"],
+        )
+
+        result = weave(query, [source])
+
+        assert result.aligned
+        mapping = result.predicate_maps[0]
+        assert (mapping.source_head, mapping.query_head) == (
+            "AtLocation",
+            "LocatedIn",
+        )
+        assert "PredicateBridge AtLocation LocatedIn" in predicate_bridge_atoms(result)[0]

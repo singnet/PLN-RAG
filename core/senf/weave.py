@@ -8,6 +8,21 @@ from core.senf.types import Mention, SENF, SENFFrame
 
 MIN_PAIR_SCORE = 0.3
 
+_PREDICATE_FAMILIES = {
+    "HasProperty": "property",
+    "PropertyOf": "property",
+    "AtLocation": "location",
+    "LocatedAt": "location",
+    "LocatedIn": "location",
+    "IsA": "type",
+    "InstanceOf": "type",
+    "PartOf": "part",
+    "HasPart": "part",
+    "UsedFor": "purpose",
+    "PurposeOf": "purpose",
+    "CapableOf": "capability",
+}
+
 
 @dataclass(frozen=True)
 class EntityMap:
@@ -15,6 +30,13 @@ class EntityMap:
     target_mention_id: str
     source_symbol: str
     target_symbol: str
+    cost: float
+
+
+@dataclass(frozen=True)
+class PredicateMap:
+    source_head: str
+    query_head: str
     cost: float
 
 
@@ -34,6 +56,7 @@ class WeaveResult:
     grounded_symbols: frozenset[str] = frozenset()
     role_signatures: frozenset[tuple[str, str]] = frozenset()
     entity_maps: tuple[EntityMap, ...] = ()
+    predicate_maps: tuple[PredicateMap, ...] = ()
     kind_maps: tuple[tuple[str, str], ...] = ()
     exemplar_maps: tuple[tuple[str, str], ...] = ()
     role_maps: tuple[tuple[str, str], ...] = ()
@@ -76,6 +99,17 @@ def _head_score(left: str, right: str) -> tuple[float, Optional[str]]:
     return 0.0, None
 
 
+def _predicate_cost(query_head: str, source_head: str) -> Optional[float]:
+    if query_head == source_head:
+        return 0.0
+    query_family = _PREDICATE_FAMILIES.get(query_head)
+    if query_family and query_family == _PREDICATE_FAMILIES.get(source_head):
+        return 0.25
+    if set(_split_head(query_head)) & set(_split_head(source_head)):
+        return 0.4
+    return None
+
+
 def _mentions(frame: SENFFrame) -> list[tuple[str, Mention]]:
     return [
         (role.name, role.filler)
@@ -103,12 +137,16 @@ def _pair(
     source_frame: SENFFrame,
     resolve: Callable[[str], str],
     graph: Optional[IdentityGraph],
-) -> tuple[FramePair, list[EntityMap], list[tuple[str, str]], list[tuple[str, str]], float, float]:
+) -> Optional[tuple[FramePair, list[EntityMap], list[PredicateMap], list[tuple[str, str]], list[tuple[str, str]], float, float]]:
+    predicate_cost = _predicate_cost(query_frame.predicate_head, source_frame.predicate_head)
+    if predicate_cost is None:
+        return None
     score, head_reason = _head_score(query_frame.predicate_head, source_frame.predicate_head)
     evidence = [head_reason] if head_reason else []
     structural_cost = 1.0 - score
     conflict_cost = 0.0
     entity_maps: list[EntityMap] = []
+    predicate_maps = [PredicateMap(source_frame.predicate_head, query_frame.predicate_head, predicate_cost)]
     exemplar_maps: list[tuple[str, str]] = []
     role_maps: list[tuple[str, str]] = []
 
@@ -116,11 +154,10 @@ def _pair(
     for query_role, query_mention in _mentions(query_frame):
         candidates: list[tuple[float, str, Mention]] = []
         for source_role, source_mention in source_roles:
-            kind_cost = 0.0
             query_kind = query_senf.kind_for(query_mention)
             source_kind = source_senf.kind_for(source_mention)
             if query_kind and source_kind and query_kind != source_kind:
-                kind_cost = 0.8
+                continue
             role_cost = 0.0 if query_role == source_role else 0.25
             symbol_cost = 0.0 if resolve(query_mention.canonical_symbol) == resolve(
                 source_mention.canonical_symbol
@@ -130,11 +167,10 @@ def _pair(
             )
             conflict = _identity_conflict(graph, query_mention, source_mention)
             candidates.append(
-                (role_cost + symbol_cost + kind_cost + 0.5 * ex_cost + conflict, source_role, source_mention)
+                (role_cost + symbol_cost + 0.5 * ex_cost + conflict, source_role, source_mention)
             )
         if not candidates:
-            structural_cost += 0.5
-            continue
+            return None
         cost, source_role, source_mention = min(
             candidates, key=lambda item: (item[0], item[2].mention_id)
         )
@@ -176,6 +212,7 @@ def _pair(
             round(max(0.0, min(1.0, 1.0 - score)), 4),
         ),
         entity_maps,
+        predicate_maps,
         exemplar_maps,
         role_maps,
         structural_cost,
@@ -193,7 +230,7 @@ def _weave_one(
     for query_frame in query.frames:
         for source_frame in source.frames:
             result = _pair(query, source, query_frame, source_frame, resolve, graph)
-            if result[0].score >= MIN_PAIR_SCORE:
+            if result is not None and result[0].score >= MIN_PAIR_SCORE:
                 candidates.append(result)
     candidates.sort(key=lambda item: (-item[0].score, item[0].query_frame_id, item[0].source_frame_id))
 
@@ -201,18 +238,20 @@ def _weave_one(
     used_source: set[str] = set()
     pairs: list[FramePair] = []
     entity_maps: list[EntityMap] = []
+    predicate_maps: list[PredicateMap] = []
     exemplar_maps: list[tuple[str, str]] = []
     role_maps: list[tuple[str, str]] = []
     grounded: set[str] = set()
     signatures: set[tuple[str, str]] = set()
     structural = conflict = 0.0
-    for pair, entities, exemplars, roles, pair_structural, pair_conflict in candidates:
+    for pair, entities, predicates, exemplars, roles, pair_structural, pair_conflict in candidates:
         if pair.query_frame_id in used_query or pair.source_frame_id in used_source:
             continue
         used_query.add(pair.query_frame_id)
         used_source.add(pair.source_frame_id)
         pairs.append(pair)
         entity_maps.extend(entities)
+        predicate_maps.extend(predicates)
         exemplar_maps.extend(exemplars)
         role_maps.extend(roles)
         structural += pair_structural
@@ -246,6 +285,7 @@ def _weave_one(
         grounded_symbols=frozenset(grounded),
         role_signatures=frozenset(signatures),
         entity_maps=tuple(entity_maps),
+        predicate_maps=tuple(predicate_maps),
         kind_maps=kind_maps,
         exemplar_maps=tuple(exemplar_maps),
         role_maps=tuple(role_maps),
