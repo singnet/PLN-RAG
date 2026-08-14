@@ -82,15 +82,23 @@ class Settings(BaseSettings):
     conceptnet_reindex_on_reset: bool = True
     conceptnet_startup_fail_open: bool = True
 
-    # SENF identity resolution (canonical_senf_pln)
+    # SENF extension (canonical_senf_pln)
     senf_identity_threshold: float = 0.75
     senf_context_top_k: int = 10
     senf_session_max_frames: int = 200
     senf_use_vector_context: bool = True
+    senf_exemplar_enabled: bool = True
+    senf_emit_bridge_atoms: bool = False
+    senf_transport_truth_values: bool = True
+    senf_weave_top_k: int = 3
     # Weave-derived query scoring (C7). Zero reproduces pre-SENF ranking exactly.
     senf_source_grounding_weight: int = 3
     senf_role_compat_weight: int = 2
     senf_distortion_weight: int = 0
+    senf_identity_support_weight: int = 2
+    senf_exemplar_coherence_weight: int = 2
+    senf_conflict_weight: int = 3
+    senf_transport_cost_weight: int = 2
 
     model_config = ConfigDict(
         env_file=".env",

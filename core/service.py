@@ -97,7 +97,12 @@ class PLNRAGService:
                     rejected.extend(rejected_reasoner)
                     all_atoms.extend(added)
                     if added:
-                        self._vector_store.store(batch_text, added, vector)
+                        self._vector_store.store(
+                            batch_text,
+                            added,
+                            vector,
+                            metadata=self._parser_storage_metadata(),
+                        )
             else:
                 parser_calls = chunk_count
 
@@ -126,7 +131,12 @@ class PLNRAGService:
 
                     # 5. Store in vector DB for future context retrieval
                     if added:
-                        self._vector_store.store(chunk, added, vector)
+                        self._vector_store.store(
+                            chunk,
+                            added,
+                            vector,
+                            metadata=self._parser_storage_metadata(),
+                        )
 
             if parser_calls > 0 and empty_results == parser_calls and not all_atoms:
                 return IngestItemResult(
@@ -426,6 +436,17 @@ class PLNRAGService:
             return report()
         except Exception:
             logger.warning("parser diagnostics failed", exc_info=True)
+            return None
+
+    def _parser_storage_metadata(self) -> dict | None:
+        report = getattr(self._parser, "storage_metadata", None)
+        if not callable(report):
+            return None
+        try:
+            metadata = report()
+            return metadata if isinstance(metadata, dict) else None
+        except Exception:
+            logger.warning("parser storage metadata failed", exc_info=True)
             return None
 
     def _classify_query_status(

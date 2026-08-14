@@ -184,7 +184,10 @@ def test_compounds_contrasted_by_their_modifier_are_vetoed():
         ]
     )
 
-    assert edge_for(graph, "fish_eater", "meat_eater") is None
+    edge = edge_for(graph, "fish_eater", "meat_eater")
+    assert edge is not None
+    assert edge.negative_strength >= 0.8
+    assert "modifier_conflict" in edge.negative_evidence
     assert merged_symbols(graph) == []
 
 
@@ -204,7 +207,11 @@ def test_conflicting_kinds_veto_even_with_other_evidence():
         ]
     )
 
-    assert edge_for(graph, "kebede", "kebede_clinic") is None
+    edge = edge_for(graph, "kebede", "kebede_clinic")
+    assert edge is not None
+    assert edge.negative_strength >= 0.9
+    assert "kind_conflict" in edge.negative_evidence
+    assert edge not in graph.merged
 
 
 def test_two_pronouns_never_merge_with_each_other():
@@ -215,7 +222,31 @@ def test_two_pronouns_never_merge_with_each_other():
         ]
     )
 
-    assert edge_for(graph, "it", "they") is None
+    edge = edge_for(graph, "it", "they")
+    assert edge is not None
+    assert edge.negative_strength >= 0.9
+    assert "both_pronouns" in edge.negative_evidence
+    assert edge not in graph.merged
+
+
+def test_same_named_entities_keep_positive_and_negative_evidence_without_merging():
+    senf = extract_senf(
+        "s1",
+        "A camera was beside another camera.",
+        ["(: a (Beside camera camera) (STV 1.0 1.0))"],
+    )
+
+    assert len([m for m in senf.mentions if m.canonical_symbol == "camera"]) == 2
+    graph = resolve_identity([senf])
+    edge = next(
+        edge
+        for edge in graph.edges
+        if edge.left.canonical_symbol == edge.right.canonical_symbol == "camera"
+    )
+    assert "exact_symbol" in edge.evidence
+    assert "same_frame_distinct_roles" in edge.negative_evidence
+    assert "contrastive_language" in edge.negative_evidence
+    assert edge not in graph.merged
 
 
 def test_first_person_pronouns_take_no_antecedent():
@@ -385,7 +416,7 @@ def test_a_representative_is_always_an_existing_cluster_member():
 
 
 def test_resolve_is_total_for_symbols_it_has_never_seen():
-    """C5 rewrites statements token by token; a lookup must never need a guard."""
+    """Statement rewriting must be able to resolve every token without a guard."""
     graph = resolve_identity(_camera_and_pronoun())
 
     assert graph.resolve("never_mentioned") == "never_mentioned"
@@ -526,4 +557,3 @@ def test_a_failing_embedder_degrades_to_deterministic_evidence():
     edge = edge_for(graph, "camera", "device")
     assert edge is not None
     assert "embed_sim" not in edge.evidence
-

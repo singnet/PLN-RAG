@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Mapping, Optional
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,14 @@ class SENFSignals:
     source_grounding_weight: int = 0
     role_compat_weight: int = 0
     distortion_weight: int = 0
+    identity_support: Mapping[str, float] = field(default_factory=dict)
+    exemplar_coherence: Mapping[str, float] = field(default_factory=dict)
+    conflict_penalty: Mapping[str, float] = field(default_factory=dict)
+    transport_cost: float = 0.0
+    identity_support_weight: int = 0
+    exemplar_coherence_weight: int = 0
+    conflict_weight: int = 0
+    transport_cost_weight: int = 0
 
     @property
     def active(self) -> bool:
@@ -23,6 +31,10 @@ class SENFSignals:
             self.source_grounding_weight
             or self.role_compat_weight
             or self.distortion_weight
+            or self.identity_support_weight
+            or self.exemplar_coherence_weight
+            or self.conflict_weight
+            or self.transport_cost_weight
         )
 
     def bonus(self, query: dict) -> int:
@@ -40,6 +52,23 @@ class SENFSignals:
         if self.role_compat_weight and self.role_signatures:
             if any((query["head"], arg) in self.role_signatures for arg in constants):
                 total += self.role_compat_weight
+
+        if constants and self.identity_support_weight:
+            support = sum(self.identity_support.get(arg, 0.0) for arg in constants) / len(constants)
+            total += round(support * self.identity_support_weight)
+
+        if constants and self.exemplar_coherence_weight:
+            coherence = sum(
+                self.exemplar_coherence.get(arg, 0.0) for arg in constants
+            ) / len(constants)
+            total += round(coherence * self.exemplar_coherence_weight)
+
+        if constants and self.conflict_weight:
+            conflict = sum(self.conflict_penalty.get(arg, 0.0) for arg in constants) / len(constants)
+            total -= round(conflict * self.conflict_weight)
+
+        if self.transport_cost_weight:
+            total -= round(self.transport_cost * self.transport_cost_weight)
 
         # Distortion is a property of the question, not the candidate, so it shifts
         # every candidate equally and cannot reorder them. It is applied anyway so a
@@ -110,18 +139,6 @@ def derive_extra_candidates(
     question_constants: list[str],
     limit: int = 4,
 ) -> list[str]:
-    """Extend a candidate list with queries the KB could plausibly answer.
-
-    The planner can only rank what the generator emitted, and the generator emits a
-    single candidate for almost every question, so QUERY_FALLBACK_ENABLED and
-    QUERY_CANDIDATE_MAX_TRIES never engage. Derive further candidates from KB
-    conclusion and fact signatures whose head/arity the generator did not cover,
-    grounding free slots with constants named in the question.
-
-    Conclusions come first: those need a rule to fire, which is the case the
-    generator is worst at guessing. Capped because each extra candidate costs up to
-    one full CHAINING_TIMEOUT in the service's fallback loop.
-    """
     covered = {(sig["head"], sig["arity"]) for sig in existing}
     out: list[str] = []
     for signature in conclusions + facts:

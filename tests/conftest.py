@@ -51,6 +51,15 @@ class FakeVectorStore:
                 context.extend(pln)
         return context, vector
 
+    def retrieve_senf_context(self, text: str, top_k: int) -> list[dict]:
+        from core.senf import SENF_PAYLOAD_KEY
+
+        return [
+            point["payload"][SENF_PAYLOAD_KEY]
+            for point in self.points[-top_k:]
+            if isinstance(point["payload"].get(SENF_PAYLOAD_KEY), dict)
+        ]
+
     def lookup_sources_by_atoms(self, atoms: list[str], max_atoms: int = 30, score_threshold: float = 0.6) -> list[str]:
         return []
 

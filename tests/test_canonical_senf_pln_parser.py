@@ -38,7 +38,7 @@ def hook(parser, text, statements, queries=None, is_query=False):
     )
 
 
-class TestSeamIsIdentityByDefault:
+class TestBaseParserCompatibility:
     def test_base_parser_hook_returns_its_inputs_unchanged(self):
         base = CanonicalPLNParser.__new__(CanonicalPLNParser)
         statements, queries = base._post_filter_hook(
@@ -58,7 +58,9 @@ class TestSymbolRewriting:
     def test_pronoun_is_rewritten_to_its_antecedent(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])
         statements, _ = hook(parser, "It is expensive.", [PRONOUN])
-        assert statements == ["(: b (HasProperty camera expensive) (STV 1.0 1.0))"]
+        assert statements == [
+            "(: b (HasProperty camera expensive) (STV 0.951229 0.952381))"
+        ]
 
     def test_queries_are_rewritten_with_the_same_map(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])
@@ -69,7 +71,9 @@ class TestSymbolRewriting:
             ["(: $prf (HasProperty it expensive) $tv)"],
             is_query=True,
         )
-        assert statements == ["(: b (HasProperty camera expensive) (STV 1.0 1.0))"]
+        assert statements == [
+            "(: b (HasProperty camera expensive) (STV 0.951229 0.952381))"
+        ]
         assert queries == ["(: $prf (HasProperty camera expensive) $tv)"]
 
     def test_variables_are_never_rewritten(self, parser):
@@ -135,7 +139,7 @@ class TestSessionState:
         parser._max_frames = 1
         hook(parser, "The camera has a wide lens.", [CAMERA])
         hook(parser, "Kebede eats fish.", ["(: b (Eats kebede fish) (STV 1.0 1.0))"])
-        assert parser._session[-1].sentence_id == "s2"
+        assert parser._session[-1].sentence_id.endswith(":s2")
 
 
 class TestVectorContext:
@@ -145,6 +149,24 @@ class TestVectorContext:
         made = CanonicalSENFPLNParser()
         made._vector_store = RecordingStore(blobs=[senf_to_payload(prior)])
         statements, _ = hook(made, "It is expensive.", [PRONOUN])
+        assert "camera" in statements[0]
+
+    def test_parser_metadata_survives_recreation(self, monkeypatch, fake_vector_store):
+        monkeypatch.setattr(CanonicalPLNParser, "__init__", lambda self: None)
+        first = CanonicalSENFPLNParser()
+        first._use_vector_context = False
+        hook(first, "The camera has a wide lens.", [CAMERA])
+        fake_vector_store.store(
+            "The camera has a wide lens.",
+            [CAMERA],
+            fake_vector_store.embed("The camera has a wide lens."),
+            metadata=first.storage_metadata(),
+        )
+
+        recreated = CanonicalSENFPLNParser()
+        recreated._vector_store = fake_vector_store
+        statements, _ = hook(recreated, "It is expensive.", [PRONOUN])
+
         assert "camera" in statements[0]
 
     def test_retrieval_failure_is_fail_open(self, monkeypatch):
@@ -233,7 +255,7 @@ class TestWeaveScoring:
 
 
 class TestTelemetry:
-    """C9 reports counts the hook already computed; it must not change any output."""
+    """Telemetry reports existing hook state without changing parser output."""
 
     def test_no_telemetry_before_anything_is_parsed(self, parser):
         assert parser.senf_telemetry() is None

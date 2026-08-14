@@ -17,6 +17,7 @@ def _sample_senf() -> SENF:
         surface="Kebede",
         canonical_symbol="kebede",
         sentence_id="s1",
+        mention_id="s1:m0",
         char_span=(0, 6),
         mention_type="proper",
         head_lemma="kebede",
@@ -25,6 +26,7 @@ def _sample_senf() -> SENF:
         surface="fish",
         canonical_symbol="fish",
         sentence_id="s1",
+        mention_id="s1:m1",
         char_span=(12, 16),
         mention_type="common",
         head_lemma="fish",
@@ -82,7 +84,7 @@ def test_round_trip_survives_a_real_json_hop():
 
 
 def test_round_trip_of_extractor_output():
-    """The producer in C2 and the serializer here have to agree in practice."""
+    """Extractor output must round-trip through the persistence format."""
     senf = extract_senf(
         "s1",
         "Kebede eats fish.",
@@ -97,7 +99,7 @@ def test_round_trip_of_extractor_output():
 
 
 def test_frame_mention_fillers_are_the_same_objects_as_the_mention_list():
-    """Fillers are stored by symbol reference, not duplicated inline.
+    """Fillers are stored by mention reference, not duplicated inline.
 
     If rehydration built fresh Mentions per role, a frame filler would lose the
     span and type carried by the mention list and identity resolution would see

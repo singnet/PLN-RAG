@@ -7,6 +7,7 @@ from core.senf.identity import (
     resolve_identity,
 )
 from core.senf.types import (
+    ExemplarScore,
     Filler,
     Literal,
     Mention,
@@ -22,6 +23,7 @@ from core.senf.types import (
 
 __all__ = [
     "DEFAULT_IDENTITY_THRESHOLD",
+    "ExemplarScore",
     "Filler",
     "IdentityEdge",
     "IdentityGraph",

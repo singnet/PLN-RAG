@@ -1,7 +1,9 @@
 import pytest
 
 from core.senf.extractor import extract_senf
-from core.senf.weave import MIN_PAIR_SCORE, weave
+from core.senf.bridge import transport_truth
+from core.senf.exemplars import score_exemplars
+from core.senf.weave import EntityMap, MIN_PAIR_SCORE, build_weaves, weave
 
 
 def senf_for(sentence_id: str, text: str, atoms: list[str]):
@@ -96,3 +98,51 @@ class TestResolveHook:
 
         assert "camera" in with_resolve.grounded_symbols
         assert with_resolve.distortion <= without.distortion
+
+
+class TestPaperFeatures:
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("A strategy game lasted for hours.", "chess_game"),
+            ("An exhausting game ended late.", "football_game"),
+        ],
+    )
+    def test_context_selects_a_game_exemplar(self, text, expected):
+        senf = senf_for(
+            "s1", text, ["(: a (IsA match game) (STV 1.0 1.0))"]
+        )
+
+        score_exemplars(senf)
+
+        match = next(m for m in senf.mentions if m.canonical_symbol == "match")
+        assert senf.nearest_exemplar_for(match) == expected
+
+    def test_build_weaves_returns_ranked_typed_mappings(self):
+        query = senf_for("q1", "Does the camera have a wide lens?", [CAMERA])
+        exact = senf_for("s1", "The camera has a wide lens.", [CAMERA])
+        partial = senf_for(
+            "s2",
+            "The camera is expensive.",
+            ["(: c (HasProperty camera expensive) (STV 1.0 1.0))"],
+        )
+
+        results = build_weaves(query, [partial, exact], k=2)
+
+        assert len(results) == 2
+        assert [result.total_cost for result in results] == sorted(
+            result.total_cost for result in results
+        )
+        assert all(
+            isinstance(mapping, EntityMap)
+            for result in results
+            for mapping in result.entity_maps
+        )
+        assert results[0].guard == "s1->q1"
+
+    def test_transport_truth_degrades_monotonically_with_cost(self):
+        low = transport_truth(1.0, 1.0, 0.1)
+        high = transport_truth(1.0, 1.0, 0.8)
+
+        assert 0.0 < high.strength < low.strength < 1.0
+        assert 0.0 < high.weight < low.weight < 1.0

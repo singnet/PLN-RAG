@@ -39,6 +39,7 @@ class IdentityWeights:
     just below it precisely so one more signal is required.
     """
 
+    exact_symbol: float = 0.55
     surface_match: float = 0.55
     proper_compat: float = 0.55
     head_lemma: float = 0.3
@@ -49,25 +50,36 @@ class IdentityWeights:
     role_prominence: float = 0.2
     unambiguous: float = 0.35
     embed_sim: float = 0.3
+    kind_conflict: float = 0.9
+    proper_conflict: float = 0.9
+    modifier_conflict: float = 0.8
+    both_pronouns: float = 0.9
+    same_frame_distinct_roles: float = 0.7
+    contrastive_language: float = 0.9
 
 
 @dataclass(frozen=True)
 class IdentityEdge:
-    """Graded evidence that two symbols denote the same entity.
-
-    `evidence` holds only the signals that fired, so it doubles as the audit trail
-    for a merge and as the reason a near-miss did not merge.
-    """
+    """Independent positive and negative evidence about two mention occurrences."""
 
     left: Mention
     right: Mention
     strength: float
     confidence: float
     evidence: tuple[str, ...] = ()
+    negative_strength: float = 0.0
+    negative_evidence: tuple[str, ...] = ()
+    positive_cost: float = 1.0
+    negative_cost: float = 1.0
+    guard: str = ""
 
     @property
     def symbols(self) -> tuple[str, str]:
         return (self.left.canonical_symbol, self.right.canonical_symbol)
+
+    @property
+    def mention_ids(self) -> tuple[str, str]:
+        return (_mention_key(self.left), _mention_key(self.right))
 
     @property
     def crosses_sentences(self) -> bool:
@@ -84,11 +96,7 @@ class IdentityGraph:
     merged: tuple[IdentityEdge, ...] = ()
 
     def resolve(self, symbol: str) -> str:
-        """Map a symbol to its cluster representative.
-
-        Total by design: an unknown symbol returns itself, so a caller rewriting a
-        statement can call this on every token without first checking membership.
-        """
+        """Map a symbol to its cluster representative."""
         return self.representatives.get(symbol, symbol)
 
     def clusters(self) -> list[set[str]]:
@@ -96,6 +104,32 @@ class IdentityGraph:
         for symbol, rep in self.representatives.items():
             grouped.setdefault(rep, set()).add(symbol)
         return [members for _, members in sorted(grouped.items())]
+
+    def transport_cost(self, source: str, target: str) -> float:
+        """Lowest accumulated cost across accepted symbol-identity edges."""
+        if source == target:
+            return 0.0
+        adjacency: dict[str, list[tuple[str, float]]] = {}
+        for edge in self.merged:
+            left, right = edge.symbols
+            cost = min(2.0, edge.positive_cost + edge.negative_strength)
+            adjacency.setdefault(left, []).append((right, cost))
+            adjacency.setdefault(right, []).append((left, cost))
+        frontier: list[tuple[float, str]] = [(0.0, source)]
+        best = {source: 0.0}
+        while frontier:
+            frontier.sort(reverse=True)
+            cost, symbol = frontier.pop()
+            if symbol == target:
+                return round(cost, 4)
+            if cost != best.get(symbol):
+                continue
+            for neighbour, edge_cost in adjacency.get(symbol, []):
+                candidate = cost + edge_cost
+                if candidate < best.get(neighbour, float("inf")):
+                    best[neighbour] = candidate
+                    frontier.append((candidate, neighbour))
+        return 1.0
 
     @property
     def merge_count(self) -> int:
@@ -124,36 +158,58 @@ def _bare_and_compound(left: str, right: str) -> tuple[Optional[str], Optional[s
     return None, None
 
 
-def _vetoed(left: Mention, right: Mention, kinds: dict[str, str]) -> Optional[str]:
-    """Return the name of the disqualifying conflict, or None if the pair is open.
+def _mention_key(mention: Mention) -> str:
+    if mention.mention_id:
+        return mention.mention_id
+    return f"{mention.sentence_id}:{mention.canonical_symbol}:{mention.char_span}"
 
-    A veto beats any amount of positive evidence. These are the cases where the
-    text is actively telling us the two entities are distinct, and merging them
-    would be the confidently-wrong-proof failure this module exists to avoid.
-    """
+
+def _kind_for(mention: Mention, kinds: dict[str, str]) -> Optional[str]:
+    return kinds.get(_mention_key(mention)) or kinds.get(mention.canonical_symbol)
+
+
+def _negative_evidence(
+    left: Mention,
+    right: Mention,
+    kinds: dict[str, str],
+    distinct_role_pairs: set[frozenset[str]],
+    source_texts: dict[str, str],
+) -> list[str]:
     left_symbol, right_symbol = left.canonical_symbol, right.canonical_symbol
+    found: list[str] = []
 
-    left_kind, right_kind = kinds.get(left_symbol), kinds.get(right_symbol)
+    left_kind, right_kind = _kind_for(left, kinds), _kind_for(right, kinds)
     if left_kind and right_kind and left_kind != right_kind:
-        return "kind_conflict"
+        found.append("kind_conflict")
 
     if left.mention_type == "pronoun" and right.mention_type == "pronoun":
-        return "both_pronouns"
+        found.append("both_pronouns")
 
     if left.mention_type == "proper" and right.mention_type == "proper":
         left_surface, right_surface = _normalized_surface(left), _normalized_surface(right)
         if left_surface and right_surface:
             if left_surface not in right_surface and right_surface not in left_surface:
-                return "proper_conflict"
+                found.append("proper_conflict")
 
     left_parts, right_parts = _compound_parts(left_symbol), _compound_parts(right_symbol)
     if left_parts and right_parts and left_parts[1] == right_parts[1]:
         if left_parts[0] != right_parts[0]:
             # The modifier is what distinguishes compounds sharing a head:
             # fish_eater and meat_eater are contrasted, not coreferent.
-            return "modifier_conflict"
+            found.append("modifier_conflict")
 
-    return None
+    if frozenset({_mention_key(left), _mention_key(right)}) in distinct_role_pairs:
+        found.append("same_frame_distinct_roles")
+
+    for mention in (left, right):
+        text = source_texts.get(_mention_key(mention), "")
+        if mention.char_span and text:
+            start = max(0, mention.char_span[0] - 16)
+            prefix = text[start : mention.char_span[0]].lower()
+            if any(cue in prefix.split()[-3:] for cue in ("another", "different", "other")):
+                found.append("contrastive_language")
+                break
+    return found
 
 
 def _entity_evidence(
@@ -167,6 +223,8 @@ def _entity_evidence(
     left_symbol, right_symbol = left.canonical_symbol, right.canonical_symbol
 
     left_surface, right_surface = _normalized_surface(left), _normalized_surface(right)
+    if left_symbol == right_symbol:
+        found.append("exact_symbol")
     if left_surface and left_surface == right_surface:
         # Equal surfaces with unequal symbols means canonicalization diverged
         # (a protected proper name against a lemmatized one, typically).
@@ -205,11 +263,11 @@ def _entity_evidence(
             # leading token, but denote different entities.
             found.append("name_extension")
 
-    left_kind, right_kind = kinds.get(left_symbol), kinds.get(right_symbol)
+    left_kind, right_kind = _kind_for(left, kinds), _kind_for(right, kinds)
     if left_kind and left_kind == right_kind:
         found.append("kind_match")
 
-    if roles.get(left_symbol, set()) & roles.get(right_symbol, set()):
+    if roles.get(_mention_key(left), set()) & roles.get(_mention_key(right), set()):
         found.append("role_compat")
 
     return found
@@ -234,7 +292,7 @@ def _pronoun_evidence(
         return []
 
     found = ["pronoun_antecedent"]
-    if candidate.canonical_symbol in prominent:
+    if _mention_key(candidate) in prominent:
         found.append("role_prominence")
     return found
 
@@ -301,10 +359,19 @@ class IdentityResolver:
         kinds = self._merged_kinds(senfs)
         roles = self._role_index(senfs)
         prominent = self._prominent_symbols(senfs)
+        distinct_role_pairs = self._distinct_role_pairs(senfs)
+        source_texts = self._source_texts(senfs)
 
-        edges = self._score_pairs(mentions, kinds, roles, prominent)
+        edges = self._score_pairs(
+            mentions,
+            kinds,
+            roles,
+            prominent,
+            distinct_role_pairs,
+            source_texts,
+        )
         edges = self._apply_ambiguity(edges)
-        edges = self._collapse_to_symbol_pairs(edges)
+        edges = self._collapse_to_mention_pairs(edges)
         merged = tuple(edge for edge in edges if self._should_merge(edge))
         representatives = self._elect(mentions, merged)
 
@@ -338,6 +405,8 @@ class IdentityResolver:
         for senf in senfs:
             for symbol, kind in senf.kinds.items():
                 merged.setdefault(symbol, kind)
+            for mention_id, kind in senf.mention_kinds.items():
+                merged.setdefault(mention_id, kind)
         return merged
 
     @staticmethod
@@ -347,7 +416,7 @@ class IdentityResolver:
             for frame in senf.frames:
                 for role in frame.roles:
                     if isinstance(role.filler, Mention):
-                        key = role.filler.canonical_symbol
+                        key = _mention_key(role.filler)
                         index.setdefault(key, set()).add((frame.predicate_head, role.name))
         return index
 
@@ -358,8 +427,33 @@ class IdentityResolver:
             for frame in senf.frames:
                 for role in frame.roles:
                     if role.name in _PROMINENT_ROLES and isinstance(role.filler, Mention):
-                        prominent.add(role.filler.canonical_symbol)
+                        prominent.add(_mention_key(role.filler))
         return prominent
+
+    @staticmethod
+    def _distinct_role_pairs(senfs: Sequence[SENF]) -> set[frozenset[str]]:
+        pairs: set[frozenset[str]] = set()
+        for senf in senfs:
+            for frame in senf.frames:
+                fillers = [
+                    role.filler
+                    for role in frame.roles
+                    if isinstance(role.filler, Mention)
+                ]
+                for index, left in enumerate(fillers):
+                    for right in fillers[index + 1 :]:
+                        if _mention_key(left) != _mention_key(right):
+                            pairs.add(frozenset({_mention_key(left), _mention_key(right)}))
+        return pairs
+
+    @staticmethod
+    def _source_texts(senfs: Sequence[SENF]) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for senf in senfs:
+            text = next((frame.source_text for frame in senf.frames if frame.source_text), "")
+            for mention in senf.mentions:
+                out[_mention_key(mention)] = text
+        return out
 
     def _score_pairs(
         self,
@@ -367,19 +461,23 @@ class IdentityResolver:
         kinds: dict[str, str],
         roles: dict[str, set[tuple[str, str]]],
         prominent: set[str],
+        distinct_role_pairs: set[frozenset[str]],
+        source_texts: dict[str, str],
     ) -> tuple[IdentityEdge, ...]:
         vectors: dict[str, Sequence[float]] = {}
         scored: list[IdentityEdge] = []
 
         for index, left in enumerate(mentions):
             for right in mentions[index + 1 :]:
-                if left.canonical_symbol == right.canonical_symbol:
-                    continue
-                if _vetoed(left, right, kinds):
-                    continue
-
                 evidence = self._evidence_for(left, right, kinds, roles, prominent)
-                if not evidence:
+                negative = _negative_evidence(
+                    left,
+                    right,
+                    kinds,
+                    distinct_role_pairs,
+                    source_texts,
+                )
+                if not evidence and not negative:
                     continue
                 strength = self._strength(evidence)
                 extra = self._embedding_evidence(left, right, strength, vectors)
@@ -387,7 +485,17 @@ class IdentityResolver:
                     evidence = evidence + extra
                     strength = self._strength(evidence)
 
-                scored.append(self._edge(left, right, strength, evidence))
+                negative_strength = self._negative_strength(negative)
+                scored.append(
+                    self._edge(
+                        left,
+                        right,
+                        strength,
+                        evidence,
+                        negative_strength,
+                        negative,
+                    )
+                )
 
         return tuple(scored)
 
@@ -408,6 +516,9 @@ class IdentityResolver:
         return _entity_evidence(left, right, kinds, roles)
 
     def _strength(self, evidence: Sequence[str]) -> float:
+        return min(1.0, sum(getattr(self.weights, name, 0.0) for name in evidence))
+
+    def _negative_strength(self, evidence: Sequence[str]) -> float:
         return min(1.0, sum(getattr(self.weights, name, 0.0) for name in evidence))
 
     def _embedding_evidence(
@@ -446,7 +557,12 @@ class IdentityResolver:
 
     @staticmethod
     def _edge(
-        left: Mention, right: Mention, strength: float, evidence: Sequence[str]
+        left: Mention,
+        right: Mention,
+        strength: float,
+        evidence: Sequence[str],
+        negative_strength: float = 0.0,
+        negative_evidence: Sequence[str] = (),
     ) -> IdentityEdge:
         """Orient by symbol so an edge is stable regardless of mention order."""
         if right.canonical_symbol < left.canonical_symbol:
@@ -455,8 +571,13 @@ class IdentityResolver:
             left=left,
             right=right,
             strength=strength,
-            confidence=_confidence(evidence),
+            confidence=_confidence(tuple(evidence) + tuple(negative_evidence)),
             evidence=tuple(evidence),
+            negative_strength=negative_strength,
+            negative_evidence=tuple(negative_evidence),
+            positive_cost=round(1.0 - strength, 4),
+            negative_cost=round(1.0 - negative_strength, 4),
+            guard=f"{left.sentence_id}|{right.sentence_id}",
         )
 
     def _apply_ambiguity(self, edges: tuple[IdentityEdge, ...]) -> tuple[IdentityEdge, ...]:
@@ -497,25 +618,37 @@ class IdentityResolver:
                 strength=self._strength(evidence),
                 confidence=_confidence(evidence),
                 evidence=evidence,
+                negative_strength=best.negative_strength,
+                negative_evidence=best.negative_evidence,
+                positive_cost=round(1.0 - self._strength(evidence), 4),
+                negative_cost=best.negative_cost,
+                guard=best.guard,
             )
 
         return tuple(promoted.get(id(edge), edge) for edge in edges)
 
     @staticmethod
-    def _collapse_to_symbol_pairs(edges: tuple[IdentityEdge, ...]) -> tuple[IdentityEdge, ...]:
-        """One edge per symbol pair — the graph resolves symbols, not occurrences."""
+    def _collapse_to_mention_pairs(edges: tuple[IdentityEdge, ...]) -> tuple[IdentityEdge, ...]:
+        """Keep one edge per mention pair while retaining occurrence evidence."""
         best: dict[tuple[str, str], IdentityEdge] = {}
         for edge in edges:
-            current = best.get(edge.symbols)
+            key = tuple(sorted(edge.mention_ids))
+            current = best.get(key)
             if current is None or (edge.strength, len(edge.evidence)) > (
                 current.strength,
                 len(current.evidence),
             ):
-                best[edge.symbols] = edge
-        return tuple(sorted(best.values(), key=lambda e: (-e.strength, e.symbols)))
+                best[key] = edge
+        return tuple(
+            sorted(best.values(), key=lambda e: (-e.strength, e.symbols, e.mention_ids))
+        )
 
     def _should_merge(self, edge: IdentityEdge) -> bool:
+        if edge.left.canonical_symbol == edge.right.canonical_symbol:
+            return False
         if edge.strength < self.threshold:
+            return False
+        if edge.negative_strength >= 0.5:
             return False
         if edge.crosses_sentences and len(edge.evidence) < 2:
             # One signal is never enough to bind entities the text introduced
