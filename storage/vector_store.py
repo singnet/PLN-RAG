@@ -3,6 +3,7 @@ import uuid
 import httpx
 from typing import List, Tuple
 from config import get_settings
+from core.senf import SENF_PAYLOAD_KEY
 
 
 logger = logging.getLogger(__name__)
@@ -12,7 +13,8 @@ class VectorStore:
     """
     Manages NL ↔ PLN atom mappings in Qdrant.
 
-    Stores: { nl: sentence, pln: [atoms] } per ingested sentence.
+    Stores: { nl: sentence, pln: [atoms] } per ingested sentence, plus optional
+    caller-supplied metadata merged into the same payload.
     Retrieves: relevant PLN atoms to use as parser context.
     """
 
@@ -72,14 +74,25 @@ class VectorStore:
                 raise
         self._vector_size = vector_size
 
-    def store(self, sentence: str, atoms: List[str], vector: List[float]):
+    def store(
+        self,
+        sentence: str,
+        atoms: List[str],
+        vector: List[float],
+        metadata: dict | None = None,
+    ):
+        payload = {"nl": sentence, "pln": atoms}
+        if metadata:
+            # Merged rather than nested so existing readers of nl/pln are
+            # unaffected; callers namespace their own keys (see SENF_PAYLOAD_KEY).
+            payload.update(metadata)
         self._ensure_collection(len(vector))
         self._client.put(
             f"{self._qdrant}/collections/{self._collection}/points?wait=true",
             json={"points": [{
                 "id": str(uuid.uuid4()),
                 "vector": vector,
-                "payload": {"nl": sentence, "pln": atoms}
+                "payload": payload
             }]}
         ).raise_for_status()
 
@@ -138,6 +151,36 @@ class VectorStore:
                 context.extend(pln)
 
         return context, vector
+
+    def retrieve_senf_context(self, text: str, top_k: int) -> List[dict]:
+        """Return stored SENF blobs from the top-k similar sentences.
+
+        Separate from retrieve_context because the two have different consumers
+        and different failure tolerance: a missing SENF blob is normal (every
+        point written before SENF existed lacks one) and must not perturb the
+        atom context that the parsers already depend on.
+        """
+        vector = self.embed(text)
+        self._ensure_collection(len(vector))
+
+        resp = self._client.post(
+            f"{self._qdrant}/collections/{self._collection}/points/search",
+            json={"vector": vector, "limit": top_k, "with_payload": True},
+        )
+        if resp.status_code != 200:
+            logger.warning(
+                "Qdrant SENF retrieval failed for collection %s with status %s",
+                self._collection,
+                resp.status_code,
+            )
+            return []
+
+        blobs: List[dict] = []
+        for item in resp.json().get("result", []):
+            blob = item.get("payload", {}).get(SENF_PAYLOAD_KEY)
+            if isinstance(blob, dict):
+                blobs.append(blob)
+        return blobs
 
     def reset(self):
         try:

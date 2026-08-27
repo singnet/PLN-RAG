@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+import benchmark_grading as bg
 from config import get_settings
 from core.service import PLNRAGService
 
@@ -140,6 +141,7 @@ ACTIVE_PARSERS = ("nl2pln", "canonical_pln")
 AVAILABLE_PARSERS = (
     "nl2pln",
     "canonical_pln",
+    "canonical_senf_pln",
     "langextract",
     "canonical_langextract",
     "canonical_pln_1686527",
@@ -200,6 +202,62 @@ def _select_cases_from_file(path: Path, quick: bool) -> tuple[dict[str, Any], li
     return metadata, cases
 
 
+def _resolve_gold(
+    explicit: str | None, suite_metadata: dict[str, Any], suite_label: str
+) -> tuple[dict[str, Any], str | None]:
+    """Locate the gold file: explicit path, else a sibling `<suite>_gold.json`.
+
+    A missing sibling is normal; a missing explicit `--gold-file` is an error, since the caller
+    asked for grading and would otherwise get a silently ungraded run.
+    """
+    if explicit:
+        path = Path(explicit)
+    else:
+        suite_path = suite_metadata.get("suite_path")
+        directory = Path(suite_path).parent if suite_path else Path("data/benchmarks")
+        path = directory / f"{suite_label}_gold.json"
+        if not path.exists():
+            return {}, None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    cases = payload.get("cases")
+    if not isinstance(cases, dict):
+        raise ValueError(f"{path}: expected a 'cases' object")
+    return cases, str(path)
+
+
+def _apply_gold_expectations(cases: list[dict[str, Any]], gold_cases: dict[str, Any]) -> None:
+    """Fill in `expected_proof` from gold where the suite does not state one."""
+    for case in cases:
+        if case.get("expected_proof") is not None:
+            continue
+        gold = gold_cases.get(case.get("case_id") or case.get("id") or case.get("name"))
+        if gold and gold.get("expected_proof") is not None:
+            case["expected_proof"] = bool(gold["expected_proof"])
+
+
+def _apply_grading(results: list[dict[str, Any]], gold_cases: dict[str, Any]) -> None:
+    """Merge answer grades into each result in place, before summarizing.
+
+    A benchmark costs ~28 minutes per parser, so a gold or artifact defect is recorded on the
+    case rather than raised and losing the run.
+    """
+    if not gold_cases:
+        return
+    for result in results:
+        try:
+            row = bg.grade_results(gold_cases, [result])[0]
+        except bg.ArtifactSchemaError as exc:
+            result["answer_correct"] = None
+            result["answer_score"] = None
+            result["answer_reason"] = f"ungradable: {exc}"
+            result["verdict_gradable"] = False
+            result["matched_entities"] = []
+            continue
+        for field in ("answer_correct", "answer_score", "answer_reason",
+                      "verdict_gradable", "matched_entities"):
+            result[field] = row[field]
+
+
 def _select_cases(suite: str, quick: bool) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     if suite == "smoke":
         cases = [
@@ -251,6 +309,10 @@ def _get_parser_factory(name: str):
         from parsers.canonical_pln_parser import CanonicalPLNParser
 
         return CanonicalPLNParser
+    if name == "canonical_senf_pln":
+        from parsers.canonical_senf_pln_parser import CanonicalSENFPLNParser
+
+        return CanonicalSENFPLNParser
     if name == "langextract":
         from parsers.langextract_pln_parser import LangExtractPLNParser
 
@@ -272,6 +334,59 @@ def _get_parser_factory(name: str):
 
         return ManhinParser
     raise ValueError(f"Unsupported parser '{name}'")
+
+
+def _preflight_llm() -> tuple[bool, str]:
+    """Make one real LLM call before spending an hour on a run that cannot work.
+
+    Deliberately goes through dspy with the same model and key the parsers use,
+    rather than probing a hardcoded endpoint: a relay, a custom base_url or a
+    permissions-scoped key all behave differently on a synthetic probe than on
+    the actual completion path.
+    """
+    cfg = get_settings()
+    try:
+        import dspy
+
+        lm = dspy.LM(cfg.openai_model, api_key=cfg.openai_api_key, cache=False)
+        reply = lm("Reply with the single word: ok", max_tokens=5)
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+    if not reply:
+        return False, "LLM returned an empty response"
+    return True, ""
+
+
+def _preflight_reasoner() -> tuple[bool, str]:
+    """Check backward chaining still works before blaming a parser for zero proofs.
+
+    Reasoner.query catches every exception and returns [], so a broken chainer
+    yields a clean exit and proof_found=0 for every case. That is not
+    distinguishable from a hard suite by the summary alone, since a low proof
+    count is a legitimate isolated-mode result. Uses a throwaway chainer so the
+    persistent atomspace is untouched.
+    """
+    try:
+        from pettachainer import PeTTaChainer
+
+        chainer = PeTTaChainer()
+        for atom in (
+            "(: edge_ab (Edge A B) (STV 1.0 1.0))",
+            "(: edge_bc (Edge B C) (STV 1.0 1.0))",
+            "(: edge_to_path (Implication (Premises (Edge $x $y)) "
+            "(Conclusions (Path $x $y))) (CTV (STV 1.0 1.0) (STV 0.0 1.0)))",
+            "(: path_step (Implication (Premises (Path $x $y) (Edge $y $z)) "
+            "(Conclusions (Path $x $z))) (CTV (STV 1.0 1.0) (STV 0.0 1.0)))",
+        ):
+            chainer.add_atom(atom)
+        seeds = chainer.select_facts(["(Edge A B)", "(Edge B C)"])
+        chainer.forward_chain(seeds, steps=50)
+        proofs = chainer.query("(: $prf (Path A C) $tv)", steps=10, timeout_sec=60)
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+    if not proofs:
+        return False, "no proof returned for a known-derivable fact (Path A C)"
+    return True, ""
 
 
 def _run_parse(parser: object, text: str, context: list[str], is_query: bool):
@@ -392,6 +507,7 @@ async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
                     "reasoning_seconds": query_response.reasoning_seconds,
                     "source_lookup_seconds": query_response.source_lookup_seconds,
                     "answer_generation_seconds": query_response.answer_generation_seconds,
+                    "senf": query_response.senf,
                 },
             },
             "proof_found": found,
@@ -484,6 +600,7 @@ async def _benchmark_case_with_service(
                 "reasoning_seconds": query_response.reasoning_seconds,
                 "source_lookup_seconds": query_response.source_lookup_seconds,
                 "answer_generation_seconds": query_response.answer_generation_seconds,
+                "senf": query_response.senf,
             },
         },
         "proof_found": found,
@@ -559,6 +676,28 @@ async def _benchmark_parser_cumulative(
     return results
 
 
+def _validity_warnings(summary: dict[str, dict]) -> list[str]:
+    """Flag summaries that look like infrastructure failure rather than a result.
+
+    Parsers swallow exceptions and return an empty ParseResult, so a dead LLM
+    produces a clean exit code and a report full of zeros. Without this, such a
+    run is indistinguishable from a genuine finding.
+    """
+    warnings: list[str] = []
+    for parser_name, stats in summary.items():
+        cases = stats.get("cases", 0)
+        if not cases:
+            continue
+        if stats.get("no_query", 0) == cases:
+            warnings.append(
+                f"{parser_name}: every case produced no_query ({cases}/{cases}). "
+                "This is the signature of a failing LLM, not a parser result."
+            )
+        if stats.get("errors", 0) == cases:
+            warnings.append(f"{parser_name}: every case raised ({cases}/{cases}).")
+    return warnings
+
+
 def _summarize_parser(results: list[dict]) -> dict:
     total_cases = len(results)
     correct_known = [result.get("correct") for result in results if result.get("correct") is not None]
@@ -580,31 +719,77 @@ def _summarize_parser(results: list[dict]) -> dict:
         if result.get("end_to_end", {}).get("query", {}).get("fallback_used")
     )
     latencies = [result.get("timing", {}).get("total_seconds", 0.0) for result in results]
+    answer_graded = [result for result in results if result.get("answer_correct") is not None]
+    answer_scores = [result.get("answer_score") or 0.0 for result in answer_graded]
+    senf_reports = [
+        report
+        for result in results
+        if (report := result.get("end_to_end", {}).get("query", {}).get("senf"))
+    ]
+    distortions = [
+        report["weave_distortion"]
+        for report in senf_reports
+        if report.get("weave_distortion") is not None
+    ]
     return {
         "cases": total_cases,
         "correct": correct,
         "correct_known": len(correct_known),
         "proof_found": proof_found,
+        # `correct` above is proof presence against expectation; these grade the conclusion.
+        "answer_correct": sum(1 for result in answer_graded if result["answer_correct"]),
+        "answer_graded": len(answer_graded),
+        "mean_answer_score": (
+            round(sum(answer_scores) / len(answer_scores), 4) if answer_scores else 0.0
+        ),
+        "verdict_graded": sum(1 for result in answer_graded if result.get("verdict_gradable")),
         "no_query": no_query,
         "weakly_aligned": weakly_aligned,
         "fallback_used": fallback_used,
+        # Absent for parsers that report no diagnostics, so a zero is distinguishable
+        # from "this parser has no SENF stage".
+        "senf_reported": len(senf_reports),
+        "senf_merges": sum(report.get("merge_count", 0) for report in senf_reports),
+        "senf_rewritten_atoms": sum(
+            report.get("rewritten_atom_count", 0) for report in senf_reports
+        ),
+        "senf_cases_with_merge": sum(
+            1 for report in senf_reports if report.get("merge_count")
+        ),
+        "mean_weave_distortion": (
+            round(sum(distortions) / len(distortions), 4) if distortions else None
+        ),
+        "errors": sum(1 for result in results if result.get("error")),
         "avg_latency_seconds": round(sum(latencies) / total_cases, 4) if total_cases else 0.0,
         "median_latency_seconds": round(statistics.median(latencies), 4) if latencies else 0.0,
     }
 
 
 def _markdown_summary(summary: dict[str, dict]) -> str:
+    # `ProofExp` was labelled `Correct`, which read as answer correctness; it has always meant
+    # "proof presence matched expectation".
     lines = [
-        "| Parser | Cases | Correct | Proof Found | No Query | Weak Align | Fallback | Avg Latency | Median Latency |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Parser | Cases | ProofExp | AnsCorrect | AnsScore | Proof Found | No Query | Weak Align | Fallback | Merges | Avg Latency | Median Latency |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for parser_name, stats in summary.items():
+        graded = stats.get("answer_graded", 0)
+        answer = f"{stats.get('answer_correct', 0)}/{graded}" if graded else "-"
+        # A dash means the parser has no SENF stage, which is not the same as zero merges.
+        merges = (
+            f"{stats.get('senf_merges', 0)} ({stats.get('senf_cases_with_merge', 0)}c)"
+            if stats.get("senf_reported")
+            else "-"
+        )
         lines.append(
-            f"| {parser_name} | {stats['cases']} | {stats['correct']} | {stats['proof_found']} | "
+            f"| {parser_name} | {stats['cases']} | {stats['correct']} | {answer} | "
+            f"{stats.get('mean_answer_score', 0.0):.3f} | {stats['proof_found']} | "
             f"{stats['no_query']} | {stats['weakly_aligned']} | {stats['fallback_used']} | "
+            f"{merges} | "
             f"{stats['avg_latency_seconds']:.4f}s | {stats['median_latency_seconds']:.4f}s |"
         )
     return "\n".join(lines)
+
 
 
 async def main() -> int:
@@ -624,6 +809,10 @@ async def main() -> int:
     cli.add_argument(
         "--suite-file",
         help="Optional path to a custom suite JSON file (overrides --suite)",
+    )
+    cli.add_argument(
+        "--gold-file",
+        help="Gold answers for answer grading; defaults to a sibling <suite>_gold.json",
     )
     cli.add_argument(
         "--parsers",
@@ -650,12 +839,43 @@ async def main() -> int:
         help="Repeatable case_id to include (e.g. --case-ids A01)",
     )
     cli.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip the LLM reachability check (only for runs that need no LLM)",
+    )
+    cli.add_argument(
         "--limit",
         type=int,
         default=0,
         help="Optional max number of cases to run (after filtering)",
     )
     args = cli.parse_args()
+
+    if not args.skip_preflight:
+        ok, detail = _preflight_llm()
+        if not ok:
+            print(
+                "Pre-flight failed: the configured LLM is not reachable.\n"
+                f"  {detail}\n"
+                "Parsers swallow this error and return no atoms, so the run would "
+                "finish with an all-zero report and exit 0. Aborting instead.\n"
+                "Use --skip-preflight to override.",
+                file=sys.stderr,
+            )
+            return 2
+
+        ok, detail = _preflight_reasoner()
+        if not ok:
+            print(
+                "Pre-flight failed: backward chaining is not working.\n"
+                f"  {detail}\n"
+                "Reasoner.query swallows this and returns no proofs, so the run "
+                "would report proof_found=0 for every case and exit 0. Aborting "
+                "instead. Check the PeTTa/PeTTaChainer pins in the Dockerfile.\n"
+                "Use --skip-preflight to override.",
+                file=sys.stderr,
+            )
+            return 2
 
     if args.suite_file:
         suite_path = Path(args.suite_file)
@@ -678,12 +898,16 @@ async def main() -> int:
     suite_label = suite_metadata.get("suite") if isinstance(suite_metadata, dict) else None
     suite_label = suite_label or (Path(args.suite_file).stem if args.suite_file else args.suite)
 
+    gold_cases, gold_file = _resolve_gold(args.gold_file, suite_metadata or {}, suite_label)
+    _apply_gold_expectations(cases, gold_cases)
+
     payload: dict[str, object] = {
         "run_id": run_id,
         "conceptnet_enabled": False,
         "mode": args.mode,
         "suite": suite_label,
         "suite_metadata": suite_metadata,
+        "gold_file": gold_file,
         "case_count": len(cases),
         "parsers": {},
         "summary": {},
@@ -746,7 +970,12 @@ async def main() -> int:
                     }
                 results.append(result)
         payload["parsers"][parser_name] = results
+        _apply_grading(results, gold_cases)
         payload["summary"][parser_name] = _summarize_parser(results)
+
+    warnings = _validity_warnings(payload["summary"])
+    payload["valid"] = not warnings
+    payload["validity_warnings"] = warnings
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -756,6 +985,13 @@ async def main() -> int:
     print(json.dumps({"output": str(output_path), "summary": payload["summary"]}, indent=2))
     print()
     print(_markdown_summary(payload["summary"]))
+
+    if warnings:
+        print(file=sys.stderr)
+        print("Report marked invalid — do not use it as a baseline:", file=sys.stderr)
+        for warning in warnings:
+            print(f"  - {warning}", file=sys.stderr)
+        return 1
     return 0
 
 

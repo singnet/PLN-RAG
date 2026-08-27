@@ -97,7 +97,12 @@ class PLNRAGService:
                     rejected.extend(rejected_reasoner)
                     all_atoms.extend(added)
                     if added:
-                        self._vector_store.store(batch_text, added, vector)
+                        self._vector_store.store(
+                            batch_text,
+                            added,
+                            vector,
+                            metadata=self._parser_storage_metadata(),
+                        )
             else:
                 parser_calls = chunk_count
 
@@ -126,7 +131,12 @@ class PLNRAGService:
 
                     # 5. Store in vector DB for future context retrieval
                     if added:
-                        self._vector_store.store(chunk, added, vector)
+                        self._vector_store.store(
+                            chunk,
+                            added,
+                            vector,
+                            metadata=self._parser_storage_metadata(),
+                        )
 
             if parser_calls > 0 and empty_results == parser_calls and not all_atoms:
                 return IngestItemResult(
@@ -208,7 +218,24 @@ class PLNRAGService:
         # Enforce implication schema to avoid reasoner syntax errors.
         if "Implication" in stmt and ("(Premises" not in stmt or "(Conclusions" not in stmt):
             return False, "bad_implication_shape"
+        if self._has_zero_arity_atom(stmt):
+            return False, "zero_arity_atom"
         return True, ""
+
+    _ZERO_ARITY_EXEMPT = frozenset({"Premises", "Conclusions", "And", "Or", "Not"})
+
+    def _has_zero_arity_atom(self, stmt: str) -> bool:
+        """A predicate applied to no arguments can never unify with a query.
+
+        Observed as `(Conclusions (AssociatedWithSevereDisease))` against the query
+        `(: $prf (AssociatedWithSevereDisease $marker) $tv)`: the rule fires but the
+        conclusion is a different symbol than the one asked for, so the proof is
+        unreachable and the failure surfaces only as a missing proof.
+        """
+        for head in re.findall(r"\(([A-Za-z][A-Za-z0-9_]*)\s*\)", stmt):
+            if head not in self._ZERO_ARITY_EXEMPT:
+                return True
+        return False
 
     def _parens_balanced(self, text: str) -> bool:
         depth = 0
@@ -281,6 +308,7 @@ class PLNRAGService:
                 reasoning_seconds=0.0,
                 source_lookup_seconds=0.0,
                 answer_generation_seconds=0.0,
+                senf=self._parser_diagnostics(),
             )
 
         # 3. Add any supporting statements the parser generated for the query
@@ -396,7 +424,30 @@ class PLNRAGService:
             reasoning_seconds=round(reasoning_seconds, 4),
             source_lookup_seconds=round(source_lookup_seconds, 4),
             answer_generation_seconds=round(answer_generation_seconds, 4),
+            senf=self._parser_diagnostics(),
         )
+
+    def _parser_diagnostics(self) -> dict | None:
+        """Optional per-parser diagnostics. Never fails a query."""
+        report = getattr(self._parser, "senf_telemetry", None)
+        if report is None:
+            return None
+        try:
+            return report()
+        except Exception:
+            logger.warning("parser diagnostics failed", exc_info=True)
+            return None
+
+    def _parser_storage_metadata(self) -> dict | None:
+        report = getattr(self._parser, "storage_metadata", None)
+        if not callable(report):
+            return None
+        try:
+            metadata = report()
+            return metadata if isinstance(metadata, dict) else None
+        except Exception:
+            logger.warning("parser storage metadata failed", exc_info=True)
+            return None
 
     def _classify_query_status(
         self, query: str, original_query: str, fallback_used: bool

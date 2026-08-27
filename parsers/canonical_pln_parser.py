@@ -5,6 +5,7 @@ from typing import List
 import dspy
 
 from config import get_settings
+from core import query_scoring
 from core.parser import ParseResult, SemanticParser
 from core.symbol_normalization import canonical_symbol, normalize_text, pluralize, singularize
 
@@ -133,6 +134,10 @@ class CanonicalPLNParser(SemanticParser):
                     statements + self._materialize_grounded_premise_facts(texts, statements)
                 )
 
+            statements, queries = self._post_filter_hook(
+                texts, statements, queries, context, is_query
+            )
+
             question_text = " ".join(texts)
             queries = self._plan_queries(question=question_text, queries=queries, statements=statements, context=context)
 
@@ -160,6 +165,9 @@ class CanonicalPLNParser(SemanticParser):
                 )
                 statements = [self._prune_generic_sortal_premises(stmt) for stmt in statements]
                 statements = self._filter_statements(statements)
+                statements, queries = self._post_filter_hook(
+                    texts, statements, queries, context, is_query
+                )
                 queries = self._plan_queries(question=texts[0], queries=queries, statements=statements, context=context)
 
             return ParseResult(statements=statements, queries=queries)
@@ -167,6 +175,22 @@ class CanonicalPLNParser(SemanticParser):
             preview = texts[0] if texts else ""
             logger.exception("CanonicalPLN parse failed for preview %r", preview[:80])
             return ParseResult()
+
+    def _post_filter_hook(
+        self,
+        texts: List[str],
+        statements: List[str],
+        queries: List[str],
+        context: List[str],
+        is_query: bool,
+    ) -> tuple[List[str], List[str]]:
+        """Last chance to rewrite symbols before candidates are scored.
+
+        Runs after filtering and before `_plan_queries`, so a subclass sees final atoms and its
+        rewrites are reflected in candidate ranking. Statements and queries must be rewritten
+        together or symbols diverge and queries stop matching.
+        """
+        return statements, queries
 
     def _build_parser_inputs_batch(
         self, texts: List[str], context: List[str], is_query: bool, concepts: List[str]
@@ -519,8 +543,15 @@ class CanonicalPLNParser(SemanticParser):
                     question, queries, facts, conclusions
                 )
                 heuristic = self._build_heuristic_question_queries(question)
-                return self._dedupe_preserve_order(queries + fallback + heuristic)
-            return queries[:1]
+                return self._dedupe_preserve_order(
+                    queries + fallback + heuristic + self._derive_extra_candidates(
+                        queries, facts, conclusions, question
+                    )
+                )
+            return self._dedupe_preserve_order(
+                queries[:1]
+                + self._derive_extra_candidates(queries, facts, conclusions, question)
+            )
 
         planned.sort(key=lambda item: item[0], reverse=True)
         ordered = [query for _, query in planned]
@@ -535,7 +566,37 @@ class CanonicalPLNParser(SemanticParser):
             )
             ordered.extend(fallback)
             ordered.extend(self._build_heuristic_question_queries(question))
+        ordered.extend(
+            self._derive_extra_candidates(ordered, facts, conclusions, question)
+        )
         return self._dedupe_preserve_order(ordered)
+
+    def _derive_extra_candidates(
+        self,
+        queries: List[str],
+        facts: list[dict],
+        conclusions: list[dict],
+        question: str,
+    ) -> List[str]:
+        parsed = [
+            sig for sig in (self._parse_query_signature(q) for q in queries) if sig
+        ]
+        constants = [
+            symbol
+            for symbol in self._question_symbols(question)
+            if any(symbol in sig["args"] for sig in facts + conclusions)
+        ]
+        return query_scoring.derive_extra_candidates(
+            parsed, facts, conclusions, constants
+        )
+
+    def _question_symbols(self, question: str) -> List[str]:
+        symbols: List[str] = []
+        for token in self._normalize_text(question).split():
+            canonical = self._canonical_symbol(token)
+            if canonical and canonical not in symbols:
+                symbols.append(canonical)
+        return symbols
 
     def _build_heuristic_question_queries(self, question: str) -> List[str]:
         normalized = self._normalize_text(question).strip("?. ")
@@ -746,28 +807,10 @@ class CanonicalPLNParser(SemanticParser):
         conclusions: list[dict],
         is_yes_no: bool,
     ) -> int | None:
-        matching_facts = [sig for sig in facts if self._same_shape(query, sig)]
-        matching_conclusions = [sig for sig in conclusions if self._same_shape(query, sig)]
-
-        if is_yes_no and query["variables"]:
-            if not self._has_witness_path(query, matching_facts, matching_conclusions):
-                return None
-
-        score = 0
-        if matching_facts:
-            score += 6
-        if matching_conclusions:
-            score += 4
-        if not query["variables"]:
-            score += 3 if is_yes_no else 1
-        else:
-            score += 3 if not is_yes_no else 0
-        if self._is_fully_grounded_from_signature(query, matching_facts):
-            score += 2
-        return score if score > 0 else None
+        return query_scoring.score_query_candidate(query, facts, conclusions, is_yes_no)
 
     def _same_shape(self, left: dict, right: dict) -> bool:
-        return left["head"] == right["head"] and left["arity"] == right["arity"]
+        return query_scoring.same_shape(left, right)
 
     def _has_witness_path(
         self,
@@ -775,23 +818,10 @@ class CanonicalPLNParser(SemanticParser):
         matching_facts: list[dict],
         matching_conclusions: list[dict],
     ) -> bool:
-        if not query["variables"]:
-            return True
-        for signature in matching_facts + matching_conclusions:
-            if self._signature_can_bind(query, signature):
-                return True
-        return False
+        return query_scoring.has_witness_path(query, matching_facts, matching_conclusions)
 
     def _signature_can_bind(self, query: dict, signature: dict) -> bool:
-        saw_witness = False
-        for q_arg, s_arg in zip(query["args"], signature["args"]):
-            if q_arg.startswith(("$", "?")):
-                if not s_arg.startswith(("$", "?")):
-                    saw_witness = True
-                continue
-            if q_arg != s_arg:
-                return False
-        return saw_witness or not query["variables"]
+        return query_scoring.signature_can_bind(query, signature)
 
     def _preserves_grounded_args(
         self, query: dict, signature: dict, question_symbols: set[str]
@@ -811,10 +841,7 @@ class CanonicalPLNParser(SemanticParser):
     def _is_fully_grounded_from_signature(
         self, query: dict, matching_facts: list[dict]
     ) -> bool:
-        for signature in matching_facts:
-            if signature["args"] == query["args"]:
-                return True
-        return False
+        return query_scoring.is_fully_grounded_from_signature(query, matching_facts)
 
     def _is_yes_no_question(self, question: str) -> bool:
         tokens = self._normalize_text(question).split()

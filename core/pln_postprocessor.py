@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass, field
 from typing import List
 
+from core import query_scoring
 from core.symbol_normalization import canonical_symbol, normalize_text, pluralize, singularize
 
 
@@ -319,10 +320,37 @@ class PLNPostprocessor:
                 continue
             planned.append((score, query))
         if not planned:
-            return queries[:1]
+            return self.dedupe_preserve_order(
+                queries[:1]
+                + self.derive_extra_candidates(queries, facts, conclusions, question)
+            )
         planned.sort(key=lambda item: item[0], reverse=True)
         ordered = [query for _, query in planned]
+        ordered.extend(
+            self.derive_extra_candidates(ordered, facts, conclusions, question)
+        )
         return self.dedupe_preserve_order(ordered)
+
+    def derive_extra_candidates(
+        self,
+        queries: List[str],
+        facts: list[dict],
+        conclusions: list[dict],
+        question: str,
+    ) -> List[str]:
+        parsed = [
+            sig for sig in (self.parse_query_signature(q) for q in queries) if sig
+        ]
+        constants: List[str] = []
+        for token in normalize_text(question).split():
+            symbol = canonical_symbol(token, lemmatize=True)
+            if not symbol or symbol in constants:
+                continue
+            if any(symbol in sig["args"] for sig in facts + conclusions):
+                constants.append(symbol)
+        return query_scoring.derive_extra_candidates(
+            parsed, facts, conclusions, constants
+        )
 
     def collect_available_signatures(self, statements: List[str], context: List[str]) -> tuple[list[dict], list[dict]]:
         facts: list[dict] = []
@@ -369,50 +397,19 @@ class PLNPostprocessor:
         }
 
     def score_query_candidate(self, query: dict, facts: list[dict], conclusions: list[dict], is_yes_no: bool) -> int | None:
-        matching_facts = [sig for sig in facts if self.same_shape(query, sig)]
-        matching_conclusions = [sig for sig in conclusions if self.same_shape(query, sig)]
-        if is_yes_no and query["variables"] and not self.has_witness_path(query, matching_facts, matching_conclusions):
-            return None
-        score = 0
-        if matching_facts:
-            score += 6
-        if matching_conclusions:
-            score += 4
-        if not query["variables"]:
-            score += 3 if is_yes_no else 1
-        else:
-            score += 3 if not is_yes_no else 0
-        if self.is_fully_grounded_from_signature(query, matching_facts):
-            score += 2
-        return score if score > 0 else None
+        return query_scoring.score_query_candidate(query, facts, conclusions, is_yes_no)
 
     def same_shape(self, left: dict, right: dict) -> bool:
-        return left["head"] == right["head"] and left["arity"] == right["arity"]
+        return query_scoring.same_shape(left, right)
 
     def has_witness_path(self, query: dict, matching_facts: list[dict], matching_conclusions: list[dict]) -> bool:
-        if not query["variables"]:
-            return True
-        for signature in matching_facts + matching_conclusions:
-            if self.signature_can_bind(query, signature):
-                return True
-        return False
+        return query_scoring.has_witness_path(query, matching_facts, matching_conclusions)
 
     def signature_can_bind(self, query: dict, signature: dict) -> bool:
-        saw_witness = False
-        for q_arg, s_arg in zip(query["args"], signature["args"]):
-            if q_arg.startswith(("$", "?")):
-                if not s_arg.startswith(("$", "?")):
-                    saw_witness = True
-                continue
-            if q_arg != s_arg:
-                return False
-        return saw_witness or not query["variables"]
+        return query_scoring.signature_can_bind(query, signature)
 
     def is_fully_grounded_from_signature(self, query: dict, matching_facts: list[dict]) -> bool:
-        for signature in matching_facts:
-            if signature["args"] == query["args"]:
-                return True
-        return False
+        return query_scoring.is_fully_grounded_from_signature(query, matching_facts)
 
     def is_yes_no_question(self, question: str) -> bool:
         tokens = normalize_text(question).split()

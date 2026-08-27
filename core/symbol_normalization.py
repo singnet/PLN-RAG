@@ -1,11 +1,44 @@
 import re
 
 
-NORMALIZATION_VERSION = 1
+NORMALIZATION_VERSION = 2
+
+
+# Singular nouns that already end in "s". The suffix rules below would strip that
+# "s" and invent a non-word ("diabetes" -> "diabete", "lens" -> "len",
+# "species" -> "specy"), which then fails to match any external vocabulary keyed
+# on real words -- ConceptNet nodes and the SENF exemplar registry both are.
+# Intra-KB matching is unaffected either way, since the mangling was at least
+# deterministic; this exists so symbols stay joinable with the outside world.
+_SINGULAR_ENDING_IN_S = frozenset(
+    {
+        "diabetes",
+        "lens",
+        "series",
+        "species",
+        "news",
+        "herpes",
+        "rabies",
+        "measles",
+        "feces",
+        "bias",
+        "atlas",
+        "canvas",
+        "physics",
+        "mathematics",
+        "statistics",
+        "economics",
+        "politics",
+        "ethics",
+        "premises",
+    }
+)
 
 
 def singularize(word: str) -> str:
     if len(word) <= 3:
+        return word
+    if word in _SINGULAR_ENDING_IN_S:
         return word
     if word.endswith("ies") and len(word) > 4:
         return word[:-3] + "y"

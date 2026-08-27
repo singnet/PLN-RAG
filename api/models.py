@@ -74,6 +74,9 @@ class ReasonResponse(BaseModel):
     source_lookup_seconds: Optional[float] = None
     answer_generation_seconds: Optional[float] = None
 
+    # Parser-specific diagnostics, absent unless the active parser reports any.
+    senf: Optional[dict] = None
+
 
 #  Reset 
 
