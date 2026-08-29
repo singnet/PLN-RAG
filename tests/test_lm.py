@@ -49,6 +49,11 @@ class CreateLMTests(unittest.TestCase):
             base_url="https://openrouter.ai/api/v1",
         )
 
+    def test_litellm_response_model_constructs_on_runtime_python(self):
+        from litellm.types.utils import ModelResponse
+
+        self.assertIsNotNone(ModelResponse())
+
 
 class ComponentLMOwnershipTests(unittest.TestCase):
     def test_nl2pln_parser_binds_its_lm_to_the_loaded_module(self):
