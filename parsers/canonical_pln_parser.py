@@ -2,10 +2,9 @@ import logging
 import re
 from typing import List
 
-import dspy
-
 from config import get_settings
 from core import query_scoring
+from core.lm import create_lm
 from core.parser import ParseResult, SemanticParser
 from core.symbol_normalization import canonical_symbol, normalize_text, pluralize, singularize
 
@@ -63,10 +62,8 @@ class CanonicalPLNParser(SemanticParser):
         self._pln_spec = pln_spec
         self._module = NL2PLNModule()
         self._module.load(cfg.canonical_pln_nl2pln_module_path)
+        self._module.set_lm(create_lm())
         self._nl2pln = self._module.nl2pln
-
-        lm = dspy.LM(cfg.openai_model, api_key=cfg.openai_api_key, cache=False)
-        dspy.configure(lm=lm, temperature=0.1, max_tokens=4000)
 
     def parse(self, text: str, context: List[str]) -> ParseResult:
         return self._parse_with_mode(text, context, is_query=False)

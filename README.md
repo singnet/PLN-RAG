@@ -46,6 +46,17 @@ cp .env.example .env
 docker compose up --build
 ```
 
+To use OpenRouter, configure its OpenAI-compatible endpoint and a LiteLLM
+OpenRouter model name in `.env`:
+
+```env
+OPENAI_API_KEY=<openrouter-key>
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_MODEL=openrouter/openai/gpt-4o-mini
+```
+
+Leave `OPENAI_BASE_URL` empty to use the model provider's default endpoint.
+
 The API will be available at http://localhost:8000.
 Interactive docs at http://localhost:8000/docs.
 

@@ -1,0 +1,101 @@
+{
+  "pln_spec": "# PeTTaChainer LLM Rule Spec\n\nThis spec focuses only on constructing valid Statements and Queries.\nIt does not describe how to invoke chainer interface functions.\n\n## Core Forms\n\n- Statement form (fact or rule assertion):\n\n```metta\n(: proof-id type tv)\n```\n\n- Query pattern form:\n\n```metta\n(: $proofVar typePattern $tvVar)\n```\n\n## Rule Template\n\n```metta\n(: ruleName\n    (Implication\n        (Premises\n            premise1\n            premise2)\n        (Conclusions\n            conclusion1))\n    (STV 1.0 1.0))\n```\n\n## Premise Helpers You Can Use\n\n### Compute\n\n```metta\n(Compute f (arg1 arg2 ...) -> $out)\n```\n\n### Not\n\n```metta\n(Not expr)\n```\n\n### GreaterThan / >\n\n```metta\n(GreaterThan (DistFactA ...) 5)\n(GreaterThan (DistFactA ...) (DistFactB ...))\n```\n\n### MapDist\n\n```metta\n(MapDist f (DistFactA ...) -> $outDist)\n```\n\n### Map2Dist\n\n```metta\n(Map2Dist f (DistFactA ...) (DistFactB ...) -> $outDist)\n```\n\n### AverageDist\n\n```metta\n(AverageDist (DistFactPattern ...) -> $outDist)\n```\n\n### FoldAll / FoldAllValue\n\n```metta\n(FoldAll pattern value init fold-fn -> out)\n(FoldAllValue pattern value init fold-fn -> out)\n```\n\n## TV Modeling Rules\n\n- `STV` is truth uncertainty only.\n- Distribution TVs (`ParticleDist`, `NatDist`, `FloatDist`) are value uncertainty.\n- For uncertain numeric values, use distribution TVs.\n\nGood:\n\n```metta\n(: h1 (HeightDist g1 alice) (PointMass 160.0))\n(: h2 (HeightDist g1 bob) (ParticleFromNormal 170.0 2.0))\n```\n\nAvoid encoding numeric values in `STV` strength for measurement semantics.\n\n## Distribution Constructors\n\n```metta\n(PointMass x)\n(ParticleFromNormal mu sigma)\n(ParticleFromPairs ((x1 w1) (x2 w2) ...))\n```\n\n## Example: Average Height Rule\n\n```metta\n(: avgHeightDistRule\n    (Implication\n        (Premises\n            (Group $g)\n            (AverageDist (HeightDist $g $person) -> $avgDist))\n        (Conclusions\n            (AvgHeightDist $g)))\n    (STV 1.0 1.0))\n\n(: $prf (AvgHeightDist g1) $avgDist)\n```\n\n## Example: Rectangle Area Rule\n\n```metta\n(: areaDistRule\n    (Implication\n        (Premises\n            (Rectangle $rect)\n            (Map2Dist * (LengthDist $rect) (WidthDist $rect) -> $areaDist))\n        (Conclusions\n            (AreaDist $rect)))\n    (STV 1.0 1.0))\n\n(: $prf (AreaDist rectA) $areaDist)\n```\n",
+  "safe_demos": [
+    {
+      "augmented": true,
+      "sentences": ["Fragile items need a double wrap.", "Anything that needs a double wrap must be in a padded box.", "Object-77 is fragile."],
+      "context": [],
+      "reasoning": "This is a transitive chain. I must create a rule linking Fragile to NeedsDoubleWrap, and a second rule linking NeedsDoubleWrap to InPaddedBox. I must use exact predicate matching and snake_case for the object object_77.",
+      "statements": ["(: fragileRule (Implication (Premises (Fragile $i)) (Conclusions (NeedsDoubleWrap $i))) (STV 1.0 1.0))", "(: wrapRule (Implication (Premises (NeedsDoubleWrap $i)) (Conclusions (InPaddedBox $i))) (STV 1.0 1.0))", "(: obj77Fact (Fragile object_77) (STV 1.0 1.0))"],
+      "queries": ["(: $prf (InPaddedBox object_77) $tv)"]
+    },
+    {
+      "augmented": true,
+      "sentences": ["Dr. Ayele is an expert in quantum physics.", "Kebede is a student of Dr. Ayele.", "If a person is a student of an expert, they know the topic."],
+      "context": [],
+      "reasoning": "I need to normalize 'Dr. Ayele' to dr_ayele and 'quantum physics' to quantum_physics. The rule must use a shared variable for the teacher to bridge the StudentOf and ExpertIn relations.",
+      "statements": ["(: dr_ayele_expert (ExpertIn dr_ayele quantum_physics) (STV 1.0 1.0))", "(: k_student (StudentOf kebede dr_ayele) (STV 1.0 1.0))", "(: knowRule (Implication (Premises (And (StudentOf $s $t) (ExpertIn $t $topic))) (Conclusions (Knows $s $topic))) (STV 1.0 1.0))"],
+      "queries": ["(: $prf (Knows kebede quantum_physics) $tv)"]
+    },
+    {
+      "augmented": true,
+      "sentences": ["Kebede is at rack-01.", "Rack-01 is inside vault-07.", "A person is in an area if they are at a spot inside that area."],
+      "context": [],
+      "reasoning": "To prevent losing the area variable in the query, I must use a binary predicate (InArea $p $a). I will map 'rack-01' to rack_01 and 'vault-07' to vault_07.",
+      "statements": ["(: k_loc (AtSpot kebede rack_01) (STV 1.0 1.0))", "(: spot_in_area (Inside rack_01 vault_07) (STV 1.0 1.0))", "(: spatialRule (Implication (Premises (And (AtSpot $p $s) (Inside $s $a))) (Conclusions (InArea $p $a))) (STV 1.0 1.0))"],
+      "queries": ["(: $prf (InArea kebede vault_07) $tv)"]
+    },
+    {
+      "augmented": true,
+      "sentences": ["Motor-1 is part of Fan-1.", "Motor-1 converts electrical energy into mechanical energy.", "If a part of a whole converts electrical energy into mechanical energy, then that whole converts electrical energy into mechanical energy.", "Fan-1 is an appliance."],
+      "context": [],
+      "reasoning": "The two concrete sentences become grounded facts. The transfer rule is allowed because the source states it explicitly, and every rule premise preserves the source's argument roles.",
+      "statements": ["(: motor_part (PartOf motor_1 fan_1) (STV 1.0 1.0))", "(: motor_conversion (ConvertsEnergy motor_1 electrical_energy mechanical_energy) (STV 1.0 1.0))", "(: conversion_transfer (Implication (Premises (PartOf $part $whole) (ConvertsEnergy $part electrical_energy mechanical_energy)) (Conclusions (ConvertsEnergy $whole electrical_energy mechanical_energy))) (STV 1.0 1.0))", "(: fan_type (IsA fan_1 appliance) (STV 1.0 1.0))"],
+      "queries": ["(: $prf (ConvertsEnergy fan_1 electrical_energy mechanical_energy) $tv)"]
+    },
+    {
+      "augmented": true,
+      "sentences": ["If a substance is freezing, its heat energy is decreasing.", "If a substance's heat energy is decreasing, its temperature is decreasing.", "If a substance's temperature is decreasing, its molecules move slower.", "Water is freezing."],
+      "context": [],
+      "reasoning": "Each causal step is an explicit conditional in the source, and the source explicitly supplies the grounded water witness. I must not invent an intermediate bridge or witness.",
+      "statements": ["(: freeze_rule (Implication (Premises (IsFreezing $s)) (Conclusions (DecreasingHeat $s))) (STV 1.0 1.0))", "(: heat_temp_rule (Implication (Premises (DecreasingHeat $s)) (Conclusions (DecreasingTemp $s))) (STV 1.0 1.0))", "(: temp_motion_rule (Implication (Premises (DecreasingTemp $s)) (Conclusions (MoleculesMoveSlower $s))) (STV 1.0 1.0))", "(: water_freeze (IsFreezing water) (STV 1.0 1.0))"],
+      "queries": ["(: $prf (MoleculesMoveSlower water) $tv)"]
+    },
+    {
+      "augmented": true,
+      "sentences": ["Planting the same crop every year decreases the nutrients in the soil.", "As the amount of nutrients in soil decreases, the crop production will decrease.", "A farmer plants corn in Field-Alpha every year."],
+      "context": [],
+      "reasoning": "I need to model the causal link between the action (repeated planting) and the outcome (low production) through the intermediate state of low nutrients.",
+      "statements": ["(: repeated_planting (Implication (Premises (PlantedEveryYear $crop $field)) (Conclusions (DecreasedNutrients $field))) (STV 1.0 1.0))", "(: nutrient_impact (Implication (Premises (DecreasedNutrients $field)) (Conclusions (DecreasedProduction $field))) (STV 1.0 1.0))", "(: corn_fact (PlantedEveryYear corn field_alpha) (STV 1.0 1.0))"],
+      "queries": ["(: $prf (DecreasedProduction field_alpha) $tv)"]
+    },
+    {
+      "augmented": true,
+      "sentences": ["People who drink coffee stay awake.", "Sara drinks coffee."],
+      "context": [],
+      "reasoning": "I must use a valid rule with explicit Premises and Conclusions. The general statement becomes a rule, and the concrete sentence becomes a grounded fact with no free variables.",
+      "statements": ["(: coffee_awake_rule (Implication (Premises (Drink $person coffee)) (Conclusions (StayAwake $person))) (STV 1.0 1.0))", "(: sara_drink_coffee (Drink sara coffee) (STV 1.0 1.0))"],
+      "queries": ["(: $prf (StayAwake sara) $tv)"]
+    },
+    {
+      "augmented": true,
+      "sentences": ["If someone is the parent of a child, they care for that child.", "Alemu is the parent of Beti."],
+      "context": [],
+      "reasoning": "The explicit conditional preserves the parent-child relation as its premise. The named relationship becomes a grounded fact, so the open query may return Beti without inventing a child witness.",
+      "statements": ["(: parent_care_rule (Implication (Premises (ParentOf $parent $child)) (Conclusions (CaresFor $parent $child))) (STV 1.0 1.0))", "(: alemu_parent (ParentOf alemu beti) (STV 1.0 1.0))"],
+      "queries": ["(: $prf (CaresFor alemu $child) $tv)"]
+    },
+    {
+      "augmented": true,
+      "sentences": ["Humans are mortal.", "Socrates is a human."],
+      "context": [],
+      "reasoning": "Class membership should use IsA consistently. The universal sentence becomes a rule from IsA person human to Mortal person, and the named fact stays grounded without singularizing the proper name.",
+      "statements": ["(: human_mortal_rule (Implication (Premises (IsA $person human)) (Conclusions (Mortal $person))) (STV 1.0 1.0))", "(: socrates_human (IsA socrates human) (STV 1.0 1.0))"],
+      "queries": ["(: $prf (Mortal socrates) $tv)"]
+    },
+    {
+      "augmented": true,
+      "sentences": ["Socrates is a human.", "Humans are mortal."],
+      "context": [],
+      "reasoning": "Socrates is a proper name and must stay exactly socrates after lowercase normalization. Class membership must use IsA, and the generic statement becomes a rule from IsA person human to Mortal person.",
+      "statements": ["(: socrates_human (IsA socrates human) (STV 1.0 1.0))", "(: human_mortal_rule (Implication (Premises (IsA $person human)) (Conclusions (Mortal $person))) (STV 1.0 1.0))"],
+      "queries": ["(: $prf (Mortal socrates) $tv)"]
+    },
+    {
+      "augmented": true,
+      "sentences": ["Every doctor heals every patient.", "Meron is a doctor.", "Beti is a patient."],
+      "context": [],
+      "reasoning": "The explicit every/every statement becomes a class-restricted rule. Both named class-membership assertions become grounded facts, allowing the open query to return a source-grounded patient.",
+      "statements": ["(: doctor_heal_rule (Implication (Premises (IsA $doctor doctor) (IsA $patient patient)) (Conclusions (Heal $doctor $patient))) (STV 1.0 1.0))", "(: meron_doctor (IsA meron doctor) (STV 1.0 1.0))", "(: beti_patient (IsA beti patient) (STV 1.0 1.0))"],
+      "queries": ["(: $prf (Heal meron $patient) $tv)"]
+    }
+  ],
+  "neutral_demo": {
+    "augmented": true,
+    "sentences": ["RelK token_y token_z.", "If RelK links an item to another item, then the first item has ClassA.", "If an item has ClassA, then it has OutputA."],
+    "context": [],
+    "reasoning": "This is a structural example only; never copy its symbols into a current output. Build the grounded relation-to-classification-to-output chain using only token_y and token_z from this input.",
+    "statements": ["(: relk_fact (RelK token_y token_z) (STV 1.0 1.0))", "(: classify_rule (Implication (Premises (RelK $item $other)) (Conclusions (ClassA $item))) (STV 1.0 1.0))", "(: output_rule (Implication (Premises (ClassA $item)) (Conclusions (OutputA $item))) (STV 1.0 1.0))"],
+    "queries": ["(: $proof (OutputA token_y) $tv)"]
+  }
+}
