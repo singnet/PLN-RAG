@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     parser_batch_sentences: int = 4
     parser_batch_max_chars: int = 2000
 
+    # Optional document-level coreference preprocessing
+    coreference_enabled: bool = False
+    coreference_model: str = "biu-nlp/f-coref"
+    coreference_min_confidence: float = 0.65
+
     # Reasoning
     chaining_timeout: int = 30  # seconds before proof search is killed
     chaining_max_steps: int = 100
