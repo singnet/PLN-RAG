@@ -140,6 +140,25 @@ QUERY_FALLBACK_ENABLED=true
 When disabled, the service runs only the original generated query. When enabled,
 it may try later fallback candidates produced by the parser.
 
+### Coreference preprocessing
+
+Coreference resolution is disabled by default. To enable it, install the
+optional `fastcoref` dependency/model and set:
+
+```bash
+COREFERENCE_ENABLED=true
+COREFERENCE_MODEL=biu-nlp/f-coref
+COREFERENCE_MIN_CONFIDENCE=0.65
+```
+
+The resolver runs before document chunking and leaves text unchanged if the
+optional model is unavailable. Compare benchmark runs with:
+
+```bash
+python3 benchmark_parsers.py --suite-file data/benchmarks/stress25_v1.json --parsers canonical_pln --no-coreference
+python3 benchmark_parsers.py --suite-file data/benchmarks/stress25_v1.json --parsers canonical_pln --coreference
+```
+
 ## ConceptNet Background Knowledge
 
 ConceptNet can be loaded as readonly background knowledge and indexed into the
