@@ -51,6 +51,10 @@ class CoreferenceResolver:
     def _resolve_with_fastcoref(self, text: str) -> ResolvedDocument:
         if self._model is None:
             from fastcoref import FCoref
+            from fastcoref.coref_models.modeling_fcoref import FCorefModel
+
+            # Patch for compatibility with newer versions of transformers
+            FCorefModel.all_tied_weights_keys = {}
 
             self._model = FCoref(model_name_or_path=self.model_name)
 
