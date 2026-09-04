@@ -63,6 +63,14 @@ class CoreferenceResolver:
         replacements: list[tuple[int, int, str]] = []
         mentions: list[dict[str, Any]] = []
 
+        pronouns = {
+            "he", "him", "his", 
+            "she", "her", "hers", 
+            "it", "its", 
+            "they", "them", "their", "theirs"
+        }
+        possessives = {"his", "her", "hers", "its", "their", "theirs"}
+
         for cluster_id, cluster in enumerate(clusters or []):
             if len(cluster) < 2:
                 continue
@@ -73,14 +81,24 @@ class CoreferenceResolver:
             for span in cluster[1:]:
                 start, end = self._span(span)
                 mention = text[start:end]
-                if not mention.strip() or mention.casefold() == antecedent.casefold():
+                mention_lower = mention.casefold()
+                
+                # Restrict to exact pronoun matches to avoid breaking rigid grammar rules
+                if not mention.strip() or mention_lower == antecedent.casefold() or mention_lower not in pronouns:
                     continue
-                replacements.append((start, end, antecedent))
+                
+                # Handle possessive pronoun replacement (e.g., 'his' -> 'John\'s')
+                replacement = antecedent
+                if mention_lower in possessives:
+                    if not replacement.endswith("'s") and not replacement.endswith("'"):
+                        replacement += "'" if replacement.endswith("s") else "'s"
+
+                replacements.append((start, end, replacement))
                 mentions.append(
                     {
                         "cluster_id": cluster_id,
                         "mention": mention,
-                        "antecedent": antecedent,
+                        "antecedent": replacement,
                         "start": start,
                         "end": end,
                         "confidence": 1.0,
