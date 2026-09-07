@@ -1,7 +1,8 @@
 import pytest
 
+from core.parser import ParseResult
 from core.senf.extractor import extract_senf
-from core.senf.types import senf_to_payload
+from core.senf.types import SENF_PAYLOAD_KEY, senf_to_payload
 from parsers.canonical_pln_parser import CanonicalPLNParser
 from parsers.canonical_senf_pln_parser import CanonicalSENFPLNParser
 
@@ -33,9 +34,15 @@ def parser(monkeypatch):
 
 
 def hook(parser, text, statements, queries=None, is_query=False):
-    return parser._post_filter_hook(
+    filtered = parser._post_filter_hook(
         [text], list(statements), list(queries or []), [], is_query
     )
+    if not is_query:
+        result = ParseResult(statements=filtered[0], parser_state=parser._pending_ingest)
+        parser.prepare_ingest(result, filtered[0])
+        parser.commit_ingest(result)
+        parser._pending_ingest = None
+    return filtered
 
 
 class TestBaseParserCompatibility:
@@ -171,7 +178,7 @@ class TestVectorContext:
             "The camera has a wide lens.",
             [CAMERA],
             fake_vector_store.embed("The camera has a wide lens."),
-            metadata=first.storage_metadata(),
+            metadata={SENF_PAYLOAD_KEY: senf_to_payload(first._session[-1])},
         )
 
         recreated = CanonicalSENFPLNParser()
@@ -287,9 +294,12 @@ class TestWeaveScoring:
             ["(: a (AtLocation camera lab) (STV 1.0 1.0))"],
         )
 
-        assert planned == ["(: $prf (AtLocation camera lab) $tv)"]
+        assert planned[:2] == [
+            "(: $prf (AtLocation camera lab) $tv)",
+            "(: $prf (LocatedIn camera lab) $tv)",
+        ]
 
-    def test_query_planning_rejects_predicates_from_an_older_case(self, parser):
+    def test_query_planning_ranks_current_predicates_before_canonical_fallbacks(self, parser):
         source = extract_senf(
             "s2", "The camera has a wide lens.", [CAMERA]
         )
@@ -317,7 +327,8 @@ class TestWeaveScoring:
             ],
         )
 
-        assert planned == ["(: $prf (HasProperty camera wide_lens) $tv)"]
+        assert planned[0] == "(: $prf (HasProperty camera wide_lens) $tv)"
+        assert "(: $prf (ImprovesOutcome tirzepatide) $tv)" in planned[1:]
 
 
 class TestTelemetry:

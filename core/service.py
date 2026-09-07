@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+import threading
 import time
 from typing import List
 
@@ -37,6 +38,7 @@ class PLNRAGService:
         self._answer_gen = AnswerGenerator()
         self._context_top_k = cfg.context_top_k
         self._query_fallback_enabled = cfg.query_fallback_enabled
+        self._operation_lock = threading.RLock()
         self._conceptnet.ensure_loaded(self._reasoner, self._vector_store)
 
     #  Ingest
@@ -46,14 +48,12 @@ class PLNRAGService:
         Process texts sequentially so each sentence can see
         all previously ingested atoms as context.
         """
-        results = []
         loop = asyncio.get_running_loop()
-        for text in texts:
-            result = await loop.run_in_executor(
-                None, self._ingest_single, text
-            )
-            results.append(result)
-        return results
+        return await loop.run_in_executor(None, self._ingest_batch_sync, texts)
+
+    def _ingest_batch_sync(self, texts: List[str]) -> List[IngestItemResult]:
+        with self._operation_lock:
+            return [self._ingest_single(text) for text in texts]
 
     def _ingest_single(self, text: str) -> IngestItemResult:
         try:
@@ -87,6 +87,7 @@ class PLNRAGService:
                     parse_result = self._parser.parse_batch(batch, context)
 
                     if not parse_result.statements:
+                        self._prepare_parser_ingest(parse_result, [])
                         empty_results += 1
                         logger.warning("No statements for batch preview %r", batch_text[:60])
                         continue
@@ -96,12 +97,15 @@ class PLNRAGService:
                     added, rejected_reasoner = self._reasoner.add_statements_report(valid)
                     rejected.extend(rejected_reasoner)
                     all_atoms.extend(added)
+                    metadata, prepared = self._prepare_parser_ingest(parse_result, added)
                     if added:
+                        if prepared:
+                            self._commit_parser_ingest(parse_result)
                         self._vector_store.store(
                             batch_text,
                             added,
                             vector,
-                            metadata=self._parser_storage_metadata(),
+                            metadata=metadata,
                         )
             else:
                 parser_calls = chunk_count
@@ -118,6 +122,7 @@ class PLNRAGService:
                     parse_result = self._parser.parse(chunk, context)
 
                     if not parse_result.statements:
+                        self._prepare_parser_ingest(parse_result, [])
                         empty_results += 1
                         logger.warning("No statements for chunk preview %r", chunk[:60])
                         continue
@@ -128,22 +133,31 @@ class PLNRAGService:
                     added, rejected_reasoner = self._reasoner.add_statements_report(valid)
                     rejected.extend(rejected_reasoner)
                     all_atoms.extend(added)
+                    metadata, prepared = self._prepare_parser_ingest(parse_result, added)
 
                     # 5. Store in vector DB for future context retrieval
                     if added:
+                        if prepared:
+                            self._commit_parser_ingest(parse_result)
                         self._vector_store.store(
                             chunk,
                             added,
                             vector,
-                            metadata=self._parser_storage_metadata(),
+                            metadata=metadata,
                         )
 
-            if parser_calls > 0 and empty_results == parser_calls and not all_atoms:
+            if not all_atoms:
+                if parser_calls == 0:
+                    error = "No parse units were generated for this input."
+                elif empty_results == parser_calls:
+                    error = "Parser produced no statements for any chunk or batch. Check parser logs and model configuration."
+                else:
+                    error = "All generated statements were rejected before storage."
                 return IngestItemResult(
                     text=text,
                     atoms=[],
                     status="failed",
-                    error="Parser produced no statements for any chunk or batch. Check parser logs and model configuration.",
+                    error=error,
                     chunk_count=chunk_count,
                     batch_count=batch_count,
                     batch_sizes=batch_sizes,
@@ -276,6 +290,14 @@ class PLNRAGService:
     #  Query
 
     async def reason(self, query: str) -> ReasonResponse:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._reason_serialized, query)
+
+    def _reason_serialized(self, query: str) -> ReasonResponse:
+        with self._operation_lock:
+            return self._reason(query)
+
+    def _reason(self, query: str) -> ReasonResponse:
         cfg = get_settings()
         # 1. Retrieve context for translation
         t0 = time.perf_counter()
@@ -308,7 +330,7 @@ class PLNRAGService:
                 reasoning_seconds=0.0,
                 source_lookup_seconds=0.0,
                 answer_generation_seconds=0.0,
-                senf=self._parser_diagnostics(),
+                senf=parse_result.diagnostics,
             )
 
         # 3. Add any supporting statements the parser generated for the query
@@ -424,30 +446,31 @@ class PLNRAGService:
             reasoning_seconds=round(reasoning_seconds, 4),
             source_lookup_seconds=round(source_lookup_seconds, 4),
             answer_generation_seconds=round(answer_generation_seconds, 4),
-            senf=self._parser_diagnostics(),
+            senf=parse_result.diagnostics,
         )
 
-    def _parser_diagnostics(self) -> dict | None:
-        """Optional per-parser diagnostics. Never fails a query."""
-        report = getattr(self._parser, "senf_telemetry", None)
-        if report is None:
-            return None
+    def _prepare_parser_ingest(
+        self, parse_result, added: List[str]
+    ) -> tuple[dict | None, bool]:
+        prepare = getattr(self._parser, "prepare_ingest", None)
+        if not callable(prepare):
+            return parse_result.metadata or None, True
         try:
-            return report()
+            metadata = prepare(parse_result, added)
+            return (metadata if isinstance(metadata, dict) else None), True
         except Exception:
-            logger.warning("parser diagnostics failed", exc_info=True)
-            return None
+            logger.warning("parser ingest preparation failed", exc_info=True)
+            parse_result.parser_state = None
+            return None, False
 
-    def _parser_storage_metadata(self) -> dict | None:
-        report = getattr(self._parser, "storage_metadata", None)
-        if not callable(report):
-            return None
+    def _commit_parser_ingest(self, parse_result) -> None:
+        commit = getattr(self._parser, "commit_ingest", None)
+        if not callable(commit):
+            return
         try:
-            metadata = report()
-            return metadata if isinstance(metadata, dict) else None
+            commit(parse_result)
         except Exception:
-            logger.warning("parser storage metadata failed", exc_info=True)
-            return None
+            logger.warning("parser ingest commit failed", exc_info=True)
 
     def _classify_query_status(
         self, query: str, original_query: str, fallback_used: bool
@@ -506,14 +529,15 @@ class PLNRAGService:
     #  Reset
 
     def reset(self, scope: str):
-        if scope in ("all", "atomspace"):
-            self._reasoner.reset()
-            reset_parser = getattr(self._parser, "reset", None)
-            if callable(reset_parser):
-                reset_parser()
-        if scope in ("all", "vectordb"):
-            self._vector_store.reset()
-        self._conceptnet.restore_after_reset(self._reasoner, self._vector_store, scope)
+        with self._operation_lock:
+            if scope in ("all", "atomspace"):
+                self._reasoner.reset()
+                reset_parser = getattr(self._parser, "reset", None)
+                if callable(reset_parser):
+                    reset_parser()
+            if scope in ("all", "vectordb"):
+                self._vector_store.reset()
+            self._conceptnet.restore_after_reset(self._reasoner, self._vector_store, scope)
 
     #  Health
 

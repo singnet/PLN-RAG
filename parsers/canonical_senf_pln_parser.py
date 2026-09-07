@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from config import get_settings
 from core import query_scoring
+from core.parser import ParseResult
 from core.senf.bridge import identity_bridge_atoms, predicate_bridge_atoms, transport_truth
 from core.senf.exemplars import score_exemplars
 from core.senf.extractor import extract_senf
@@ -95,13 +96,12 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
 
     def reset(self) -> None:
         self._session: List[SENF] = []
-        self._query_boundary = 0
         self._sentence_counter = 0
         self._session_nonce = uuid.uuid4().hex[:8]
         self._weave: Optional[WeaveResult] = None
         self._weaves: tuple[WeaveResult, ...] = ()
         self._telemetry: Optional[dict] = None
-        self._latest_ingest_senf: Optional[SENF] = None
+        self._pending_ingest: Optional[tuple[str, str]] = None
         self._query_source_heads: frozenset[str] = frozenset()
 
     def senf_telemetry(self) -> Optional[dict]:
@@ -112,10 +112,42 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         """
         return dict(self._telemetry) if self._telemetry else None
 
-    def storage_metadata(self) -> Optional[dict]:
-        if self._latest_ingest_senf is None:
+    def _parse_many_with_mode(
+        self, texts: List[str], context: List[str], is_query: bool
+    ) -> ParseResult:
+        self._pending_ingest = None
+        result = super()._parse_many_with_mode(texts, context, is_query)
+        result.diagnostics = self.senf_telemetry()
+        if not is_query:
+            result.parser_state = self._pending_ingest
+        self._pending_ingest = None
+        return result
+
+    def prepare_ingest(
+        self, parse_result: ParseResult, accepted: List[str]
+    ) -> Optional[dict]:
+        pending = parse_result.parser_state
+        parse_result.parser_state = None
+        if not pending or not accepted:
+            parse_result.metadata = {}
             return None
-        return {SENF_PAYLOAD_KEY: senf_to_payload(self._latest_ingest_senf)}
+        sentence_id, text = pending
+        semantic_atoms = [atom for atom in accepted if _is_semantic_atom(atom)]
+        senf = extract_senf(sentence_id, text, semantic_atoms)
+        if self._exemplar_enabled:
+            score_exemplars(senf)
+        if senf.is_empty:
+            parse_result.metadata = {}
+            return None
+        parse_result.parser_state = senf
+        parse_result.metadata = {SENF_PAYLOAD_KEY: senf_to_payload(senf)}
+        return parse_result.metadata
+
+    def commit_ingest(self, parse_result: ParseResult) -> None:
+        senf = parse_result.parser_state
+        parse_result.parser_state = None
+        if isinstance(senf, SENF):
+            self._remember(senf, is_query=False)
 
     def _post_filter_hook(
         self,
@@ -132,7 +164,7 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             self._weave = None
             self._weaves = ()
         else:
-            self._latest_ingest_senf = None
+            self._pending_ingest = None
 
         if not statements and not queries:
             return statements, queries
@@ -144,6 +176,8 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             senf = extract_senf(
                 sentence_id, text, _senf_inputs(text, statements, queries)
             )
+            if not is_query:
+                self._pending_ingest = (sentence_id, text)
             if self._exemplar_enabled:
                 score_exemplars(senf)
             if senf.is_empty:
@@ -169,15 +203,11 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                     identity_graph=graph,
                 )
                 self._weave = self._weaves[0] if self._weaves else None
-                self._query_boundary = len(self._session)
             # Only a question owns a weave; on ingest self._weave still holds the
             # previous question's, which is not this call's telemetry.
             reported = self._weave if is_query else None
             if not graph.representatives:
                 self._telemetry = _telemetry(senf, graph, reported)
-                self._remember(senf, is_query)
-                if not is_query:
-                    self._latest_ingest_senf = senf
                 return statements, queries
 
             rewritten_statements = [
@@ -202,9 +232,6 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             self._telemetry = _telemetry(
                 senf, graph, reported, changed, len(bridges)
             )
-            self._remember(senf, is_query)
-            if not is_query:
-                self._latest_ingest_senf = senf
             return rewritten_statements, rewritten_queries
         except Exception:
             logger.exception("SENF identity resolution failed; using canonical_pln output")
@@ -267,7 +294,7 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                 rewritten = dict(parsed)
                 rewritten["head"] = mapped[1]
                 constrained.append(self._signature_to_query(rewritten))
-        return self._dedupe_preserve_order(constrained)
+        return self._dedupe_preserve_order(constrained + planned)
 
     def _senf_signals(self) -> Optional[query_scoring.SENFSignals]:
         if self._weave is None:
@@ -307,11 +334,7 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
 
     def _prior_senfs(self, text: str, is_query: bool = False) -> List[SENF]:
         """Use the current query window plus semantically relevant recalled SENFs."""
-        prior = (
-            list(self._session[self._query_boundary :])
-            if is_query
-            else list(self._session)
-        )
+        prior = list(self._session)
         seen = {senf.senf_id for senf in prior}
         for blob in self._retrieve_senf_blobs(text):
             recalled = senf_from_payload(blob)
