@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import benchmark_grading as bg
+from benchmark_replay import GenerationTape, GenerationTapeError, content_hash, file_hash
 from config import get_settings
 from core.service import PLNRAGService
 
@@ -346,9 +347,9 @@ def _preflight_llm() -> tuple[bool, str]:
     """
     cfg = get_settings()
     try:
-        import dspy
+        from core.lm import create_lm
 
-        lm = dspy.LM(cfg.openai_model, api_key=cfg.openai_api_key, cache=False)
+        lm = create_lm()
         reply = lm("Reply with the single word: ok", max_tokens=5)
     except Exception as exc:
         return False, f"{type(exc).__name__}: {exc}"
@@ -437,28 +438,54 @@ def _compact_ingest_results(results) -> list[dict]:
     ]
 
 
-async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
+async def _benchmark_case(
+    parser_name: str,
+    case: dict,
+    run_id: str,
+    generation_tape: GenerationTape | None = None,
+) -> dict:
     collection, atomspace_path = _configure_case_environment(parser_name, case["name"], run_id)
     parser_factory = _get_parser_factory(parser_name)
 
-    init_started = time.perf_counter()
-    parser = parser_factory()
-    parser_init_seconds = time.perf_counter() - init_started
-
-    parse_started = time.perf_counter()
-    statement_parse = [_run_parse(parser, text, [], is_query=False) for text in case["texts"]]
-    query_parse = _run_parse(parser, case["question"], [], is_query=True)
-    parse_seconds = time.perf_counter() - parse_started
-
-    service = PLNRAGService(parser)
-    service.reset("all")
-
+    backend = None
+    service = None
     try:
+        init_started = time.perf_counter()
+        parser = parser_factory()
+        parser_init_seconds = time.perf_counter() - init_started
+        if generation_tape is not None:
+            case_id = str(case.get("case_id") or case.get("id") or case["name"])
+            backend = generation_tape.backend(parser_name, case_id)
+            install_backend = getattr(parser, "set_generation_backend", None)
+            if not callable(install_backend):
+                raise GenerationTapeError(
+                    f"Parser {parser_name} does not support generation capture/replay"
+                )
+            install_backend(backend)
+
+        parse_started = time.perf_counter()
+        if backend is not None:
+            backend.set_phase("parse_only_statement")
+        statement_parse = [
+            _run_parse(parser, text, [], is_query=False) for text in case["texts"]
+        ]
+        if backend is not None:
+            backend.set_phase("parse_only_query")
+        query_parse = _run_parse(parser, case["question"], [], is_query=True)
+        parse_seconds = time.perf_counter() - parse_started
+
+        service = PLNRAGService(parser)
+        service.reset("all")
+
         ingest_started = time.perf_counter()
+        if backend is not None:
+            backend.set_phase("e2e_ingest")
         ingest_results = await service.ingest_batch(case["texts"])
         ingest_seconds = time.perf_counter() - ingest_started
 
         query_started = time.perf_counter()
+        if backend is not None:
+            backend.set_phase("e2e_query")
         query_response = await service.reason(case["question"])
         query_seconds = time.perf_counter() - query_started
 
@@ -514,9 +541,12 @@ async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
             "correct": correct,
         }
     finally:
-        service.reset("all")
+        if service is not None:
+            service.reset("all")
         if atomspace_path.exists():
             atomspace_path.unlink()
+        if backend is not None:
+            backend.finish()
 
 
 def _knowledge_state(service: PLNRAGService) -> dict[str, int]:
@@ -843,6 +873,15 @@ async def main() -> int:
         action="store_true",
         help="Skip the LLM reachability check (only for runs that need no LLM)",
     )
+    tape_group = cli.add_mutually_exclusive_group()
+    tape_group.add_argument(
+        "--capture-generation-tape",
+        help="Capture raw canonical NL2PLN calls for deterministic replay",
+    )
+    tape_group.add_argument(
+        "--replay-generation-tape",
+        help="Replay raw canonical NL2PLN calls without using the LLM",
+    )
     cli.add_argument(
         "--limit",
         type=int,
@@ -851,7 +890,17 @@ async def main() -> int:
     )
     args = cli.parse_args()
 
-    if not args.skip_preflight:
+    using_tape = bool(args.capture_generation_tape or args.replay_generation_tape)
+    if using_tape and args.mode != "isolated":
+        cli.error("generation capture/replay currently supports isolated mode only")
+    if args.capture_generation_tape and args.parsers != ["canonical_pln"]:
+        cli.error("generation capture requires --parsers canonical_pln")
+    if args.replay_generation_tape and any(
+        name not in {"canonical_pln", "canonical_senf_pln"} for name in args.parsers
+    ):
+        cli.error("generation replay supports canonical_pln and canonical_senf_pln only")
+
+    if not args.skip_preflight and not args.replay_generation_tape:
         ok, detail = _preflight_llm()
         if not ok:
             print(
@@ -864,6 +913,7 @@ async def main() -> int:
             )
             return 2
 
+    if not args.skip_preflight:
         ok, detail = _preflight_reasoner()
         if not ok:
             print(
@@ -900,6 +950,23 @@ async def main() -> int:
 
     gold_cases, gold_file = _resolve_gold(args.gold_file, suite_metadata or {}, suite_label)
     _apply_gold_expectations(cases, gold_cases)
+
+    generation_tape = None
+    if using_tape:
+        cfg = get_settings()
+        tape_metadata = {
+            "suite": suite_label,
+            "mode": args.mode,
+            "cases_sha256": content_hash(cases),
+            "gold_sha256": content_hash(gold_cases),
+            "canonical_module_sha256": file_hash(cfg.canonical_pln_nl2pln_module_path),
+            "openai_model": cfg.openai_model,
+        }
+        generation_tape = GenerationTape(
+            "capture" if args.capture_generation_tape else "replay",
+            args.capture_generation_tape or args.replay_generation_tape,
+            metadata=tape_metadata,
+        )
 
     payload: dict[str, object] = {
         "run_id": run_id,
@@ -952,7 +1019,11 @@ async def main() -> int:
         else:
             for case in cases:
                 try:
-                    result = await _benchmark_case(parser_name, case, run_id)
+                    result = await _benchmark_case(
+                        parser_name, case, run_id, generation_tape=generation_tape
+                    )
+                except GenerationTapeError:
+                    raise
                 except Exception as exc:
                     result = {
                         "case": case,
@@ -976,6 +1047,10 @@ async def main() -> int:
     warnings = _validity_warnings(payload["summary"])
     payload["valid"] = not warnings
     payload["validity_warnings"] = warnings
+
+    if generation_tape is not None:
+        generation_tape.save()
+        payload["generation_tape"] = generation_tape.report()
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

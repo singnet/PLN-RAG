@@ -64,6 +64,25 @@ class CanonicalPLNParser(SemanticParser):
         self._module.load(cfg.canonical_pln_nl2pln_module_path)
         self._module.set_lm(create_lm())
         self._nl2pln = self._module.nl2pln
+        self._generation_backend = None
+
+    def set_generation_backend(self, backend) -> None:
+        """Install benchmark-only raw generation capture or replay."""
+        self._generation_backend = backend
+
+    def _generate(self, sentences: List[str], context: List[str]):
+        if self._generation_backend is not None:
+            return self._generation_backend.generate(
+                sentences=sentences,
+                context=context,
+                pln_spec=self._pln_spec,
+                live=self._nl2pln,
+            )
+        return self._nl2pln(
+            sentences=sentences,
+            context=context,
+            pln_spec=self._pln_spec,
+        )
 
     def parse(self, text: str, context: List[str]) -> ParseResult:
         return self._parse_with_mode(text, context, is_query=False)
@@ -100,11 +119,7 @@ class CanonicalPLNParser(SemanticParser):
             prepared_texts, prepared_context = self._build_parser_inputs_batch(
                 texts, context, is_query=is_query, concepts=concepts
             )
-            result = self._nl2pln(
-                sentences=prepared_texts,
-                context=prepared_context,
-                pln_spec=self._pln_spec,
-            )
+            result = self._generate(prepared_texts, prepared_context)
 
             statements = self._canonicalize_outputs(
                 self._dedupe_preserve_order(result.statements or []),
@@ -139,11 +154,7 @@ class CanonicalPLNParser(SemanticParser):
             queries = self._plan_queries(question=question_text, queries=queries, statements=statements, context=context)
 
             if is_query and len(texts) == 1 and not queries:
-                fallback_result = self._nl2pln(
-                    sentences=[texts[0]],
-                    context=prepared_context,
-                    pln_spec=self._pln_spec,
-                )
+                fallback_result = self._generate([texts[0]], prepared_context)
                 statements = self._canonicalize_outputs(
                     self._dedupe_preserve_order(
                         fallback_result.statements or statements
@@ -169,6 +180,10 @@ class CanonicalPLNParser(SemanticParser):
 
             return ParseResult(statements=statements, queries=queries)
         except Exception:
+            if self._generation_backend is not None and getattr(
+                self._generation_backend, "fail_closed", False
+            ):
+                raise
             preview = texts[0] if texts else ""
             logger.exception("CanonicalPLN parse failed for preview %r", preview[:80])
             return ParseResult()
