@@ -638,6 +638,16 @@ async def main() -> int:
         help="Print per-case progress to stderr",
     )
     cli.add_argument("--quick", action="store_true", help="Run a reduced representative case set")
+    coref_group = cli.add_mutually_exclusive_group()
+    coref_group.add_argument(
+        "--coreference", dest="coreference", action="store_true",
+        help="Enable optional coreference preprocessing",
+    )
+    coref_group.add_argument(
+        "--no-coreference", dest="coreference", action="store_false",
+        help="Disable coreference preprocessing",
+    )
+    cli.set_defaults(coreference=None)
     cli.add_argument(
         "--output-dir",
         default="data/benchmarks",
@@ -656,6 +666,9 @@ async def main() -> int:
         help="Optional max number of cases to run (after filtering)",
     )
     args = cli.parse_args()
+
+    if args.coreference is not None:
+        os.environ["COREFERENCE_ENABLED"] = str(args.coreference).lower()
 
     if args.suite_file:
         suite_path = Path(args.suite_file)
@@ -681,6 +694,7 @@ async def main() -> int:
     payload: dict[str, object] = {
         "run_id": run_id,
         "conceptnet_enabled": False,
+        "coreference_enabled": bool(get_settings().coreference_enabled),
         "mode": args.mode,
         "suite": suite_label,
         "suite_metadata": suite_metadata,

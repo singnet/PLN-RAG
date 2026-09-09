@@ -6,6 +6,7 @@ from typing import List
 
 from config import get_settings
 from core.chunker import Chunker
+from core.coreference import CoreferenceResolver
 from core.parser import SemanticParser
 from core.reasoner import Reasoner
 from core.answer_generator import AnswerGenerator
@@ -29,6 +30,11 @@ class PLNRAGService:
     def __init__(self, parser: SemanticParser):
         cfg = get_settings()
         self._parser = parser
+        self._coreference = CoreferenceResolver(
+            enabled=cfg.coreference_enabled,
+            model_name=cfg.coreference_model,
+            min_confidence=cfg.coreference_min_confidence,
+        )
         create_chunker = getattr(parser, "create_chunker", None)
         self._chunker = create_chunker() if callable(create_chunker) else Chunker()
         self._reasoner = Reasoner()
@@ -57,12 +63,14 @@ class PLNRAGService:
 
     def _ingest_single(self, text: str) -> IngestItemResult:
         try:
+            resolved = self._coreference.resolve(text)
+            parser_text = resolved.resolved
             all_atoms: List[str] = []
             rejected: List[dict] = []
             supports_batch_parse = (
                 self._parser.__class__.parse_batch is not SemanticParser.parse_batch
             )
-            chunk_units = self._chunker.chunk(text)
+            chunk_units = self._chunker.chunk(parser_text)
             chunk_count = len(chunk_units)
             batch_count = 0
             batch_sizes: List[int] = []
@@ -71,7 +79,7 @@ class PLNRAGService:
 
             if supports_batch_parse:
                 batches = self._chunker.batch_chunks(
-                    text,
+                    parser_text,
                     max_sentences=get_settings().parser_batch_sentences,
                     max_chars=get_settings().parser_batch_max_chars,
                 )
