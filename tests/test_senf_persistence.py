@@ -9,228 +9,218 @@ from core.senf import (
     senf_to_payload,
 )
 from core.senf.extractor import extract_senf
-from core.senf.types import Literal, Mention, Role, SENF, SENFFrame
+from core.senf.types import EntityRef, FrameRef, KindRef, ValueRef
 
 
-def _sample_senf() -> SENF:
-    kebede = Mention(
-        surface="Kebede",
-        canonical_symbol="kebede",
-        sentence_id="s1",
-        mention_id="s1:m0",
-        char_span=(0, 6),
-        mention_type="proper",
-        head_lemma="kebede",
-    )
-    fish = Mention(
-        surface="fish",
-        canonical_symbol="fish",
-        sentence_id="s1",
-        mention_id="s1:m1",
-        char_span=(12, 16),
-        mention_type="common",
-        head_lemma="fish",
-    )
-    frame = SENFFrame(
-        frame_id="f1",
-        predicate_head="Eats",
-        roles=[
-            Role("arg0", kebede),
-            Role("arg1", fish),
-            Role("arg2", Literal("3", "number")),
-        ],
-        polarity=False,
-        modality="possible",
-        time_ref="past",
-        location_ref="addis_ababa",
-        source_sentence_id="s1",
-        source_text="Kebede eats fish.",
-    )
-    return SENF(
-        senf_id="senf-1",
-        sentence_id="s1",
-        frames=[frame],
-        mentions=[kebede, fish],
-        kinds={"kebede": "human"},
-    )
-
-
-def test_payload_is_json_serializable():
-    """Qdrant payloads cross the wire as JSON, so tuples must already be lists."""
-    payload = senf_to_payload(_sample_senf())
-    assert json.loads(json.dumps(payload)) == payload
-
-
-def test_round_trip_preserves_every_field():
-    original = _sample_senf()
-    restored = senf_from_payload(senf_to_payload(original))
-
-    assert restored is not None
-    assert restored.senf_id == original.senf_id
-    assert restored.sentence_id == original.sentence_id
-    assert restored.kinds == original.kinds
-    assert restored.mentions == original.mentions
-    assert restored.frames == original.frames
-
-
-def test_round_trip_survives_a_real_json_hop():
-    """A tuple char_span becomes a list in transit; it must come back a tuple."""
-    original = _sample_senf()
-    restored = senf_from_payload(json.loads(json.dumps(senf_to_payload(original))))
-
-    assert restored is not None
-    assert restored.mentions[0].char_span == (0, 6)
-    assert restored.frames == original.frames
-
-
-def test_round_trip_of_extractor_output():
-    """Extractor output must round-trip through the persistence format."""
-    senf = extract_senf(
+def _sample():
+    return extract_senf(
         "s1",
-        "Kebede eats fish.",
-        ["(: kebede_eats_fish (Eats kebede fish) (STV 1.0 1.0))"],
+        "Kebede is a researcher and eats 3 fish.",
+        [
+            "(: kind (IsA kebede researcher) (STV 1 1))",
+            "(: eat (Eats kebede 3 (Fresh fish)) (STV 1 1))",
+        ],
     )
-    restored = senf_from_payload(senf_to_payload(senf))
 
+
+def test_v3_payload_is_json_safe_and_round_trips_every_field():
+    original = _sample()
+    payload = senf_to_payload(original)
+    assert payload["senf_version"] == 3 == SENF_PAYLOAD_VERSION
+    assert json.loads(json.dumps(payload)) == payload
+    assert senf_from_payload(json.loads(json.dumps(payload))) == original
+
+
+def test_round_trip_preserves_all_reference_types():
+    restored = senf_from_payload(senf_to_payload(_sample()))
     assert restored is not None
-    assert restored.frames == senf.frames
-    assert restored.mentions == senf.mentions
-    assert restored.symbols() == senf.symbols()
+    fillers = [role.filler for frame in restored.frames for role in frame.roles]
+    assert any(isinstance(filler, EntityRef) for filler in fillers)
+    assert any(isinstance(filler, KindRef) for filler in fillers)
+    assert any(isinstance(filler, ValueRef) for filler in fillers)
+    assert any(isinstance(filler, FrameRef) for filler in fillers)
 
 
-def test_frame_mention_fillers_are_the_same_objects_as_the_mention_list():
-    """Fillers are stored by mention reference, not duplicated inline.
-
-    If rehydration built fresh Mentions per role, a frame filler would lose the
-    span and type carried by the mention list and identity resolution would see
-    two different objects for one entity.
-    """
-    restored = senf_from_payload(senf_to_payload(_sample_senf()))
-
-    assert restored is not None
-    by_symbol = {m.canonical_symbol: m for m in restored.mentions}
-    filler = restored.frames[0].roles[0].filler
-    assert filler == by_symbol["kebede"]
-    assert filler.mention_type == "proper"
-    assert filler.char_span == (0, 6)
+@pytest.mark.parametrize("version", [1, 2, 4, 99, "3", True, None])
+def test_absent_old_future_and_malformed_versions_are_unsupported(version):
+    payload = senf_to_payload(_sample())
+    payload["senf_version"] = version
+    assert senf_from_payload(payload) is None
 
 
-def test_literal_fillers_survive_as_literals():
-    restored = senf_from_payload(senf_to_payload(_sample_senf()))
-
-    assert restored is not None
-    filler = restored.frames[0].roles[2].filler
-    assert isinstance(filler, Literal)
-    assert (filler.value, filler.literal_type) == ("3", "number")
-
-
-def test_polarity_false_is_not_lost():
-    """False is the one boolean a sloppy `or` default would silently flip."""
-    restored = senf_from_payload(senf_to_payload(_sample_senf()))
-
-    assert restored is not None
-    assert restored.frames[0].polarity is False
-
-
-def test_version_is_stamped():
-    assert senf_to_payload(_sample_senf())["senf_version"] == SENF_PAYLOAD_VERSION
-
-
-@pytest.mark.parametrize(
-    "blob",
-    [
-        None,
-        {},
-        "not-a-dict",
-        [],
-        42,
-        {"senf_version": "1"},
-        {"senf_version": SENF_PAYLOAD_VERSION + 1, "senf_id": "future"},
-        {"mentions": "not-a-list"},
-        {"senf_id": "x", "mentions": [None, 7], "frames": ["nope"]},
-    ],
-)
-def test_unusable_blobs_read_back_as_none(blob):
-    """A legacy or corrupt point must degrade to pre-SENF behavior, not raise."""
+@pytest.mark.parametrize("blob", [None, {}, "bad", [], 42])
+def test_absent_or_non_payload_senf_is_safe(blob):
     assert senf_from_payload(blob) is None
 
 
-def test_partial_blob_recovers_what_it_can():
-    """Forward compatibility: an unknown key is ignored, known ones still load."""
-    restored = senf_from_payload(
-        {
-            "senf_version": SENF_PAYLOAD_VERSION,
-            "senf_id": "senf-2",
-            "sentence_id": "s9",
-            "mentions": [{"surface": "Abebe", "symbol": "abebe", "sentence_id": "s9"}],
-            "frames": [],
-            "unknown_future_key": {"ignored": True},
-        }
+def test_malformed_v3_payload_fails_closed():
+    payload = senf_to_payload(_sample())
+    payload["frames"][0]["roles"][0]["filler"] = {
+        "type": "entity_ref",
+        "entity_id": "missing",
+    }
+    assert senf_from_payload(payload) is None
+
+
+def test_dangling_frame_ref_fails_closed():
+    payload = senf_to_payload(_sample())
+    nested = next(
+        role
+        for frame in payload["frames"]
+        for role in frame["roles"]
+        if role["filler"]["type"] == "frame_ref"
     )
-
-    assert restored is not None
-    assert restored.senf_id == "senf-2"
-    assert restored.symbols() == {"abebe"}
+    nested["filler"]["frame_id"] = "missing"
+    assert senf_from_payload(payload) is None
 
 
-def test_frame_referencing_an_absent_mention_keeps_the_role():
-    """Dropping the role would silently change a frame's arity."""
-    restored = senf_from_payload(
-        {
-            "senf_version": SENF_PAYLOAD_VERSION,
-            "senf_id": "senf-3",
-            "sentence_id": "s3",
-            "mentions": [],
-            "frames": [
-                {
-                    "frame_id": "f1",
-                    "predicate_head": "Eats",
-                    "roles": [{"name": "arg0", "filler": {"kind": "mention", "symbol": "ghost"}}],
-                }
-            ],
-        }
+def test_cyclic_frame_ref_fails_closed():
+    payload = senf_to_payload(_sample())
+    parent = next(
+        frame
+        for frame in payload["frames"]
+        if any(role["filler"]["type"] == "frame_ref" for role in frame["roles"])
     )
+    child = next(
+        frame
+        for frame in payload["frames"]
+        if frame["frame_id"] == next(
+            role["filler"]["frame_id"]
+            for role in parent["roles"]
+            if role["filler"]["type"] == "frame_ref"
+        )
+    )
+    child["roles"].append({
+        "name": "Arg2",
+        "position": len(child["roles"]),
+        "filler": {"type": "frame_ref", "frame_id": parent["frame_id"]},
+    })
 
-    assert restored is not None
-    assert restored.frames[0].filler_symbols() == ["ghost"]
+    assert senf_from_payload(payload) is None
+
+
+def test_frame_ref_cannot_cross_atom_provenance():
+    payload = senf_to_payload(_sample())
+    parent = next(
+        frame
+        for frame in payload["frames"]
+        if any(role["filler"]["type"] == "frame_ref" for role in frame["roles"])
+    )
+    parent["source_atom_id"] = "forged"
+
+    assert senf_from_payload(payload) is None
+
+
+@pytest.mark.parametrize(
+    ("path", "bad_value"),
+    [
+        (("senf_id",), ""),
+        (("sentence_id",), ""),
+        (("entities", 0, "entity_id"), ""),
+        (("mentions", 0, "mention_id"), ""),
+        (("mentions", 0, "sentence_id"), "other"),
+        (("mentions", 0, "char_span"), [-1, 2]),
+        (("mentions", 0, "char_span"), [4, 2]),
+        (("mentions", 0, "char_span"), [0, 10_000]),
+        (("frames", 0, "frame_id"), ""),
+        (("frames", 0, "source_sentence_id"), "other"),
+        (("frames", 0, "source_text"), 7),
+        (("frames", 0, "modality"), 7),
+        (("frames", 0, "time_ref"), 7),
+        (("frames", 0, "location_ref"), 7),
+    ],
+)
+def test_v3_rejects_invalid_ids_sources_and_spans(path, bad_value):
+    payload = senf_to_payload(_sample())
+    target = payload
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = bad_value
+    assert senf_from_payload(payload) is None
+
+
+def test_v3_rejects_kind_assertion_not_backed_by_matching_isa_frame():
+    payload = senf_to_payload(_sample())
+    payload["kind_assertions"][0]["kind"] = "clinician"
+    assert senf_from_payload(payload) is None
+
+
+def test_v3_rejects_isa_frame_without_kind_assertion():
+    payload = senf_to_payload(_sample())
+    payload["kind_assertions"] = []
+    assert senf_from_payload(payload) is None
+
+
+def test_v3_rejects_surface_that_does_not_match_its_span():
+    payload = senf_to_payload(_sample())
+    mention = next(item for item in payload["mentions"] if item["char_span"])
+    mention["surface"] = "forged"
+    assert senf_from_payload(payload) is None
+
+
+@pytest.mark.parametrize("distance", [-0.1, 1.1, float("inf"), float("nan")])
+def test_v3_rejects_unbounded_or_nonfinite_exemplar_distance(distance):
+    senf = _sample()
+    mention_id = senf.mentions[0].mention_id
+    payload = senf_to_payload(senf)
+    payload["exemplar_scores"] = {
+        mention_id: [{
+            "kind": "researcher", "exemplar": "scientist", "distance": distance,
+            "reasons": [],
+        }]
+    }
+    assert senf_from_payload(payload) is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("exemplar_scores", {"missing": []}),
+        ("nearest_exemplars", {"missing": "scientist"}),
+        ("constraints", [7]),
+    ],
+)
+def test_v3_rejects_annotation_keys_and_types_that_are_not_mentions(field, value):
+    payload = senf_to_payload(_sample())
+    payload[field] = value
+    assert senf_from_payload(payload) is None
+
+
+def test_v3_requires_exemplar_reasons_to_be_a_string_list():
+    payload = senf_to_payload(_sample())
+    mention_id = payload["mentions"][0]["mention_id"]
+    payload["exemplar_scores"] = {
+        mention_id: [{
+            "kind": "researcher", "exemplar": "scientist", "distance": 0.2,
+            "reasons": "not-a-list",
+        }]
+    }
+    assert senf_from_payload(payload) is None
+
+
+def test_unknown_keys_are_ignored_only_on_otherwise_valid_v3():
+    payload = senf_to_payload(_sample())
+    payload["unknown_future_key"] = {"ignored": True}
+    assert senf_from_payload(payload) == _sample()
 
 
 def test_store_merges_senf_without_disturbing_nl_and_pln(fake_vector_store):
-    senf = _sample_senf()
-    atoms = ["(: kebede_eats_fish (Eats kebede fish) (STV 1.0 1.0))"]
-
+    senf = _sample()
+    atoms = ["(: eat (Eats kebede fish) (STV 1 1))"]
     fake_vector_store.store(
         "Kebede eats fish.",
         atoms,
         fake_vector_store.embed("Kebede eats fish."),
         metadata={SENF_PAYLOAD_KEY: senf_to_payload(senf)},
     )
-
     payload = fake_vector_store.points[-1]["payload"]
     assert payload["nl"] == "Kebede eats fish."
     assert payload["pln"] == atoms
-    assert senf_from_payload(payload[SENF_PAYLOAD_KEY]).frames == senf.frames
+    assert senf_from_payload(payload[SENF_PAYLOAD_KEY]) == senf
 
 
 def test_store_without_metadata_writes_no_senf_key(fake_vector_store):
-    """Parsers that never produce SENF must keep writing the old payload shape."""
-    fake_vector_store.store("Kebede eats fish.", ["(: a (Eats kebede fish) (STV 1.0 1.0))"], [0.0])
-
+    fake_vector_store.store("plain", [], [0.0])
     payload = fake_vector_store.points[-1]["payload"]
     assert SENF_PAYLOAD_KEY not in payload
     assert senf_from_payload(payload.get(SENF_PAYLOAD_KEY)) is None
-
-
-def test_atom_context_retrieval_is_unaffected_by_senf(fake_vector_store):
-    """retrieve_context must return the same atoms whether or not SENF is present."""
-    atoms = ["(: kebede_eats_fish (Eats kebede fish) (STV 1.0 1.0))"]
-    fake_vector_store.store("plain.", atoms, fake_vector_store.embed("plain."))
-    fake_vector_store.store(
-        "with senf.",
-        atoms,
-        fake_vector_store.embed("with senf."),
-        metadata={SENF_PAYLOAD_KEY: senf_to_payload(_sample_senf())},
-    )
-
-    context, _ = fake_vector_store.retrieve_context("anything", top_k=2)
-    assert context == atoms + atoms

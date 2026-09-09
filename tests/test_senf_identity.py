@@ -7,7 +7,7 @@ from core.senf.identity import (
     IdentityWeights,
     resolve_identity,
 )
-from core.senf.types import SENF, Mention
+from core.senf.types import Entity, EntityRef, KindAssertion, KindRef, Role, SENF, SENFFrame, Mention
 from core.symbol_normalization import canonical_symbol
 
 
@@ -46,6 +46,18 @@ def test_pronoun_resolves_to_its_only_prominent_antecedent():
     assert graph.resolve("it") == "camera"
 
 
+def test_case_b_camera_and_pronoun_remain_separate_mentions_before_identity():
+    camera, pronoun = _camera_and_pronoun()
+
+    assert camera.entities[0].entity_id == "s1:e0"
+    assert pronoun.entities[0].entity_id == "s2:e0"
+    assert camera.mentions[0].canonical_symbol == "camera"
+    assert pronoun.mentions[0].canonical_symbol == "it"
+    assert pronoun.mentions[0].surface == "It"
+    assert pronoun.mentions[0].char_span == (0, 2)
+    assert resolve_identity([camera, pronoun]).same_entity("s1:e0", "s2:e0")
+
+
 def test_the_merge_rests_on_three_independent_signals():
     """Pins *why* it merged. A weight tweak must not reduce this to one signal."""
     edge = edge_for(resolve_identity(_camera_and_pronoun()), "camera", "it")
@@ -69,7 +81,9 @@ def test_representative_election_prefers_the_entity_over_the_pronoun():
     graph = resolve_identity(_camera_and_pronoun())
 
     assert graph.resolve("camera") == "camera"
-    assert graph.clusters() == [{"camera", "it"}]
+    assert graph.resolve_entity("s2:e0") == "s1:e0"
+    assert graph.same_entity("s1:m0", "s2:m0")
+    assert {"s1:e0", "s2:e0"} in graph.clusters()
     assert graph.merge_count == 1
 
 
@@ -230,13 +244,24 @@ def test_two_pronouns_never_merge_with_each_other():
 
 
 def test_same_named_entities_keep_positive_and_negative_evidence_without_merging():
-    senf = extract_senf(
+    left = Mention("camera", "camera", "s1", "s1:e0", "s1:m0", (2, 8))
+    right = Mention("camera", "camera", "s1", "s1:e1", "s1:m1", (28, 34))
+    senf = SENF(
+        "senf:s1",
         "s1",
-        "A camera was beside another camera.",
-        ["(: a (Beside camera camera) (STV 1.0 1.0))"],
+        entities=[Entity("s1:e0", "camera"), Entity("s1:e1", "camera")],
+        mentions=[left, right],
+        frames=[SENFFrame(
+            "s1:f0",
+            "Beside",
+            [
+                Role("Arg0", EntityRef("s1:e0", "s1:m0"), 0),
+                Role("Arg1", EntityRef("s1:e1", "s1:m1"), 1),
+            ],
+            source_text="A camera was beside another camera.",
+        )],
     )
 
-    assert len([m for m in senf.mentions if m.canonical_symbol == "camera"]) == 2
     graph = resolve_identity([senf])
     edge = next(
         edge
@@ -247,6 +272,9 @@ def test_same_named_entities_keep_positive_and_negative_evidence_without_merging
     assert "same_frame_distinct_roles" in edge.negative_evidence
     assert "contrastive_language" in edge.negative_evidence
     assert edge not in graph.merged
+    assert not graph.same_entity(left.mention_id, right.mention_id)
+    assert graph.resolve_entity(left.entity_id) == left.entity_id
+    assert graph.resolve_entity(right.entity_id) == right.entity_id
 
 
 def test_first_person_pronouns_take_no_antecedent():
@@ -352,11 +380,15 @@ def _same_surface_pair(second_sentence: str) -> list[SENF]:
     strong enough to clear the threshold cannot arise from the default weights,
     and the gate has to be testable independently of them.
     """
-    left = Mention(surface="Camera", canonical_symbol="camera", sentence_id="s1")
-    right = Mention(surface="Camera", canonical_symbol="camera_unit", sentence_id=second_sentence)
+    left = Mention("Camera", "camera", "s1", "s1:e0", "s1:m0")
+    right_suffix = "1" if second_sentence == "s1" else "0"
+    right = Mention(
+        "Camera", "camera_unit", second_sentence,
+        f"{second_sentence}:e{right_suffix}", f"{second_sentence}:m{right_suffix}",
+    )
     return [
-        SENF(senf_id="senf:s1", sentence_id="s1", mentions=[left]),
-        SENF(senf_id=f"senf:{second_sentence}", sentence_id=second_sentence, mentions=[right]),
+        SENF("senf:s1", "s1", entities=[Entity(left.entity_id, left.canonical_symbol)], mentions=[left]),
+        SENF(f"senf:{second_sentence}", second_sentence, entities=[Entity(right.entity_id, right.canonical_symbol)], mentions=[right]),
     ]
 
 
@@ -408,11 +440,13 @@ def test_a_representative_is_always_an_existing_cluster_member():
     assert clusters, "the fixtures should produce at least one cluster"
 
     for cluster in clusters:
-        representatives = {graph.representatives[symbol] for symbol in cluster}
+        representatives = {graph.resolve_entity(entity_id) for entity_id in cluster}
         assert len(representatives) == 1, "a cluster must agree on one representative"
         representative = representatives.pop()
         assert representative in cluster, "the representative must be a member"
-        assert representative == canonical_symbol(representative)
+        assert graph.entity_symbols[representative] == canonical_symbol(
+            graph.entity_symbols[representative]
+        )
 
 
 def test_resolve_is_total_for_symbols_it_has_never_seen():
@@ -533,7 +567,22 @@ def test_embedder_is_consulted_only_for_near_misses():
     edge = edge_for(graph, "camera", "device")
     assert "embed_sim" in edge.evidence
     assert edge.strength >= DEFAULT_IDENTITY_THRESHOLD
-    assert set(calls) == {"camera", "device"}, "only the near-miss pair is embedded"
+    assert set(calls) == {
+        "The camera is a gadget.",
+        "The device is a gadget.",
+    }, "embedding input must retain each mention's context"
+
+
+def test_kind_evidence_uses_all_positive_kind_assertions():
+    left, right = _near_miss_pair()
+    left.kind_assertions.append(KindAssertion("s1:e0", KindRef("device"), True, "s1:f0"))
+    right.kind_assertions.append(KindAssertion("s2:e0", KindRef("instrument"), True, "s2:f0"))
+
+    edge = edge_for(resolve_identity([left, right]), "camera", "device")
+
+    assert edge is not None
+    assert "kind_match" in edge.evidence
+    assert "kind_conflict" not in edge.negative_evidence
 
 
 def test_a_pair_already_over_the_threshold_is_not_embedded():

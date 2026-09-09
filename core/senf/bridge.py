@@ -38,10 +38,11 @@ def identity_bridge_atoms(
         if edge.strength < threshold or edge.negative_strength >= 0.5:
             continue
         tv = transport_truth(edge.strength, edge.confidence, edge.positive_cost)
-        left, right = edge.symbols
+        left_id, right_id = edge.mention_ids
         atoms.append(
-            f"(: senf_identity_{index}_{_safe(left)}_{_safe(right)} "
-            f"(SimilarityLink {left} {right}) (STV {tv.strength} {tv.weight}))"
+            f"(: senf_identity_{index}_{_safe(left_id)}_{_safe(right_id)} "
+            f"(MentionIdentity {_safe(left_id)} {_safe(right_id)}) "
+            f"(STV {tv.strength} {tv.weight}))"
         )
     return atoms
 
@@ -51,8 +52,8 @@ def weave_bridge_atoms(weave: WeaveResult) -> list[str]:
     for index, mapping in enumerate(weave.entity_maps):
         tv = transport_truth(1.0, 1.0, weave.total_cost + mapping.cost)
         atoms.append(
-            f"(: senf_weave_{index}_{_safe(mapping.source_symbol)}_{_safe(mapping.target_symbol)} "
-            f"(SimilarityLink {mapping.source_symbol} {mapping.target_symbol}) "
+            f"(: senf_weave_{index}_{_safe(mapping.source_entity_id)}_{_safe(mapping.target_entity_id)} "
+            f"(EntityAlignment {_safe(mapping.source_entity_id)} {_safe(mapping.target_entity_id)}) "
             f"(STV {tv.strength} {tv.weight}))"
         )
     return atoms

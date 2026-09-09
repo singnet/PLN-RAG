@@ -13,6 +13,9 @@ class OneChunk:
     def chunk(self, text):
         return [text]
 
+    def batch_chunks(self, text, max_sentences, max_chars):
+        return [[text]]
+
 
 class RecordingReasoner:
     def __init__(self, accepted=None):
@@ -160,16 +163,39 @@ def test_senf_session_and_payload_exclude_rejected_atoms(monkeypatch):
     assert "ghost" not in parser._session[-1].symbols()
 
 
-def test_persisted_senf_uses_the_rewritten_accepted_symbol(monkeypatch):
+def test_stored_pln_and_senf_preserve_pronoun_while_query_transport_targets_camera(
+    monkeypatch, fake_vector_store
+):
     parser = senf_parser(monkeypatch)
     accepted_hook(parser, "The camera has a wide lens.", [CAMERA])
 
-    rewritten, metadata = accepted_hook(parser, "It is expensive.", [PRONOUN])
+    _, queries = parser._post_filter_hook(
+        ["Is it expensive?"],
+        [PRONOUN],
+        ["(: $prf (HasProperty it expensive) $tv)"],
+        [],
+        True,
+    )
+    assert queries == ["(: $prf (HasProperty camera expensive) $tv)"]
 
-    stored = senf_from_payload(metadata[SENF_PAYLOAD_KEY])
-    assert "camera" in rewritten[0]
-    assert "camera" in stored.symbols()
-    assert "it" not in stored.symbols()
+    filtered, _ = parser._post_filter_hook(
+        ["It is expensive."], [PRONOUN], [], [], False
+    )
+    pending = parser._pending_ingest
+    parser.parse_batch = lambda _batch, _context: ParseResult(
+        statements=filtered, parser_state=pending
+    )
+    service = service_for(parser, fake_vector_store)
+
+    result = service._ingest_single("It is expensive.")
+
+    payload = fake_vector_store.points[-1]["payload"]
+    stored = senf_from_payload(payload[SENF_PAYLOAD_KEY])
+    pronoun = next(mention for mention in stored.mentions if mention.canonical_symbol == "it")
+    assert result.atoms == [PRONOUN]
+    assert payload["pln"] == [PRONOUN]
+    assert stored.symbols() == {"it", "expensive"}
+    assert (pronoun.surface, pronoun.char_span) == ("It", (0, 2))
 
 
 def test_consecutive_queries_reuse_the_same_ingested_session(monkeypatch):

@@ -2,6 +2,7 @@ import pytest
 
 from core.parser import ParseResult
 from core.senf.extractor import extract_senf
+from core.senf.identity import IdentityGraph
 from core.senf.types import SENF_PAYLOAD_KEY, senf_to_payload
 from parsers.canonical_pln_parser import CanonicalPLNParser
 from parsers.canonical_senf_pln_parser import CanonicalSENFPLNParser
@@ -61,15 +62,13 @@ class TestBaseParserCompatibility:
         assert statements is given
 
 
-class TestSymbolRewriting:
-    def test_pronoun_is_rewritten_to_its_antecedent(self, parser):
+class TestIdentityTransport:
+    def test_ingest_preserves_the_accepted_pronoun_atom(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])
         statements, _ = hook(parser, "It is expensive.", [PRONOUN])
-        assert statements == [
-            "(: b (HasProperty camera expensive) (STV 0.951229 0.952381))"
-        ]
+        assert statements == [PRONOUN]
 
-    def test_queries_are_rewritten_with_the_same_map(self, parser):
+    def test_query_identity_transport_is_transient(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])
         statements, queries = hook(
             parser,
@@ -78,10 +77,17 @@ class TestSymbolRewriting:
             ["(: $prf (HasProperty it expensive) $tv)"],
             is_query=True,
         )
-        assert statements == [
-            "(: b (HasProperty camera expensive) (STV 0.951229 0.952381))"
-        ]
+        assert statements == [PRONOUN]
         assert queries == ["(: $prf (HasProperty camera expensive) $tv)"]
+
+    def test_ingest_never_emits_identity_bridges(self, parser):
+        parser._emit_bridge_atoms = True
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+
+        statements, _ = hook(parser, "It is expensive.", [PRONOUN])
+
+        assert statements == [PRONOUN]
+        assert parser.senf_telemetry()["bridge_atom_count"] == 0
 
     def test_variables_are_never_rewritten(self, parser):
         _, queries = hook(
@@ -98,6 +104,141 @@ class TestSymbolRewriting:
         statements, _ = hook(parser, "The camera has a wide lens.", [CAMERA])
         assert "HasProperty" in statements[0]
         assert "(STV 1.0 1.0)" in statements[0]
+
+    def test_query_rendering_does_not_rewrite_token_collisions(self, parser):
+        senf = extract_senf(
+            "q1", "Does it follow an itinerary?",
+            ["(: proof_7 (Follows it itinerary) $tv)"],
+        )
+        it_ref = senf.frames[0].roles[0].filler
+        graph = IdentityGraph(
+            representatives={it_ref.entity_id: "prior:e0"},
+            mention_entities={it_ref.mention_id: it_ref.entity_id},
+            entity_symbols={it_ref.entity_id: "it", "prior:e0": "camera"},
+        )
+
+        rendered = parser._render_query(
+            "(: proof_7 (Follows it itinerary) $tv)", senf, graph
+        )
+
+        assert rendered == "(: proof_7 (Follows camera itinerary) $tv)"
+
+    def test_query_rendering_distinguishes_equal_symbols_by_entity_ref(self, parser):
+        senf = extract_senf(
+            "q1", "one camera beside another camera",
+            ["(: proof_8 (Beside camera camera) $tv)"],
+        )
+        left, right = [role.filler for role in senf.frames[0].roles]
+        graph = IdentityGraph(
+            representatives={left.entity_id: "prior:e0"},
+            mention_entities={
+                left.mention_id: left.entity_id,
+                right.mention_id: right.entity_id,
+            },
+            entity_symbols={
+                left.entity_id: "camera",
+                right.entity_id: "camera",
+                "prior:e0": "security_camera",
+            },
+        )
+
+        rendered = parser._render_query(
+            "(: proof_8 (Beside camera camera) $tv)", senf, graph
+        )
+
+        assert rendered == "(: proof_8 (Beside security_camera camera) $tv)"
+
+    def test_query_rendering_preserves_kind_value_head_and_atom_id(self, parser):
+        senf = extract_senf(
+            "q1", "Is the camera a device?",
+            ["(: proof_9 (IsA camera device) $tv)"],
+        )
+        ref = senf.frames[0].roles[0].filler
+        graph = IdentityGraph(
+            mention_entities={ref.mention_id: ref.entity_id},
+            entity_symbols={ref.entity_id: "camera"},
+        )
+
+        assert parser._render_query(
+            "(: proof_9 (IsA camera device) $tv)", senf, graph
+        ) == "(: proof_9 (IsA camera device) $tv)"
+
+    def test_multiple_distinct_query_atom_ids_render_their_own_frames(self, parser):
+        queries = ["(: p1 (Sees it camera) $tv)", "(: p2 (Uses it lens) $tv)"]
+        senf = extract_senf("q1", "Does it see a camera and use a lens?", queries)
+        pronoun = next(mention for mention in senf.mentions if mention.canonical_symbol == "it")
+        graph = IdentityGraph(
+            representatives={pronoun.entity_id: "prior:e0"},
+            mention_entities={pronoun.mention_id: pronoun.entity_id},
+            entity_symbols={
+                **{entity.entity_id: entity.canonical_symbol for entity in senf.entities},
+                "prior:e0": "robot",
+            },
+        )
+
+        assert parser._render_queries(queries, senf, graph) == [
+            "(: p1 (Sees robot camera) $tv)",
+            "(: p2 (Uses robot lens) $tv)",
+        ]
+
+    def test_repeated_query_atom_id_renders_each_occurrence(self, parser):
+        queries = [
+            "(: $prf (Sees it camera) $tv)",
+            "(: $prf (Uses it lens) $tv)",
+        ]
+        senf = extract_senf("q1", "Does it see a camera and use a lens?", queries)
+        graph = IdentityGraph(
+            representatives={entity.entity_id: "prior:e0" for entity in senf.entities if entity.canonical_symbol == "it"},
+            mention_entities={
+                mention.mention_id: mention.entity_id for mention in senf.mentions
+            },
+            entity_symbols={
+                **{entity.entity_id: entity.canonical_symbol for entity in senf.entities},
+                "prior:e0": "robot",
+            },
+        )
+
+        assert parser._render_queries(queries, senf, graph) == [
+            "(: $prf (Sees robot camera) $tv)",
+            "(: $prf (Uses robot lens) $tv)",
+        ]
+
+    def test_query_rendering_preserves_nested_negation(self, parser):
+        query = "(: proof_10 (Believes alex (Not (Trusted sam))) $tv)"
+        senf = extract_senf("q1", "Alex does not trust Sam.", [query])
+        graph = IdentityGraph(
+            mention_entities={
+                mention.mention_id: mention.entity_id for mention in senf.mentions
+            },
+            entity_symbols={
+                entity.entity_id: entity.canonical_symbol for entity in senf.entities
+            },
+        )
+
+        assert parser._render_query(query, senf, graph) == query
+
+    def test_query_rendering_preserves_outer_negation_scope(self, parser):
+        query = "(: proof_10 (Not (Believes alex (Trusted sam))) $tv)"
+        senf = extract_senf("q1", "Alex does not believe Sam is trusted.", [query])
+        graph = IdentityGraph(
+            mention_entities={
+                mention.mention_id: mention.entity_id for mention in senf.mentions
+            },
+            entity_symbols={
+                entity.entity_id: entity.canonical_symbol for entity in senf.entities
+            },
+        )
+
+        assert parser._render_query(query, senf, graph) == query
+
+    def test_query_rendering_fails_closed_for_logical_wrappers(self, parser):
+        query = (
+            "(: proof_11 (Implication (Premises (Sees alex sam)) "
+            "(Conclusions (Knows alex sam))) $tv)"
+        )
+        senf = extract_senf("q1", "If Alex sees Sam, Alex knows Sam.", [query])
+
+        assert parser._render_query(query, senf, IdentityGraph()) == query
 
     def test_unrelated_sentences_are_left_alone(self, parser):
         given = ["(: a (Eats kebede fish) (STV 1.0 1.0))"]
@@ -166,8 +307,14 @@ class TestVectorContext:
         prior = extract_senf("s1", "The camera has a wide lens.", [CAMERA])
         made = CanonicalSENFPLNParser()
         made._vector_store = RecordingStore(blobs=[senf_to_payload(prior)])
-        statements, _ = hook(made, "It is expensive.", [PRONOUN])
-        assert "camera" in statements[0]
+        _, queries = hook(
+            made,
+            "Is it, the camera, expensive?",
+            [PRONOUN],
+            ["(: $prf (HasProperty it expensive) $tv)"],
+            is_query=True,
+        )
+        assert "camera" in queries[0]
 
     def test_parser_metadata_survives_recreation(self, monkeypatch, fake_vector_store):
         monkeypatch.setattr(CanonicalPLNParser, "__init__", lambda self: None)
@@ -183,9 +330,15 @@ class TestVectorContext:
 
         recreated = CanonicalSENFPLNParser()
         recreated._vector_store = fake_vector_store
-        statements, _ = hook(recreated, "It is expensive.", [PRONOUN])
+        _, queries = hook(
+            recreated,
+            "Is it, the camera, expensive?",
+            [PRONOUN],
+            ["(: $prf (HasProperty it expensive) $tv)"],
+            is_query=True,
+        )
 
-        assert "camera" in statements[0]
+        assert "camera" in queries[0]
 
     def test_retrieval_failure_is_fail_open(self, monkeypatch):
         monkeypatch.setattr(CanonicalPLNParser, "__init__", lambda self: None)
@@ -352,15 +505,19 @@ class TestTelemetry:
         assert report["weave_distortion"] is not None
         assert report["weave_pair_count"] >= 1
 
-    def test_a_merge_is_counted_and_attributed_to_atoms(self, parser):
+    def test_identity_merges_and_query_rewrites_are_reported_separately(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])
-        hook(parser, "It is expensive.", [PRONOUN])
+        hook(
+            parser,
+            "Is it expensive?",
+            [PRONOUN],
+            ["(: $prf (HasProperty it expensive) $tv)"],
+            is_query=True,
+        )
         report = parser.senf_telemetry()
 
-        # The two are reported separately because identity merging without any atom
-        # changing is a distinct failure from identity finding nothing.
         assert report["merge_count"] >= 1
-        assert report["rewritten_atom_count"] >= 1
+        assert report["query_rewritten_atom_count"] == 1
 
     def test_ingest_does_not_report_the_previous_questions_weave(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])

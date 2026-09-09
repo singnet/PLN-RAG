@@ -90,7 +90,6 @@ class Settings(BaseSettings):
     senf_use_vector_context: bool = True
     senf_exemplar_enabled: bool = True
     senf_emit_bridge_atoms: bool = False
-    senf_transport_truth_values: bool = True
     senf_weave_top_k: int = 3
     # Weave-derived query scoring (C7). Zero reproduces pre-SENF ranking exactly.
     senf_source_grounding_weight: int = 3

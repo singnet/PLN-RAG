@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Sequence
 
-from core.senf.types import SENF, Mention
+from core.senf.types import EntityRef, SENF, Mention
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class IdentityEdge:
 
     @property
     def symbols(self) -> tuple[str, str]:
-        return (self.left.canonical_symbol, self.right.canonical_symbol)
+        return tuple(sorted((self.left.canonical_symbol, self.right.canonical_symbol)))
 
     @property
     def mention_ids(self) -> tuple[str, str]:
@@ -93,25 +93,49 @@ class IdentityGraph:
     nodes: tuple[Mention, ...] = ()
     edges: tuple[IdentityEdge, ...] = ()
     representatives: dict[str, str] = field(default_factory=dict)
+    mention_entities: dict[str, str] = field(default_factory=dict)
+    entity_symbols: dict[str, str] = field(default_factory=dict)
     merged: tuple[IdentityEdge, ...] = ()
 
     def resolve(self, symbol: str) -> str:
-        """Map a symbol to its cluster representative."""
-        return self.representatives.get(symbol, symbol)
+        """Legacy presentation-only projection; identity operations must use IDs."""
+        candidates = sorted(
+            entity_id
+            for entity_id, candidate_symbol in self.entity_symbols.items()
+            if candidate_symbol == symbol
+        )
+        if not candidates:
+            return symbol
+        entity_id = self.resolve_entity(candidates[0])
+        return self.entity_symbols.get(entity_id, symbol)
+
+    def resolve_entity(self, entity_or_mention_id: str) -> str:
+        """Return the elected entity ID for an entity or mention ID."""
+        entity_id = self.mention_entities.get(entity_or_mention_id, entity_or_mention_id)
+        while self.representatives.get(entity_id, entity_id) != entity_id:
+            entity_id = self.representatives[entity_id]
+        return entity_id
+
+    def same_entity(self, left_id: str, right_id: str) -> bool:
+        """Compare entity IDs or mention IDs without consulting display symbols."""
+        return self.resolve_entity(left_id) == self.resolve_entity(right_id)
 
     def clusters(self) -> list[set[str]]:
         grouped: dict[str, set[str]] = {}
-        for symbol, rep in self.representatives.items():
-            grouped.setdefault(rep, set()).add(symbol)
+        for entity_id in self.entity_symbols:
+            rep = self.resolve_entity(entity_id)
+            grouped.setdefault(rep, set()).add(entity_id)
         return [members for _, members in sorted(grouped.items())]
 
-    def transport_cost(self, source: str, target: str) -> float:
-        """Lowest accumulated cost across accepted symbol-identity edges."""
+    def transport_cost(self, source_id: str, target_id: str) -> float:
+        """Lowest accumulated cost across accepted entity-identity edges."""
+        source = self.mention_entities.get(source_id, source_id)
+        target = self.mention_entities.get(target_id, target_id)
         if source == target:
             return 0.0
         adjacency: dict[str, list[tuple[str, float]]] = {}
         for edge in self.merged:
-            left, right = edge.symbols
+            left, right = edge.left.entity_id, edge.right.entity_id
             cost = min(2.0, edge.positive_cost + edge.negative_strength)
             adjacency.setdefault(left, []).append((right, cost))
             adjacency.setdefault(right, []).append((left, cost))
@@ -164,14 +188,14 @@ def _mention_key(mention: Mention) -> str:
     return f"{mention.sentence_id}:{mention.canonical_symbol}:{mention.char_span}"
 
 
-def _kind_for(mention: Mention, kinds: dict[str, str]) -> Optional[str]:
-    return kinds.get(_mention_key(mention)) or kinds.get(mention.canonical_symbol)
+def _kind_for(mention: Mention, kinds: dict[str, frozenset[str]]) -> frozenset[str]:
+    return kinds.get(mention.entity_id, frozenset())
 
 
 def _negative_evidence(
     left: Mention,
     right: Mention,
-    kinds: dict[str, str],
+    kinds: dict[str, frozenset[str]],
     distinct_role_pairs: set[frozenset[str]],
     source_texts: dict[str, str],
 ) -> list[str]:
@@ -179,7 +203,7 @@ def _negative_evidence(
     found: list[str] = []
 
     left_kind, right_kind = _kind_for(left, kinds), _kind_for(right, kinds)
-    if left_kind and right_kind and left_kind != right_kind:
+    if left_kind and right_kind and left_kind.isdisjoint(right_kind):
         found.append("kind_conflict")
 
     if left.mention_type == "pronoun" and right.mention_type == "pronoun":
@@ -215,7 +239,7 @@ def _negative_evidence(
 def _entity_evidence(
     left: Mention,
     right: Mention,
-    kinds: dict[str, str],
+    kinds: dict[str, frozenset[str]],
     roles: dict[str, set[tuple[str, str]]],
 ) -> list[str]:
     """Evidence for two non-pronoun mentions denoting the same entity."""
@@ -264,7 +288,7 @@ def _entity_evidence(
             found.append("name_extension")
 
     left_kind, right_kind = _kind_for(left, kinds), _kind_for(right, kinds)
-    if left_kind and left_kind == right_kind:
+    if left_kind & right_kind:
         found.append("kind_match")
 
     if roles.get(_mention_key(left), set()) & roles.get(_mention_key(right), set()):
@@ -354,11 +378,11 @@ class IdentityResolver:
     def resolve(self, senfs: Sequence[SENF]) -> IdentityGraph:
         mentions = self._collect_mentions(senfs)
         if len(mentions) < 2:
-            return IdentityGraph(nodes=tuple(mentions))
+            return self._graph(mentions)
 
         kinds = self._merged_kinds(senfs)
         roles = self._role_index(senfs)
-        prominent = self._prominent_symbols(senfs)
+        prominent = self._prominent_mentions(senfs)
         distinct_role_pairs = self._distinct_role_pairs(senfs)
         source_texts = self._source_texts(senfs)
 
@@ -389,7 +413,21 @@ class IdentityResolver:
             nodes=tuple(mentions),
             edges=edges,
             representatives=representatives,
+            mention_entities={_mention_key(mention): mention.entity_id for mention in mentions},
+            entity_symbols={
+                entity.entity_id: entity.canonical_symbol
+                for senf in senfs
+                for entity in senf.entities
+            },
             merged=merged,
+        )
+
+    @staticmethod
+    def _graph(mentions: Sequence[Mention]) -> IdentityGraph:
+        return IdentityGraph(
+            nodes=tuple(mentions),
+            mention_entities={_mention_key(mention): mention.entity_id for mention in mentions},
+            entity_symbols={mention.entity_id: mention.canonical_symbol for mention in mentions},
         )
 
     def _collect_mentions(self, senfs: Sequence[SENF]) -> list[Mention]:
@@ -400,14 +438,15 @@ class IdentityResolver:
         return collected
 
     @staticmethod
-    def _merged_kinds(senfs: Sequence[SENF]) -> dict[str, str]:
-        merged: dict[str, str] = {}
+    def _merged_kinds(senfs: Sequence[SENF]) -> dict[str, frozenset[str]]:
+        collected: dict[str, set[str]] = {}
         for senf in senfs:
-            for symbol, kind in senf.kinds.items():
-                merged.setdefault(symbol, kind)
-            for mention_id, kind in senf.mention_kinds.items():
-                merged.setdefault(mention_id, kind)
-        return merged
+            for assertion in senf.kind_assertions:
+                if assertion.polarity:
+                    collected.setdefault(assertion.entity_id, set()).add(
+                        assertion.kind.canonical_symbol
+                    )
+        return {key: frozenset(values) for key, values in collected.items()}
 
     @staticmethod
     def _role_index(senfs: Sequence[SENF]) -> dict[str, set[tuple[str, str]]]:
@@ -415,19 +454,20 @@ class IdentityResolver:
         for senf in senfs:
             for frame in senf.frames:
                 for role in frame.roles:
-                    if isinstance(role.filler, Mention):
-                        key = _mention_key(role.filler)
-                        index.setdefault(key, set()).add((frame.predicate_head, role.name))
+                    if isinstance(role.filler, EntityRef):
+                        index.setdefault(role.filler.mention_id, set()).add(
+                            (frame.predicate_head, role.name)
+                        )
         return index
 
     @staticmethod
-    def _prominent_symbols(senfs: Sequence[SENF]) -> set[str]:
+    def _prominent_mentions(senfs: Sequence[SENF]) -> set[str]:
         prominent: set[str] = set()
         for senf in senfs:
             for frame in senf.frames:
                 for role in frame.roles:
-                    if role.name in _PROMINENT_ROLES and isinstance(role.filler, Mention):
-                        prominent.add(_mention_key(role.filler))
+                    if role.name in _PROMINENT_ROLES and isinstance(role.filler, EntityRef):
+                        prominent.add(role.filler.mention_id)
         return prominent
 
     @staticmethod
@@ -438,12 +478,12 @@ class IdentityResolver:
                 fillers = [
                     role.filler
                     for role in frame.roles
-                    if isinstance(role.filler, Mention)
+                    if isinstance(role.filler, EntityRef)
                 ]
                 for index, left in enumerate(fillers):
                     for right in fillers[index + 1 :]:
-                        if _mention_key(left) != _mention_key(right):
-                            pairs.add(frozenset({_mention_key(left), _mention_key(right)}))
+                        if left.mention_id != right.mention_id:
+                            pairs.add(frozenset({left.mention_id, right.mention_id}))
         return pairs
 
     @staticmethod
@@ -458,7 +498,7 @@ class IdentityResolver:
     def _score_pairs(
         self,
         mentions: Sequence[Mention],
-        kinds: dict[str, str],
+        kinds: dict[str, frozenset[str]],
         roles: dict[str, set[tuple[str, str]]],
         prominent: set[str],
         distinct_role_pairs: set[frozenset[str]],
@@ -480,7 +520,9 @@ class IdentityResolver:
                 if not evidence and not negative:
                     continue
                 strength = self._strength(evidence)
-                extra = self._embedding_evidence(left, right, strength, vectors)
+                extra = self._embedding_evidence(
+                    left, right, strength, vectors, source_texts
+                )
                 if extra:
                     evidence = evidence + extra
                     strength = self._strength(evidence)
@@ -503,7 +545,7 @@ class IdentityResolver:
         self,
         left: Mention,
         right: Mention,
-        kinds: dict[str, str],
+        kinds: dict[str, frozenset[str]],
         roles: dict[str, set[tuple[str, str]]],
         prominent: set[str],
     ) -> list[str]:
@@ -527,6 +569,7 @@ class IdentityResolver:
         right: Mention,
         strength: float,
         vectors: dict[str, Sequence[float]],
+        source_texts: dict[str, str],
     ) -> list[str]:
         """Consulted only for near misses, to bound Ollama round trips.
 
@@ -542,18 +585,27 @@ class IdentityResolver:
         if strength >= self.threshold or self.threshold - strength > self.embed_band:
             return []
         try:
-            left_vector = self._vector(left, vectors)
-            right_vector = self._vector(right, vectors)
+            left_vector = self._vector(left, vectors, source_texts)
+            right_vector = self._vector(right, vectors, source_texts)
         except Exception as exc:
             logger.debug("SENF identity embedding unavailable: %s", exc)
             return []
         return ["embed_sim"] if _cosine(left_vector, right_vector) >= 0.8 else []
 
-    def _vector(self, mention: Mention, vectors: dict[str, Sequence[float]]) -> Sequence[float]:
-        symbol = mention.canonical_symbol
-        if symbol not in vectors:
-            vectors[symbol] = self.embedder(mention.surface or symbol)
-        return vectors[symbol]
+    def _vector(
+        self,
+        mention: Mention,
+        vectors: dict[str, Sequence[float]],
+        source_texts: dict[str, str],
+    ) -> Sequence[float]:
+        key = _mention_key(mention)
+        if key not in vectors:
+            text = source_texts.get(key, "")
+            if mention.char_span and text:
+                start, end = mention.char_span
+                text = text[max(0, start - 120):min(len(text), end + 120)]
+            vectors[key] = self.embedder(text or mention.surface or mention.canonical_symbol)
+        return vectors[key]
 
     @staticmethod
     def _edge(
@@ -564,8 +616,8 @@ class IdentityResolver:
         negative_strength: float = 0.0,
         negative_evidence: Sequence[str] = (),
     ) -> IdentityEdge:
-        """Orient by symbol so an edge is stable regardless of mention order."""
-        if right.canonical_symbol < left.canonical_symbol:
+        """Orient by mention ID so equal-symbol occurrences remain distinguishable."""
+        if _mention_key(right) < _mention_key(left):
             left, right = right, left
         return IdentityEdge(
             left=left,
@@ -591,22 +643,20 @@ class IdentityResolver:
         for edge in edges:
             pronoun = _pronoun_endpoint(edge)
             if pronoun is not None:
-                key = (pronoun.canonical_symbol, pronoun.sentence_id)
+                key = (_mention_key(pronoun), pronoun.sentence_id)
                 groups.setdefault(key, []).append(edge)
 
         promoted: dict[int, IdentityEdge] = {}
         for candidates in groups.values():
-            # Rank distinct antecedent *symbols*, not mention pairs. The same symbol
-            # can be mentioned in several retrieved SENFs, and counting those as
-            # rival antecedents would fabricate a tie and suppress every resolution.
-            best_per_symbol: dict[str, IdentityEdge] = {}
+            # Repeated mentions assigned to one entity are one antecedent candidate.
+            best_per_entity: dict[str, IdentityEdge] = {}
             for edge in candidates:
-                symbol = _antecedent_symbol(edge)
-                current = best_per_symbol.get(symbol)
+                entity_id = _antecedent_entity(edge)
+                current = best_per_entity.get(entity_id)
                 if current is None or edge.strength > current.strength:
-                    best_per_symbol[symbol] = edge
+                    best_per_entity[entity_id] = edge
 
-            ranked = sorted(best_per_symbol.values(), key=lambda e: (-e.strength, e.symbols))
+            ranked = sorted(best_per_entity.values(), key=lambda e: (-e.strength, e.mention_ids))
             best = ranked[0]
             runner_up = ranked[1].strength if len(ranked) > 1 else 0.0
             if best.strength - runner_up <= self.ambiguity_margin:
@@ -644,7 +694,7 @@ class IdentityResolver:
         )
 
     def _should_merge(self, edge: IdentityEdge) -> bool:
-        if edge.left.canonical_symbol == edge.right.canonical_symbol:
+        if edge.left.entity_id == edge.right.entity_id:
             return False
         if edge.strength < self.threshold:
             return False
@@ -660,17 +710,18 @@ class IdentityResolver:
     def _elect(
         mentions: Sequence[Mention], merged: Sequence[IdentityEdge]
     ) -> dict[str, str]:
-        parent: dict[str, str] = {}
+        parent: dict[str, str] = {mention.entity_id: mention.entity_id for mention in mentions}
 
-        def find(symbol: str) -> str:
-            parent.setdefault(symbol, symbol)
-            while parent[symbol] != symbol:
-                parent[symbol] = parent[parent[symbol]]
-                symbol = parent[symbol]
-            return symbol
+        def find(entity_id: str) -> str:
+            parent.setdefault(entity_id, entity_id)
+            while parent[entity_id] != entity_id:
+                parent[entity_id] = parent[parent[entity_id]]
+                entity_id = parent[entity_id]
+            return entity_id
 
         for edge in merged:
-            left_root, right_root = find(edge.symbols[0]), find(edge.symbols[1])
+            left_root = find(edge.left.entity_id)
+            right_root = find(edge.right.entity_id)
             if left_root != right_root:
                 parent[right_root] = left_root
 
@@ -685,12 +736,12 @@ class IdentityResolver:
                 position,
                 symbol,
             )
-            if symbol not in ranks or candidate < ranks[symbol]:
-                ranks[symbol] = candidate
+            if mention.entity_id not in ranks or candidate < ranks[mention.entity_id]:
+                ranks[mention.entity_id] = candidate
 
         clusters: dict[str, list[str]] = {}
-        for symbol in parent:
-            clusters.setdefault(find(symbol), []).append(symbol)
+        for entity_id in parent:
+            clusters.setdefault(find(entity_id), []).append(entity_id)
 
         representatives: dict[str, str] = {}
         for members in clusters.values():
@@ -698,7 +749,8 @@ class IdentityResolver:
                 continue
             winner = min(members, key=lambda s: ranks.get(s, (0, 0, 9, 0, s)))
             for member in members:
-                representatives[member] = winner
+                if member != winner:
+                    representatives[member] = winner
         return representatives
 
 
@@ -710,10 +762,10 @@ def _pronoun_endpoint(edge: IdentityEdge) -> Optional[Mention]:
     return None
 
 
-def _antecedent_symbol(edge: IdentityEdge) -> str:
+def _antecedent_entity(edge: IdentityEdge) -> str:
     if edge.left.mention_type == "pronoun":
-        return edge.right.canonical_symbol
-    return edge.left.canonical_symbol
+        return edge.right.entity_id
+    return edge.left.entity_id
 
 
 def _cosine(left: Sequence[float], right: Sequence[float]) -> float:

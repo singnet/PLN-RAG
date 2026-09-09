@@ -781,7 +781,7 @@ def _summarize_parser(results: list[dict]) -> dict:
         "senf_reported": len(senf_reports),
         "senf_merges": sum(report.get("merge_count", 0) for report in senf_reports),
         "senf_rewritten_atoms": sum(
-            report.get("rewritten_atom_count", 0) for report in senf_reports
+            report.get("query_rewritten_atom_count", 0) for report in senf_reports
         ),
         "senf_cases_with_merge": sum(
             1 for report in senf_reports if report.get("merge_count")

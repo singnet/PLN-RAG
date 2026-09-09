@@ -6,20 +6,27 @@ from typing import List, Optional
 from config import get_settings
 from core import query_scoring
 from core.parser import ParseResult
-from core.senf.bridge import identity_bridge_atoms, predicate_bridge_atoms, transport_truth
+from core.senf.bridge import predicate_bridge_atoms
 from core.senf.exemplars import score_exemplars
 from core.senf.extractor import extract_senf
 from core.senf.identity import resolve_identity
-from core.senf.types import SENF, SENF_PAYLOAD_KEY, senf_from_payload, senf_to_payload
+from core.senf.types import (
+    EntityRef,
+    FrameRef,
+    KindRef,
+    SENF,
+    SENFFrame,
+    SENF_PAYLOAD_KEY,
+    ValueRef,
+    senf_from_payload,
+    senf_to_payload,
+)
 from core.senf.weave import WeaveResult, build_weaves
 from parsers.canonical_pln_parser import CanonicalPLNParser
 
 
 logger = logging.getLogger(__name__)
 
-# A leading $ or ? marks a MeTTa variable; its name may collide with a mention symbol.
-_TOKEN_RE = re.compile(r"[$?]?[A-Za-z_][A-Za-z0-9_]*")
-_STV_RE = re.compile(r"\(STV\s+([0-9]*\.?[0-9]+)\s+([0-9]*\.?[0-9]+)\)")
 _SENF_SKIP_HEADS = frozenset(
     {"SimilarityLink", "ContextLink", "PredicateBridge", "PredicateSimilarity"}
 )
@@ -47,7 +54,7 @@ def _telemetry(
     senf: SENF,
     graph=None,
     weave_result: Optional[WeaveResult] = None,
-    rewritten: int = 0,
+    query_rewritten: int = 0,
     bridge_count: int = 0,
 ) -> dict:
     """Counts read off state the hook already built. Nothing is recomputed."""
@@ -59,7 +66,7 @@ def _telemetry(
             sum(1 for edge in graph.edges if edge.negative_evidence) if graph else 0
         ),
         "merge_count": graph.merge_count if graph else 0,
-        "rewritten_atom_count": rewritten,
+        "query_rewritten_atom_count": query_rewritten,
         "exemplar_count": sum(len(scores) for scores in senf.exemplar_scores.values()),
         "bridge_atom_count": bridge_count,
         "weave_distortion": (
@@ -82,7 +89,6 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._use_vector_context = cfg.senf_use_vector_context
         self._exemplar_enabled = cfg.senf_exemplar_enabled
         self._emit_bridge_atoms = cfg.senf_emit_bridge_atoms
-        self._transport_truth_values = cfg.senf_transport_truth_values
         self._weave_top_k = cfg.senf_weave_top_k
         self._source_grounding_weight = cfg.senf_source_grounding_weight
         self._role_compat_weight = cfg.senf_role_compat_weight
@@ -199,40 +205,26 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                     senf,
                     prior,
                     k=self._weave_top_k,
-                    resolve=graph.resolve,
                     identity_graph=graph,
                 )
                 self._weave = self._weaves[0] if self._weaves else None
             # Only a question owns a weave; on ingest self._weave still holds the
             # previous question's, which is not this call's telemetry.
             reported = self._weave if is_query else None
-            if not graph.representatives:
-                self._telemetry = _telemetry(senf, graph, reported)
-                return statements, queries
-
-            rewritten_statements = [
-                self._rewrite_statement(stmt, graph) for stmt in statements
-            ]
-            rewritten_queries = [self._rewrite(query, graph) for query in queries]
-            bridges = (
-                identity_bridge_atoms(graph.merged, threshold=self._threshold)
-                if self._emit_bridge_atoms and not is_query
-                else []
-            )
+            rewritten_queries = self._render_queries(queries, senf, graph) if is_query else queries
+            bridges = []
             if self._emit_bridge_atoms and is_query and self._weave is not None:
                 bridges.extend(predicate_bridge_atoms(self._weave))
-            rewritten_statements.extend(bridges)
+            query_statements = statements + bridges
             changed = sum(
                 1
-                for before, after in zip(
-                    statements + queries, rewritten_statements + rewritten_queries
-                )
+                for before, after in zip(queries, rewritten_queries)
                 if before != after
             )
             self._telemetry = _telemetry(
                 senf, graph, reported, changed, len(bridges)
             )
-            return rewritten_statements, rewritten_queries
+            return query_statements, rewritten_queries
         except Exception:
             logger.exception("SENF identity resolution failed; using canonical_pln output")
             return statements, queries
@@ -390,34 +382,98 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._session = self._session[len(self._session) - keep :]
 
     @staticmethod
-    def _rewrite(expression: str, graph) -> str:
-        def replace(match: re.Match) -> str:
-            token = match.group(0)
-            if token[0] in "$?":
-                return token
-            return graph.resolve(token)
+    def _render_queries(queries: list[str], query_senf: SENF, graph) -> list[str]:
+        occurrences: dict[str, int] = {}
+        rendered = []
+        for query in queries:
+            parts = CanonicalSENFPLNParser._top_level_parts(query)
+            atom_id = parts[1] if len(parts) >= 2 else ""
+            occurrence = occurrences.get(atom_id, 0)
+            rendered.append(CanonicalSENFPLNParser._render_query(
+                query, query_senf, graph, occurrence
+            ))
+            occurrences[atom_id] = occurrence + 1
+        return rendered
 
-        return _TOKEN_RE.sub(replace, expression)
+    @staticmethod
+    def _render_query(
+        expression: str, query_senf: SENF, graph, occurrence_index: int = 0
+    ) -> str:
+        parts = CanonicalSENFPLNParser._top_level_parts(expression)
+        if len(parts) < 4 or parts[0] != ":":
+            return expression
+        atom_id = parts[1]
+        candidates = [
+            frame for frame in query_senf.frames if frame.source_atom_id == atom_id
+        ]
+        if any(frame.clause_role != "fact" for frame in candidates):
+            return expression
+        referenced = {
+            role.filler.frame_id
+            for frame in candidates
+            for role in frame.roles
+            if isinstance(role.filler, FrameRef)
+        }
+        roots = [item for item in candidates if item.frame_id not in referenced]
+        if occurrence_index >= len(roots):
+            return expression
+        frame = roots[occurrence_index]
+        frames = {item.frame_id: item for item in query_senf.frames}
+        body = CanonicalSENFPLNParser._render_frame(frame, query_senf, graph, frames)
+        return f"(: {atom_id} {body} {' '.join(parts[3:])})"
 
-    def _rewrite_statement(self, statement: str, graph) -> str:
-        changed_costs: list[float] = []
+    @staticmethod
+    def _render_frame(
+        frame: SENFFrame, query_senf: SENF, graph, frames: dict[str, SENFFrame],
+        include_polarity: bool = True,
+    ) -> str:
+        rendered = []
+        for role in sorted(frame.roles, key=lambda item: item.position):
+            filler = role.filler
+            if isinstance(filler, EntityRef):
+                representative = graph.resolve_entity(filler.mention_id)
+                entity = query_senf.entity(filler.entity_id)
+                rendered.append(
+                    graph.entity_symbols.get(
+                        representative,
+                        entity.canonical_symbol if entity else filler.entity_id,
+                    )
+                )
+            elif isinstance(filler, KindRef):
+                rendered.append(filler.canonical_symbol)
+            elif isinstance(filler, ValueRef):
+                rendered.append(filler.value)
+            elif isinstance(filler, FrameRef) and filler.frame_id in frames:
+                rendered.append(CanonicalSENFPLNParser._render_frame(
+                    frames[filler.frame_id], query_senf, graph, frames
+                ))
+        args = f" {' '.join(rendered)}" if rendered else ""
+        body = f"({frame.predicate_head}{args})"
+        return f"(Not {body})" if include_polarity and not frame.polarity else body
 
-        def replace(match: re.Match) -> str:
-            token = match.group(0)
-            if token[0] in "$?":
-                return token
-            replacement = graph.resolve(token)
-            if replacement != token:
-                changed_costs.append(graph.transport_cost(token, replacement))
-            return replacement
-
-        rewritten = _TOKEN_RE.sub(replace, statement)
-        if not changed_costs or not self._transport_truth_values:
-            return rewritten
-        cost = max(changed_costs)
-
-        def degrade(match: re.Match) -> str:
-            tv = transport_truth(float(match.group(1)), float(match.group(2)), cost)
-            return f"(STV {tv.strength} {tv.weight})"
-
-        return _STV_RE.sub(degrade, rewritten, count=1)
+    @staticmethod
+    def _top_level_parts(expression: str) -> list[str]:
+        text = expression.strip()
+        if len(text) < 2 or text[0] != "(" or text[-1] != ")":
+            return []
+        parts: list[str] = []
+        current: list[str] = []
+        depth = 0
+        for char in text[1:-1]:
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth < 0:
+                    return []
+            if char.isspace() and depth == 0:
+                if current:
+                    parts.append("".join(current))
+                    current = []
+            else:
+                current.append(char)
+        if depth != 0:
+            return []
+        if current:
+            parts.append("".join(current))
+        return parts

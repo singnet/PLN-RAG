@@ -53,6 +53,15 @@ def _mention_context(senf: SENF, mention: Mention, radius: int = 120) -> str:
     return text[max(0, start - radius) : min(len(text), end + radius)].lower()
 
 
+def _mention_kinds(senf: SENF, mention: Mention) -> tuple[str, ...]:
+    """All positive asserted kinds for this mention's entity."""
+    return tuple(sorted({
+        assertion.kind.canonical_symbol
+        for assertion in senf.kind_assertions
+        if assertion.entity_id == mention.entity_id and assertion.polarity
+    }))
+
+
 def score_exemplars(
     senf: SENF,
     registry: Mapping[str, Sequence[ExemplarDefinition]] = DEFAULT_EXEMPLAR_REGISTRY,
@@ -63,14 +72,17 @@ def score_exemplars(
     senf.nearest_exemplars.clear()
 
     for mention in senf.mentions:
-        kind = senf.kind_for(mention)
-        definitions = registry.get(canonical_symbol(kind or ""), ())
-        if not definitions:
+        kinds_and_definitions = [
+            (canonical_symbol(kind), definition)
+            for kind in _mention_kinds(senf, mention)
+            for definition in registry.get(canonical_symbol(kind), ())
+        ]
+        if not kinds_and_definitions:
             continue
         context = _mention_context(senf, mention)
         scored: list[ExemplarScore] = []
         any_cue = False
-        for definition in definitions:
+        for kind, definition in kinds_and_definitions:
             matched = tuple(cue for cue in definition.cues if cue in context)
             any_cue = any_cue or bool(matched)
             if matched:
@@ -81,7 +93,7 @@ def score_exemplars(
                 distance = 0.65
             scored.append(
                 ExemplarScore(
-                    kind=canonical_symbol(kind or ""),
+                    kind=kind,
                     exemplar=definition.name,
                     distance=round(distance, 4),
                     reasons=matched,
@@ -120,12 +132,12 @@ def exemplar_distance(
     right_exemplar = right_senf.nearest_exemplar_for(right)
     if not left_exemplar or not right_exemplar:
         return 0.5
+    left_kinds = set(_mention_kinds(left_senf, left))
+    right_kinds = set(_mention_kinds(right_senf, right))
+    if not left_kinds & right_kinds:
+        return 1.0
     if left_exemplar == right_exemplar:
         return 0.0
-    left_kind = left_senf.kind_for(left)
-    right_kind = right_senf.kind_for(right)
-    if left_kind and left_kind == right_kind:
-        if left_exemplar.startswith("generic_") or right_exemplar.startswith("generic_"):
-            return 0.35
-        return 0.8
-    return 1.0
+    if left_exemplar.startswith("generic_") or right_exemplar.startswith("generic_"):
+        return 0.35
+    return 0.8

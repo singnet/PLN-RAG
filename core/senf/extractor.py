@@ -2,14 +2,26 @@ import logging
 import re
 from typing import Optional
 
-from core.symbol_normalization import canonical_symbol
-from core.senf.types import Literal, Mention, MentionType, Role, SENF, SENFFrame
+from core.senf.types import (
+    ClauseRole,
+    Entity,
+    EntityRef,
+    FrameRef,
+    KindAssertion,
+    KindRef,
+    Mention,
+    MentionType,
+    Role,
+    SENF,
+    SENFFrame,
+    ValueRef,
+)
 
 logger = logging.getLogger(__name__)
 
-_POSITIONAL_ROLES = ("Agent", "Patient", "Instrument")
 
-_UNARY_ROLE = "Theme"
+class _MentionLimitExceeded(RuntimeError):
+    pass
 
 _ROLE_OVERRIDES: dict[str, tuple[str, ...]] = {
     "IsA": ("Instance", "Class"),
@@ -17,25 +29,15 @@ _ROLE_OVERRIDES: dict[str, tuple[str, ...]] = {
     "HasProperty": ("Theme", "Property"),
     "InGroup": ("Member", "Group"),
 }
-
-_PRONOUNS = frozenset(
-    {
-        "i", "you", "he", "she", "it", "we", "they",
-        "me", "him", "her", "us", "them",
-        "my", "your", "his", "its", "our", "their",
-        "this", "that", "these", "those",
-    }
-)
-
+_PRONOUNS = frozenset({
+    "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them",
+    "my", "your", "his", "its", "our", "their", "this", "that", "these", "those",
+})
 _NEGATION_HEADS = frozenset({"Not", "NOT", "Negation"})
-
-# Wrappers that carry no predication of their own; their children are the frames.
-_STRUCTURAL_HEADS = frozenset(
-    {"Implication", "Premises", "Conclusions", "And", "Or", "Conjunction", "Equivalence"}
-)
-
+_STRUCTURAL_HEADS = frozenset({
+    "Implication", "Premises", "Conclusions", "And", "Or", "Conjunction", "Equivalence",
+})
 _TRUTH_HEADS = frozenset({"STV", "CTV", "PointMass", "ParticleFrom"})
-
 _NUMERIC_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
 _ATOM_RE = re.compile(r"^\(:\s+(\S+)\s+(.*)\)\s*$", re.DOTALL)
 
@@ -45,7 +47,6 @@ def _is_variable(token: str) -> bool:
 
 
 def _split_top_level(body: str) -> list[str]:
-    # Split a parenthesized body into head and arguments, keeping nesting intact.
     tokens: list[str] = []
     depth = 0
     current: list[str] = []
@@ -55,6 +56,8 @@ def _split_top_level(body: str) -> list[str]:
             current.append(char)
         elif char == ")":
             depth -= 1
+            if depth < 0:
+                return []
             current.append(char)
             if depth == 0:
                 tokens.append("".join(current).strip())
@@ -65,6 +68,8 @@ def _split_top_level(body: str) -> list[str]:
                 current = []
         else:
             current.append(char)
+    if depth != 0:
+        return []
     if current:
         tokens.append("".join(current).strip())
     return [token for token in tokens if token]
@@ -80,278 +85,219 @@ def _strip_outer_parens(expr: str) -> Optional[str]:
             depth += 1
         elif char == ")":
             depth -= 1
-            if depth == 0 and index != len(expr) - 1:
-                return None  # e.g. "(a) (b)" — not a single expression
-    return expr[1:-1].strip()
+            if depth < 0 or (depth == 0 and index != len(expr) - 1):
+                return None
+    return expr[1:-1].strip() if depth == 0 else None
 
 
-def _split_statement(statement: str) -> Optional[tuple[str, str]]:
-    # Return (atom_name, body_expression) for `(: name body (STV ...))`.
+def _split_statement(statement: object) -> Optional[tuple[str, str]]:
+    if not isinstance(statement, str):
+        return None
     match = _ATOM_RE.match(statement.strip())
     if not match:
         return None
-    name = match.group(1)
     remainder = _split_top_level(match.group(2))
-    if not remainder:
-        return None
-    # Drop the trailing truth value; everything before it is the body.
     body_parts = []
     for part in remainder:
         inner = _strip_outer_parens(part)
-        head = _split_top_level(inner)[0] if inner else ""
-        if head in _TRUTH_HEADS:
+        tokens = _split_top_level(inner) if inner else []
+        if tokens and tokens[0] in _TRUTH_HEADS:
             continue
         body_parts.append(part)
-    if not body_parts:
-        return None
-    return name, body_parts[0]
+    return (match.group(1), body_parts[0]) if body_parts else None
 
 
-def _role_name_for(head: str, index: int, arity: int) -> str:
+def _role_name_for(head: str, index: int) -> str:
     override = _ROLE_OVERRIDES.get(head)
-    if override and index < len(override):
-        return override[index]
-    if arity == 1:
-        return _UNARY_ROLE
-    if index < len(_POSITIONAL_ROLES):
-        return _POSITIONAL_ROLES[index]
-    return f"Arg{index}"
+    return override[index] if override and index < len(override) else f"Arg{index}"
 
 
 class SENFExtractor:
-    # Turns canonicalized atoms plus their source text into a `SENF`.
-
-    def __init__(self, max_mentions_per_sentence: int = 64):
+    def __init__(self, max_mentions_per_sentence: Optional[int] = None):
+        if max_mentions_per_sentence is not None and max_mentions_per_sentence < 0:
+            raise ValueError("max_mentions_per_sentence must be nonnegative")
         self._max_mentions = max_mentions_per_sentence
 
     def extract(self, sentence_id: str, text: str, statements: list[str]) -> SENF:
         senf = SENF(senf_id=f"senf:{sentence_id}", sentence_id=sentence_id)
-        mention_index: dict[str, list[Mention]] = {}
-        mention_cursor: dict[str, int] = {}
-
+        occurrences: dict[str, list[tuple[Entity, Mention]]] = {}
+        occurrence_cursors: dict[str, int] = {}
         for statement in statements or []:
+            lengths = (len(senf.entities), len(senf.mentions), len(senf.frames), len(senf.kind_assertions))
+            saved_occurrences = dict(occurrences)
+            saved_cursors = dict(occurrence_cursors)
             try:
-                self._consume_statement(
-                    statement,
-                    sentence_id,
-                    text,
-                    senf,
-                    mention_index,
-                    mention_cursor,
-                )
-            except Exception as exc:  # never let one bad atom lose the sentence
+                split = _split_statement(statement)
+                if split:
+                    atom_id, body = split
+                    self._walk(
+                        body, sentence_id, text, atom_id, "fact", True,
+                        senf, occurrences, occurrence_cursors,
+                    )
+            except _MentionLimitExceeded as exc:
+                del senf.entities[lengths[0]:]
+                del senf.mentions[lengths[1]:]
+                del senf.frames[lengths[2]:]
+                del senf.kind_assertions[lengths[3]:]
+                occurrences.clear()
+                occurrences.update(saved_occurrences)
+                occurrence_cursors.clear()
+                occurrence_cursors.update(saved_cursors)
+                logger.debug("SENF extraction skipped capped atom %r: %s", statement, exc)
+            except Exception as exc:
                 logger.debug("SENF extraction skipped atom %r: %s", statement, exc)
-
-        senf.mentions = [
-            mention for mentions in mention_index.values() for mention in mentions
-        ][: self._max_mentions]
         return senf
-
-    def _consume_statement(
-        self,
-        statement: str,
-        sentence_id: str,
-        text: str,
-        senf: SENF,
-        mention_index: dict[str, list[Mention]],
-        mention_cursor: dict[str, int],
-    ) -> None:
-        split = _split_statement(statement)
-        if not split:
-            return
-        _name, body = split
-        self._walk(
-            body,
-            sentence_id,
-            text,
-            senf,
-            mention_index,
-            mention_cursor,
-            polarity=True,
-        )
 
     def _walk(
         self,
         expr: str,
         sentence_id: str,
         text: str,
-        senf: SENF,
-        mention_index: dict[str, list[Mention]],
-        mention_cursor: dict[str, int],
+        atom_id: str,
+        clause_role: ClauseRole,
         polarity: bool,
-    ) -> None:
-        # Descend through structural wrappers, emitting a frame per predication.
+        senf: SENF,
+        occurrences: dict[str, list[tuple[Entity, Mention]]],
+        occurrence_cursors: dict[str, int],
+    ) -> Optional[FrameRef]:
         inner = _strip_outer_parens(expr)
-        if inner is None:
-            return
-        tokens = _split_top_level(inner)
+        tokens = _split_top_level(inner) if inner is not None else []
         if not tokens:
-            return
+            return None
         head, args = tokens[0], tokens[1:]
-
         if head in _TRUTH_HEADS:
-            return
-
+            return None
         if head in _NEGATION_HEADS:
+            result = None
             for arg in args:
-                self._walk(
-                    arg,
-                    sentence_id,
-                    text,
-                    senf,
-                    mention_index,
-                    mention_cursor,
-                    not polarity,
-                )
-            return
-
+                result = self._walk(
+                    arg, sentence_id, text, atom_id, clause_role, not polarity,
+                    senf, occurrences, occurrence_cursors,
+                ) or result
+            return result
         if head in _STRUCTURAL_HEADS:
+            result = None
             for arg in args:
-                self._walk(
-                    arg,
-                    sentence_id,
-                    text,
-                    senf,
-                    mention_index,
-                    mention_cursor,
-                    polarity,
-                )
-            return
-
-        # A predication. Nested expressions among its arguments are frames too.
-        nested = [arg for arg in args if arg.startswith("(")]
-        flat = [arg for arg in args if not arg.startswith("(")]
-        for arg in nested:
-            self._walk(
-                arg,
-                sentence_id,
-                text,
-                senf,
-                mention_index,
-                mention_cursor,
-                polarity,
-            )
-        if not flat and nested:
-            return
-
-        frame = self._build_frame(
-            head,
-            flat,
-            sentence_id,
-            text,
-            senf,
-            mention_index,
-            mention_cursor,
-            polarity,
-        )
-        if frame is not None:
-            senf.frames.append(frame)
-
-    def _build_frame(
-        self,
-        head: str,
-        args: list[str],
-        sentence_id: str,
-        text: str,
-        senf: SENF,
-        mention_index: dict[str, list[Mention]],
-        mention_cursor: dict[str, int],
-        polarity: bool,
-    ) -> Optional[SENFFrame]:
+                child_inner = _strip_outer_parens(arg)
+                child_tokens = _split_top_level(child_inner) if child_inner is not None else []
+                child_role = clause_role
+                if child_tokens and child_tokens[0] == "Premises":
+                    child_role = "premise"
+                elif child_tokens and child_tokens[0] == "Conclusions":
+                    child_role = "conclusion"
+                result = self._walk(
+                    arg, sentence_id, text, atom_id, child_role, polarity,
+                    senf, occurrences, occurrence_cursors,
+                ) or result
+            return result
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", head):
             return None
 
-        roles: list[Role] = []
+        roles = []
         for index, arg in enumerate(args):
-            role_name = _role_name_for(head, index, len(args))
-            if _is_variable(arg):
-                # Rule variables are not entities; keep the slot so frames from a
-                # rule still align positionally with frames from a fact.
-                roles.append(Role(role_name, Literal(arg, "variable")))
-                continue
-            if _NUMERIC_RE.match(arg):
-                roles.append(Role(role_name, Literal(arg, "number")))
-                continue
-            mention = self._mention_for(
-                arg, sentence_id, text, mention_index, mention_cursor
-            )
-            roles.append(Role(role_name, mention))
+            if arg.startswith("("):
+                filler = self._walk(
+                    arg, sentence_id, text, atom_id, clause_role, True,
+                    senf, occurrences, occurrence_cursors,
+                )
+                if filler is None:
+                    filler = ValueRef(arg, "expression")
+            elif _is_variable(arg):
+                filler = ValueRef(arg, "variable")
+            elif _NUMERIC_RE.fullmatch(arg):
+                filler = ValueRef(arg, "number")
+            elif head == "IsA" and index == 1:
+                filler = KindRef(arg)
+            else:
+                filler = self._entity_ref(
+                    arg, sentence_id, text, senf, occurrences, occurrence_cursors,
+                )
+            roles.append(Role(_role_name_for(head, index), filler, index))
 
-        if head == "IsA" and len(roles) == 2:
-            instance, klass = roles[0].filler, roles[1].filler
-            if isinstance(instance, Mention) and isinstance(klass, Mention):
-                senf.kinds.setdefault(instance.canonical_symbol, klass.canonical_symbol)
-                if instance.mention_id:
-                    senf.mention_kinds.setdefault(
-                        instance.mention_id, klass.canonical_symbol
-                    )
-
-        return SENFFrame(
+        frame = SENFFrame(
             frame_id=f"{sentence_id}:f{len(senf.frames)}",
             predicate_head=head,
             roles=roles,
             polarity=polarity,
             source_sentence_id=sentence_id,
             source_text=text,
+            source_atom_id=atom_id,
+            clause_role=clause_role,
         )
+        senf.frames.append(frame)
+        if (
+            head == "IsA"
+            and len(roles) == 2
+            and isinstance(roles[0].filler, EntityRef)
+            and isinstance(roles[1].filler, KindRef)
+        ):
+            senf.kind_assertions.append(KindAssertion(
+                roles[0].filler.entity_id, roles[1].filler, polarity, frame.frame_id,
+            ))
+        return FrameRef(frame.frame_id)
 
-    def _mention_for(
+    def _entity_ref(
         self,
-        raw: str,
+        symbol: str,
         sentence_id: str,
         text: str,
-        mention_index: dict[str, list[Mention]],
-        mention_cursor: dict[str, int],
-    ) -> Mention:
-        symbol = canonical_symbol(raw)
-        mentions = mention_index.get(symbol)
-        if mentions is None:
-            surfaces = _find_surfaces(symbol, text)
-            if not surfaces:
-                surfaces = [(None, None)]
-            mentions = []
-            for surface, span in surfaces:
+        senf: SENF,
+        occurrences: dict[str, list[tuple[Entity, Mention]]],
+        occurrence_cursors: dict[str, int],
+    ) -> EntityRef:
+        # Atom arguments already inhabit the parser's canonical PLN symbol space.
+        candidates = occurrences.get(symbol)
+        if candidates is None:
+            source_occurrences = _find_surfaces(symbol, text) or [(symbol, None)]
+            if (
+                self._max_mentions is not None
+                and len(senf.mentions) + len(source_occurrences) > self._max_mentions
+            ):
+                raise _MentionLimitExceeded("atom would exceed mention cap")
+            candidates = []
+            for surface, span in source_occurrences:
+                entity = Entity(f"{sentence_id}:e{len(senf.entities)}", symbol)
                 mention = Mention(
-                    surface=surface or raw,
+                    surface=surface,
                     canonical_symbol=symbol,
                     sentence_id=sentence_id,
-                    mention_id=f"{sentence_id}:m{sum(len(v) for v in mention_index.values()) + len(mentions)}",
+                    entity_id=entity.entity_id,
+                    mention_id=f"{sentence_id}:m{len(senf.mentions)}",
                     char_span=span,
-                    mention_type=_infer_mention_type(symbol, surface, text, span),
-                    head_lemma=symbol.rsplit("_", 1)[-1] if symbol else "",
+                    mention_type=_infer_mention_type(symbol, surface, span),
+                    head_lemma=symbol.rsplit("_", 1)[-1].lower(),
                 )
-                mentions.append(mention)
-            mention_index[symbol] = mentions
+                senf.entities.append(entity)
+                senf.mentions.append(mention)
+                candidates.append((entity, mention))
+            occurrences[symbol] = candidates
+        cursor = occurrence_cursors.get(symbol, 0)
+        occurrence_cursors[symbol] = cursor + 1
+        entity, mention = candidates[cursor % len(candidates)]
+        return EntityRef(entity.entity_id, mention.mention_id)
 
-        cursor = mention_cursor.get(symbol, 0)
-        mention_cursor[symbol] = cursor + 1
-        return mentions[min(cursor, len(mentions) - 1)]
 
-
-def _find_surfaces(
-    symbol: str, text: str
-) -> list[tuple[Optional[str], Optional[tuple[int, int]]]]:
+def _find_surfaces(symbol: str, text: str) -> list[tuple[str, tuple[int, int]]]:
     if not symbol or not text:
         return []
     parts = [part for part in symbol.split("_") if part]
     if not parts:
         return []
-    pattern = r"\b" + r"[\s\-_]+".join(re.escape(part) + r"(?:e?s)?" for part in parts) + r"\b"
-    matches = list(re.finditer(pattern, text, re.IGNORECASE))
-    return [(match.group(0), (match.start(), match.end())) for match in matches]
+    pattern = r"\b" + r"[\s\-_]+".join(
+        re.escape(part) + r"(?:e?s)?" for part in parts
+    ) + r"\b"
+    return [
+        (match.group(0), (match.start(), match.end()))
+        for match in re.finditer(pattern, text, re.IGNORECASE)
+    ]
 
 
 def _infer_mention_type(
-    symbol: str,
-    surface: Optional[str],
-    text: str,
-    span: Optional[tuple[int, int]],
+    symbol: str, surface: str, span: Optional[tuple[int, int]],
 ) -> MentionType:
-    if symbol in _PRONOUNS:
+    if symbol.lower() in _PRONOUNS:
         return "pronoun"
-    if not surface or span is None:
-        return "common"
-    if span[0] > 0 and surface[:1].isupper():
+    if span and span[0] > 0 and surface[:1].isupper():
         return "proper"
     if "_" in symbol or " " in surface.strip():
         return "nominal"
@@ -362,6 +308,6 @@ def extract_senf(
     sentence_id: str,
     text: str,
     statements: list[str],
-    max_mentions_per_sentence: int = 64,
+    max_mentions_per_sentence: Optional[int] = None,
 ) -> SENF:
     return SENFExtractor(max_mentions_per_sentence).extract(sentence_id, text, statements)
