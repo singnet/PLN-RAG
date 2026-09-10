@@ -280,8 +280,8 @@ def _run_parse(parser: object, text: str, context: list[str], is_query: bool):
     return parser.parse(text, context)
 
 
-def _proof_found(raw_proof: str) -> bool:
-    return bool(raw_proof and raw_proof != "[]")
+def _proof_found(proof: str) -> bool:
+    return bool(proof and proof != "[]")
 
 
 def _configure_case_environment(parser_name: str, case_name: str, run_id: str):
@@ -344,11 +344,11 @@ async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
         ingest_seconds = time.perf_counter() - ingest_started
 
         query_started = time.perf_counter()
-        query_response = await service.query(case["question"])
+        query_response = await service.reason(case["question"])
         query_seconds = time.perf_counter() - query_started
 
         total_seconds = parser_init_seconds + parse_seconds + ingest_seconds + query_seconds
-        found = _proof_found(query_response.raw_proof)
+        found = _proof_found(query_response.proof)
         expected = case.get("expected_proof")
         correct = None if expected is None else (found == expected)
 
@@ -374,13 +374,13 @@ async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
             "end_to_end": {
                 "ingest": _compact_ingest_results(ingest_results),
                 "query": {
-                    "question": query_response.question,
+                    "query": query_response.query,
                     "pln_query": query_response.pln_query,
                     "original_query": query_response.original_query,
                     "executed_query": query_response.executed_query,
                     "fallback_used": query_response.fallback_used,
                     "query_status": query_response.query_status,
-                    "raw_proof": query_response.raw_proof,
+                    "proof": query_response.proof,
                     "sources": query_response.sources,
                     "answer": query_response.answer,
                     "candidate_count": query_response.candidate_count,
@@ -433,11 +433,11 @@ async def _benchmark_case_with_service(
     ingest_seconds = time.perf_counter() - ingest_started
 
     query_started = time.perf_counter()
-    query_response = await service.query(case["question"])
+    query_response = await service.reason(case["question"])
     query_seconds = time.perf_counter() - query_started
 
     total_seconds = parse_seconds + ingest_seconds + query_seconds
-    found = _proof_found(query_response.raw_proof)
+    found = _proof_found(query_response.proof)
     expected = case.get("expected_proof")
     correct = None if expected is None else (found == expected)
     state_after = _knowledge_state(service)
@@ -466,13 +466,13 @@ async def _benchmark_case_with_service(
         "end_to_end": {
             "ingest": _compact_ingest_results(ingest_results),
             "query": {
-                "question": query_response.question,
+                "query": query_response.query,
                 "pln_query": query_response.pln_query,
                 "original_query": query_response.original_query,
                 "executed_query": query_response.executed_query,
                 "fallback_used": query_response.fallback_used,
                 "query_status": query_response.query_status,
-                "raw_proof": query_response.raw_proof,
+                "proof": query_response.proof,
                 "sources": query_response.sources,
                 "answer": query_response.answer,
                 "candidate_count": query_response.candidate_count,

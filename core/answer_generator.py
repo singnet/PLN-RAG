@@ -1,6 +1,11 @@
+import logging
 import dspy
 from typing import List
-from config import get_settings
+
+from core.lm import create_lm
+
+
+logger = logging.getLogger(__name__)
 
 
 class _ProofToAnswer(dspy.Signature):
@@ -25,10 +30,8 @@ class AnswerGenerator:
     """
 
     def __init__(self):
-        cfg = get_settings()
-        lm = dspy.LM(cfg.openai_model, api_key=cfg.openai_api_key, cache=False)
-        dspy.configure(lm=lm, temperature=0.1, max_tokens=1000)
         self._predict = dspy.Predict(_ProofToAnswer)
+        self._predict.lm = create_lm()
 
     def generate(self, question: str, proof_traces: List[str]) -> str:
         if not proof_traces:
@@ -38,6 +41,6 @@ class AnswerGenerator:
         try:
             result = self._predict(question=question, proof=proof_str)
             return result.answer
-        except Exception as e:
-            print(f"[AnswerGenerator] Failed: {e}")
+        except Exception:
+            logger.exception("Answer generation failed.")
             return "I was unable to generate an answer due to an internal error."

@@ -1,0 +1,20 @@
+FROM pln-rag-pln-rag:latest
+
+ARG PETTA_COMMIT
+ARG PETTACHAINER_COMMIT
+
+ENV MATRIX_PETTA_COMMIT=${PETTA_COMMIT}
+ENV MATRIX_PETTACHAINER_COMMIT=${PETTACHAINER_COMMIT}
+
+RUN git clone https://github.com/trueagi-io/PeTTa.git /matrix/PeTTa \
+    && (git -C /matrix/PeTTa checkout ${PETTA_COMMIT} \
+        || (git -C /matrix/PeTTa fetch origin ${PETTA_COMMIT} \
+            && git -C /matrix/PeTTa checkout FETCH_HEAD)) \
+    && git clone https://github.com/rTreutlein/PeTTaChainer.git /matrix/PeTTaChainer \
+    && (git -C /matrix/PeTTaChainer checkout ${PETTACHAINER_COMMIT} \
+        || (git -C /matrix/PeTTaChainer fetch origin ${PETTACHAINER_COMMIT} \
+            && git -C /matrix/PeTTaChainer checkout FETCH_HEAD))
+
+ENV PYTHONPATH=/matrix/PeTTa/python:/matrix/PeTTaChainer:/app
+
+COPY scripts/diagnose_reasoner_replay.py /app/scripts/diagnose_reasoner_replay.py

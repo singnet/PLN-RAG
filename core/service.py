@@ -1,8 +1,8 @@
 import asyncio
+import logging
 import re
-import ast
 import time
-from typing import List, Tuple
+from typing import List
 
 from config import get_settings
 from core.chunker import Chunker
@@ -11,7 +11,10 @@ from core.reasoner import Reasoner
 from core.answer_generator import AnswerGenerator
 from core.conceptnet import ConceptNetManager
 from storage.vector_store import VectorStore
-from api.models import IngestItemResult, QueryResponse
+from api.models import IngestItemResult, ReasonResponse
+
+
+logger = logging.getLogger(__name__)
 
 
 class PLNRAGService:
@@ -44,8 +47,9 @@ class PLNRAGService:
         all previously ingested atoms as context.
         """
         results = []
+        loop = asyncio.get_running_loop()
         for text in texts:
-            result = await asyncio.get_event_loop().run_in_executor(
+            result = await loop.run_in_executor(
                 None, self._ingest_single, text
             )
             results.append(result)
@@ -84,7 +88,7 @@ class PLNRAGService:
 
                     if not parse_result.statements:
                         empty_results += 1
-                        print(f"[Service] No statements for batch: '{batch_text[:60]}...'")
+                        logger.warning("No statements for batch preview %r", batch_text[:60])
                         continue
 
                     valid, rejected_local = self._validate_statements(parse_result.statements)
@@ -110,7 +114,7 @@ class PLNRAGService:
 
                     if not parse_result.statements:
                         empty_results += 1
-                        print(f"[Service] No statements for chunk: '{chunk[:60]}...'")
+                        logger.warning("No statements for chunk preview %r", chunk[:60])
                         continue
 
                     # 4. Add to atomspace via reasoner
@@ -150,14 +154,12 @@ class PLNRAGService:
                 rejected_samples=[r.get("stmt", "") for r in rejected[:3] if r.get("stmt")],
             )
 
-        except Exception as e:
-            import traceback
-
-            traceback.print_exc()
+        except Exception as exc:
+            logger.exception("Ingest failed for preview %r", text[:80])
             return IngestItemResult(
                 text=text,
                 status="failed",
-                error=str(e),
+                error=str(exc),
                 chunk_count=0,
                 batch_count=0,
                 batch_sizes=[],
@@ -246,34 +248,34 @@ class PLNRAGService:
 
     #  Query
 
-    async def query(self, question: str) -> QueryResponse:
+    async def reason(self, query: str) -> ReasonResponse:
         cfg = get_settings()
         # 1. Retrieve context for translation
         t0 = time.perf_counter()
-        context, _ = self._vector_store.retrieve_context(question, top_k=self._context_top_k)
+        context, _ = self._vector_store.retrieve_context(query, top_k=self._context_top_k)
         context = self._enrich_context(context)
         context_retrieval_seconds = time.perf_counter() - t0
 
-        # 2. Parse question → PLN query
+        # 2. Parse query text → PLN query
         t1 = time.perf_counter()
         if hasattr(self._parser, "parse_query"):
-            parse_result = self._parser.parse_query(question, context)
+            parse_result = self._parser.parse_query(query, context)
         else:
-            parse_result = self._parser.parse(question, context)
+            parse_result = self._parser.parse(query, context)
         parse_query_seconds = time.perf_counter() - t1
 
         original_query = parse_result.queries[0] if parse_result.queries else ""
         if not parse_result.queries:
-            return QueryResponse(
-                question=question,
+            return ReasonResponse(
+                query=query,
                 pln_query="",
                 original_query="",
                 executed_query="",
                 fallback_used=False,
                 query_status="no_query",
-                raw_proof="",
+                proof="",
                 sources=[],
-                answer="I couldn't translate this question into a logical query.",
+                answer="I couldn't translate this request into a logical query.",
                 context_retrieval_seconds=round(context_retrieval_seconds, 4),
                 parse_query_seconds=round(parse_query_seconds, 4),
                 reasoning_seconds=0.0,
@@ -286,7 +288,10 @@ class PLNRAGService:
             valid, rejected_local = self._validate_statements(parse_result.statements)
             if rejected_local:
                 for item in rejected_local[:2]:
-                    print(f"[Service] Dropping malformed query-support statement: {item.get('error')}")
+                    logger.warning(
+                        "Dropping malformed query-support statement: %s",
+                        item.get("error"),
+                    )
             self._reasoner.add_statements(valid)
 
         # 4. Run reasoning via PeTTaChainer against ordered candidates
@@ -316,7 +321,7 @@ class PLNRAGService:
         if not proof_traces and hasattr(self._parser, "retry_parse_query"):
             try:
                 retry = getattr(self._parser, "retry_parse_query")
-                retry_result = retry(question, context, executed_query)
+                retry_result = retry(query, context, executed_query)
                 if retry_result and retry_result.queries:
                     retry_used = True
                     more = (
@@ -339,13 +344,13 @@ class PLNRAGService:
                         if proof_traces:
                             break
             except Exception as exc:
-                print(f"[Service] retry_parse_query failed: {exc}")
+                logger.warning("retry_parse_query failed: %s", exc)
 
         reasoning_seconds = time.perf_counter() - t2
 
-        raw_proof = str(proof_traces)
+        proof = str(proof_traces)
         fallback_used = bool(executed_query and original_query and executed_query != original_query)
-        query_status = self._classify_query_status(question, original_query, fallback_used)
+        query_status = self._classify_query_status(query, original_query, fallback_used)
 
         # 5. Reverse-lookup NL sources from proof atoms
         t3 = time.perf_counter()
@@ -359,7 +364,7 @@ class PLNRAGService:
         # 6. Generate natural language answer
         t4 = time.perf_counter()
         if cfg.answer_generation_enabled:
-            answer = self._answer_gen.generate(question, proof_traces)
+            answer = self._answer_gen.generate(query, proof_traces)
             answer_generation_seconds = time.perf_counter() - t4
         else:
             # Benchmarks often disable answer generation; avoid emitting a misleading
@@ -372,14 +377,14 @@ class PLNRAGService:
                 "knowledge base, so the failure may come from query shape mismatch or missing witness facts."
             )
 
-        return QueryResponse(
-            question=question,
+        return ReasonResponse(
+            query=query,
             pln_query=executed_query,
             original_query=original_query,
             executed_query=executed_query,
             fallback_used=fallback_used,
             query_status=query_status,
-            raw_proof=raw_proof,
+            proof=proof,
             sources=sources,
             answer=answer,
             candidate_count=candidate_count_total,
@@ -394,14 +399,14 @@ class PLNRAGService:
         )
 
     def _classify_query_status(
-        self, question: str, original_query: str, fallback_used: bool
+        self, query: str, original_query: str, fallback_used: bool
     ) -> str:
         if not original_query:
             return "no_query"
         if fallback_used:
             return "weakly_aligned"
 
-        normalized = question.strip().lower()
+        normalized = query.strip().lower()
         is_yes_no = normalized.startswith(
             (
                 "is ",
@@ -441,28 +446,11 @@ class PLNRAGService:
                 if "STV" not in match and len(match) >= 5:
                     atoms_to_search.add(match)
 
-        sources = set()
         if max_atoms > 0 and len(atoms_to_search) > max_atoms:
             atoms_to_search = set(list(atoms_to_search)[:max_atoms])
-        for atom_str in atoms_to_search:
-            try:
-                vector = self._vector_store.embed(atom_str)
-                ctx, _ = self._vector_store.retrieve_context(atom_str, top_k=1)
-                # retrieve_context returns atoms, not NL — direct search needed
-                resp = self._vector_store._client.post(
-                    f"{self._vector_store._qdrant}/collections"
-                    f"/{self._vector_store._collection}/points/search",
-                    json={"vector": vector, "limit": 1, "with_payload": True},
-                )
-                results = resp.json().get("result", [])
-                if results and results[0].get("score", 0) > 0.6:
-                    nl = results[0].get("payload", {}).get("nl")
-                    if nl:
-                        sources.add(nl)
-            except Exception:
-                pass
-
-        return list(sources)
+        return self._vector_store.lookup_sources_by_atoms(
+            list(atoms_to_search), max_atoms=max_atoms, score_threshold=0.6
+        )
 
     #  Reset
 
@@ -492,3 +480,36 @@ class PLNRAGService:
             "conceptnet_last_error": conceptnet["last_error"],
             "status": "degraded" if conceptnet["last_error"] else "ok",
         }
+
+    def ready(self) -> dict:
+        conceptnet = self._conceptnet.status()
+        qdrant_ready, qdrant_detail = self._vector_store.is_qdrant_available()
+        ollama_ready, ollama_detail = self._vector_store.is_ollama_available()
+        reasoner_ready = self._reasoner is not None
+
+        conceptnet_status = "disabled"
+        if conceptnet["enabled"]:
+            conceptnet_status = "degraded" if conceptnet["last_error"] else "ready"
+
+        ready = reasoner_ready and qdrant_ready and ollama_ready
+        status = "ready" if ready else "unavailable"
+        if ready and conceptnet_status == "degraded":
+            status = "degraded"
+
+        return {
+            "status": status,
+            "parser": self._parser.__class__.__name__,
+            "reasoner_ready": reasoner_ready,
+            "qdrant_ready": qdrant_ready,
+            "ollama_ready": ollama_ready,
+            "conceptnet_enabled": conceptnet["enabled"],
+            "conceptnet_status": conceptnet_status,
+            "conceptnet_last_error": conceptnet["last_error"],
+            "details": {
+                "qdrant": qdrant_detail,
+                "ollama": ollama_detail,
+            },
+        }
+
+    def close(self):
+        self._vector_store.close()

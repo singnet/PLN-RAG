@@ -1,11 +1,20 @@
-from pydantic import BaseModel
-from typing import List, Optional, Literal
+from pydantic import BaseModel, Field, field_validator
+from typing import List, Optional, Literal, Any
 
 
 #  Ingest 
 
 class IngestRequest(BaseModel):
     texts: List[str]
+
+    @field_validator("texts")
+    @classmethod
+    def validate_texts(cls, value: List[str]) -> List[str]:
+        if not value:
+            raise ValueError("texts must contain at least one item")
+        if not any(str(item).strip() for item in value):
+            raise ValueError("texts must contain at least one non-empty item")
+        return value
 
 
 class IngestItemResult(BaseModel):
@@ -28,20 +37,27 @@ class IngestResponse(BaseModel):
     results: List[IngestItemResult]
 
 
-#  Query 
+#  Reason 
 
-class QueryRequest(BaseModel):
-    question: str
+class ReasonRequest(BaseModel):
+    query: str
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        if not str(value).strip():
+            raise ValueError("query must not be empty")
+        return value
 
 
-class QueryResponse(BaseModel):
-    question: str
+class ReasonResponse(BaseModel):
+    query: str
     pln_query: str
     original_query: str
     executed_query: str
     fallback_used: bool
-    query_status: Literal["well_aligned", "weakly_aligned", "malformed", "no_query"]
-    raw_proof: str
+    query_status: Literal["well_aligned", "weakly_aligned", "no_query"]
+    proof: str
     sources: List[str]       # NL sentences that contributed to the proof
     answer: str
 
@@ -84,3 +100,15 @@ class HealthResponse(BaseModel):
     conceptnet_vectors_expected: int
     conceptnet_last_error: str
     uptime_seconds: float
+
+
+class ReadyResponse(BaseModel):
+    status: Literal["ready", "degraded", "unavailable"]
+    parser: str
+    reasoner_ready: bool
+    qdrant_ready: bool
+    ollama_ready: bool
+    conceptnet_enabled: bool
+    conceptnet_status: str
+    conceptnet_last_error: str
+    details: dict[str, Any] = Field(default_factory=dict)

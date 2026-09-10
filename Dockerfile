@@ -7,11 +7,18 @@ RUN apt-get update && apt-get install -y \
     build-essential cmake ninja-build git \
     libssl-dev libgmp-dev libarchive-dev \
     libpcre2-dev libedit-dev libossp-uuid-dev \
-    python3 python3-pip python3-dev \
+    python3 python3-pip python3-dev ca-certificates curl gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y software-properties-common && \
-    add-apt-repository ppa:swi-prolog/stable && \
+RUN curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x4AB3A5F60EA9AEB3" \
+        -o /tmp/swi-prolog-ppa.asc && \
+    test "$(gpg --show-keys --with-colons /tmp/swi-prolog-ppa.asc | awk -F: '$1 == "fpr" {print $10; exit}')" \
+        = "E8B739E3753FF4A12360BA6A4AB3A5F60EA9AEB3" && \
+    gpg --batch --dearmor --output /usr/share/keyrings/swi-prolog-ppa.gpg \
+        /tmp/swi-prolog-ppa.asc && \
+    echo "deb [signed-by=/usr/share/keyrings/swi-prolog-ppa.gpg] https://ppa.launchpadcontent.net/swi-prolog/stable/ubuntu jammy main" \
+        > /etc/apt/sources.list.d/swi-prolog-ppa.list && \
+    rm /tmp/swi-prolog-ppa.asc && \
     apt-get update && apt-get install -y swi-prolog && \
     rm -rf /var/lib/apt/lists/*
 
@@ -26,14 +33,21 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PETTA_COMMIT=e1490899cefc67c128d5311ff4861f9997674957
-ENV PETTACHAINER_COMMIT=d21b93b5132a7fc8722f64d57b74fb7c3a8d1faa
+ENV PETTACHAINER_COMMIT=02a85c63be6a735f50f50e1084a717b3256b8406
 
 RUN apt-get update && apt-get install -y \
-    software-properties-common \
     python3 python3-pip \
     libgmp10 libarchive13 libpcre2-8-0 libedit2 \
-    git \
-    && add-apt-repository ppa:swi-prolog/stable \
+    git ca-certificates curl gnupg \
+    && curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x4AB3A5F60EA9AEB3" \
+        -o /tmp/swi-prolog-ppa.asc \
+    && test "$(gpg --show-keys --with-colons /tmp/swi-prolog-ppa.asc | awk -F: '$1 == "fpr" {print $10; exit}')" \
+        = "E8B739E3753FF4A12360BA6A4AB3A5F60EA9AEB3" \
+    && gpg --batch --dearmor --output /usr/share/keyrings/swi-prolog-ppa.gpg \
+        /tmp/swi-prolog-ppa.asc \
+    && echo "deb [signed-by=/usr/share/keyrings/swi-prolog-ppa.gpg] https://ppa.launchpadcontent.net/swi-prolog/stable/ubuntu jammy main" \
+        > /etc/apt/sources.list.d/swi-prolog-ppa.list \
+    && rm /tmp/swi-prolog-ppa.asc \
     && apt-get update && apt-get install -y swi-prolog \
     && rm -rf /var/lib/apt/lists/*
 
@@ -44,7 +58,9 @@ COPY --from=builder /usr/local/lib/python3.10/dist-packages /usr/local/lib/pytho
 # Clone PeTTa and PeTTaChainer
 WORKDIR /deps
 RUN git clone https://github.com/trueagi-io/PeTTa.git && \
-    git -C /deps/PeTTa checkout ${PETTA_COMMIT} && \
+    (git -C /deps/PeTTa checkout ${PETTA_COMMIT} || \
+     (git -C /deps/PeTTa fetch origin ${PETTA_COMMIT} && \
+      git -C /deps/PeTTa checkout FETCH_HEAD)) && \
     git clone https://github.com/rTreutlein/PeTTaChainer.git && \
     git -C /deps/PeTTaChainer checkout ${PETTACHAINER_COMMIT}
 

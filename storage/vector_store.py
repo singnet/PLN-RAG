@@ -1,7 +1,11 @@
+import logging
 import uuid
 import httpx
 from typing import List, Tuple
 from config import get_settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class VectorStore:
@@ -22,12 +26,35 @@ class VectorStore:
         self._vector_size: int | None = None
 
     def embed(self, text: str) -> List[float]:
-        resp = self._client.post(self._ollama, json={
-            "model": self._ollama_model,
-            "prompt": text
-        })
-        resp.raise_for_status()
-        return resp.json()["embedding"]
+        try:
+            resp = self._client.post(self._ollama, json={
+                "model": self._ollama_model,
+                "prompt": text
+            })
+            resp.raise_for_status()
+            return resp.json()["embedding"]
+        except Exception as exc:
+            logger.warning("Failed to embed text with Ollama model %s: %s", self._ollama_model, exc)
+            raise
+
+    def is_qdrant_available(self) -> tuple[bool, str]:
+        try:
+            resp = self._client.get(f"{self._qdrant}/collections")
+            resp.raise_for_status()
+            return True, "ok"
+        except Exception as exc:
+            return False, str(exc)
+
+    def is_ollama_available(self) -> tuple[bool, str]:
+        base_url = self._ollama
+        if "/api/embeddings" in base_url:
+            base_url = base_url.rsplit("/api/embeddings", 1)[0]
+        try:
+            resp = self._client.get(base_url)
+            resp.raise_for_status()
+            return True, "ok"
+        except Exception as exc:
+            return False, str(exc)
 
     def _ensure_collection(self, vector_size: int):
         if self._vector_size == vector_size:
@@ -40,6 +67,9 @@ class VectorStore:
                     f"{self._qdrant}/collections/{self._collection}",
                     json={"vectors": {"size": vector_size, "distance": "Cosine"}}
                 ).raise_for_status()
+            else:
+                logger.warning("Failed to inspect Qdrant collection %s: %s", self._collection, e)
+                raise
         self._vector_size = vector_size
 
     def store(self, sentence: str, atoms: List[str], vector: List[float]):
@@ -94,6 +124,11 @@ class VectorStore:
             json={"vector": vector, "limit": top_k, "with_payload": True}
         )
         if resp.status_code != 200:
+            logger.warning(
+                "Qdrant context retrieval failed for collection %s with status %s",
+                self._collection,
+                resp.status_code,
+            )
             return [], vector
 
         context: List[str] = []
@@ -107,8 +142,8 @@ class VectorStore:
     def reset(self):
         try:
             self._client.delete(f"{self._qdrant}/collections/{self._collection}")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to reset Qdrant collection %s: %s", self._collection, exc)
         self._vector_size = None
 
     @property
@@ -116,7 +151,8 @@ class VectorStore:
         try:
             resp = self._client.get(f"{self._qdrant}/collections/{self._collection}")
             return resp.json().get("result", {}).get("points_count", 0)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to count Qdrant collection %s: %s", self._collection, exc)
             return 0
 
     def count_by_source(self, source: str) -> int:
@@ -132,9 +168,16 @@ class VectorStore:
                 },
             )
             if resp.status_code != 200:
+                logger.warning(
+                    "Qdrant source count failed for collection %s and source %s with status %s",
+                    self._collection,
+                    source,
+                    resp.status_code,
+                )
                 return 0
             return resp.json().get("result", {}).get("count", 0)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to count source %s in collection %s: %s", source, self._collection, exc)
             return 0
 
     def delete_by_source(self, source: str):
@@ -149,5 +192,36 @@ class VectorStore:
                     }
                 },
             ).raise_for_status()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to delete source %s from collection %s: %s", source, self._collection, exc)
+
+    def lookup_sources_by_atoms(
+        self, atoms: List[str], max_atoms: int = 30, score_threshold: float = 0.6
+    ) -> List[str]:
+        if max_atoms <= 0:
+            return []
+
+        selected_atoms = atoms[:max_atoms]
+        sources: List[str] = []
+        seen: set[str] = set()
+        for atom in selected_atoms:
+            try:
+                vector = self.embed(atom)
+                resp = self._client.post(
+                    f"{self._qdrant}/collections/{self._collection}/points/search",
+                    json={"vector": vector, "limit": 1, "with_payload": True},
+                )
+                resp.raise_for_status()
+                results = resp.json().get("result", [])
+                if not results or results[0].get("score", 0) <= score_threshold:
+                    continue
+                nl = results[0].get("payload", {}).get("nl")
+                if nl and nl not in seen:
+                    seen.add(nl)
+                    sources.append(nl)
+            except Exception as exc:
+                logger.debug("Source lookup failed for atom %r: %s", atom, exc)
+        return sources
+
+    def close(self):
+        self._client.close()

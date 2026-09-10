@@ -1,3 +1,4 @@
+import logging
 import json
 import os
 import subprocess
@@ -9,6 +10,9 @@ from config import get_settings
 from core.reasoner import Reasoner
 from core.symbol_normalization import NORMALIZATION_VERSION
 from storage.vector_store import VectorStore
+
+
+logger = logging.getLogger(__name__)
 
 
 class ConceptNetManager:
@@ -68,6 +72,8 @@ class ConceptNetManager:
     def restore_after_reset(self, reasoner: Reasoner, vector_store: VectorStore, scope: str):
         if not self.enabled:
             return
+        if self._index_thread is not None and self._index_thread.is_alive():
+            logger.warning("ConceptNet reset requested while background indexing is still running.")
         if scope in ("all", "atomspace") and self._cfg.conceptnet_autoload:
             self.ensure_atomspace_loaded(reasoner)
         if (
@@ -114,9 +120,7 @@ class ConceptNetManager:
                 indexed = 0
                 self._set_status(indexed_count=indexed, expected_count=expected)
             elif expected > 0 and 0 < indexed < expected:
-                print(
-                    f"[ConceptNet] Partial vector index detected: {indexed}/{expected}. Reindexing."
-                )
+                logger.info("Partial vector index detected: %s/%s. Reindexing.", indexed, expected)
                 vector_store.delete_by_source("conceptnet")
                 indexed = 0
                 self._set_status(indexed_count=indexed, expected_count=expected)
@@ -127,17 +131,17 @@ class ConceptNetManager:
                 if len(batch) >= 100:
                     indexed += vector_store.store_many(batch)
                     self._set_status(indexed_count=indexed, expected_count=expected)
-                    print(f"[ConceptNet] Indexed {indexed}/{expected or '?'} vectors")
+                    logger.info("Indexed %s/%s ConceptNet vectors", indexed, expected or "?")
                     batch = []
             if batch:
                 indexed += vector_store.store_many(batch)
                 self._set_status(indexed_count=indexed, expected_count=expected)
-                print(f"[ConceptNet] Indexed {indexed}/{expected or '?'} vectors")
+                logger.info("Indexed %s/%s ConceptNet vectors", indexed, expected or "?")
             self._set_status(indexing=False, indexed_count=indexed, expected_count=expected)
         except Exception as exc:
             self._set_status(indexing=False, indexed_count=indexed, expected_count=expected, last_error=str(exc))
-            print(f"[ConceptNet] Vector indexing failed: {exc}")
-            raise
+            logger.warning("ConceptNet vector indexing failed: %s", exc)
+            return
 
     def _iter_records(self, path: str):
         with open(path, "r", encoding="utf-8") as handle:
@@ -154,6 +158,21 @@ class ConceptNetManager:
         if not self._cfg.conceptnet_auto_rebuild_on_change:
             return False
 
+        input_exists = os.path.exists(self._cfg.conceptnet_input_file)
+        artifact_paths = [
+            self._cfg.conceptnet_atomspace_path,
+            self._cfg.conceptnet_vector_payload_path,
+            self._cfg.conceptnet_manifest_path,
+        ]
+        artifacts_exist = all(os.path.exists(path) for path in artifact_paths)
+
+        if not input_exists:
+            self._handle_missing(
+                "ConceptNet raw input file not found; using committed generated artifacts if available: "
+                f"{self._cfg.conceptnet_input_file}"
+            )
+            return False
+
         required_paths = [
             self._cfg.conceptnet_input_file,
             self._cfg.conceptnet_atomspace_path,
@@ -161,8 +180,10 @@ class ConceptNetManager:
             self._cfg.conceptnet_manifest_path,
         ]
         if not all(os.path.exists(path) for path in required_paths):
-            self._rebuild_artifacts()
-            return True
+            if not artifacts_exist:
+                self._rebuild_artifacts()
+                return True
+            return False
 
         manifest = self._load_manifest()
         if manifest is None or self._manifest_mismatch(manifest):
@@ -199,9 +220,11 @@ class ConceptNetManager:
             if key == "source_file":
                 current = self._normalize_path(current)
             if current != value:
-                print(
-                    f"[ConceptNet] Config change detected for {key}: "
-                    f"manifest={manifest.get(key)!r}, current={value!r}"
+                logger.info(
+                    "ConceptNet config change detected for %s: manifest=%r current=%r",
+                    key,
+                    manifest.get(key),
+                    value,
                 )
                 return True
         return False
@@ -212,6 +235,11 @@ class ConceptNetManager:
         return os.path.abspath(str(path))
 
     def _rebuild_artifacts(self):
+        if not os.path.exists(self._cfg.conceptnet_input_file):
+            self._handle_missing(
+                f"ConceptNet raw input file not found: {self._cfg.conceptnet_input_file}"
+            )
+            return
         input_dir = os.path.dirname(self._cfg.conceptnet_atomspace_path)
         os.makedirs(input_dir, exist_ok=True)
         command = [
@@ -232,13 +260,20 @@ class ConceptNetManager:
             "--sample-seed",
             str(self._cfg.conceptnet_sample_seed),
         ]
-        print("[ConceptNet] Rebuilding background artifacts...")
-        subprocess.run(command, check=True)
-        print("[ConceptNet] Background artifacts rebuilt.")
+        logger.info("Rebuilding ConceptNet background artifacts...")
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as exc:
+            self._set_status(last_error=str(exc))
+            if self._cfg.conceptnet_startup_fail_open:
+                logger.warning("ConceptNet artifact rebuild failed: %s", exc)
+                return
+            raise
+        logger.info("ConceptNet background artifacts rebuilt.")
 
     def _handle_missing(self, message: str):
         if self._cfg.conceptnet_startup_fail_open:
-            print(f"[ConceptNet] Warning: {message}")
+            logger.warning(message)
             return
         raise FileNotFoundError(message)
 
