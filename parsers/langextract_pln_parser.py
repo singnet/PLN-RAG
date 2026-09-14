@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from config import get_settings
@@ -14,6 +15,9 @@ from core.langextract_pln import (
 )
 from core.parser import ParseResult, SemanticParser
 from core.pln_postprocessor import PLNPostprocessor
+
+
+logger = logging.getLogger(__name__)
 
 
 class LangExtractPLNParser(SemanticParser):
@@ -66,8 +70,8 @@ class LangExtractPLNParser(SemanticParser):
             )
             log_rejections("LangExtractPLNParser", translated.rejected)
             return ParseResult(statements=processed.statements, queries=[])
-        except Exception as exc:
-            print(f"[LangExtractPLNParser] Failed for '{text}': {exc}")
+        except Exception:
+            logger.exception("LangExtract statement parse failed for preview %r", text[:80])
             return ParseResult()
 
     def parse_query(self, text: str, context: list[str]) -> ParseResult:
@@ -84,8 +88,8 @@ class LangExtractPLNParser(SemanticParser):
             )
             log_rejections("LangExtractPLNParser.query", translated.rejected)
             return ParseResult(statements=processed.statements, queries=processed.queries)
-        except Exception as exc:
-            print(f"[LangExtractPLNParser] Query failed for '{text}': {exc}")
+        except Exception:
+            logger.exception("LangExtract query parse failed for preview %r", text[:80])
             return ParseResult()
 
     def _extract(self, text: str, prompt: str, examples: list[Any]) -> list[Any]:

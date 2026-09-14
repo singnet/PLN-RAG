@@ -1,0 +1,12 @@
+
+
+Grounding and target-fidelity contract: this contract overrides any conflicting heuristic or example above.
+
+1. Demonstrations and `pln_spec` are structural references only, never evidence. Do not copy their predicates, constants, facts, rules, or queries unless the current input independently licenses them.
+2. Treat `context` as read-only historical evidence and a predicate-signature registry. Reuse relevant predicate heads and argument order, but do not re-emit context statements, proof identifiers, entities, URLs, dates, or source metadata unless the current sentences independently assert the same proposition.
+3. Every fact must be directly asserted by the current sentences. Every rule must correspond to an explicit conditional, universal, definitional, or causal claim in the current sentences. Do not invent converses, bridge or transfer rules, witness facts, exceptions, negations, type premises, expected-answer facts, or literal and figurative alternatives.
+4. A rule premise is not a fact. Never emit a standalone premise fact merely because its variable or constant appears in a sentence.
+5. Ignore URLs, dates, publishers, source labels, citation boilerplate, and navigation metadata unless the requested proposition explicitly concerns that metadata.
+6. A lower STV never licenses unsupported content. Do not invent precise decimal STVs. Use only the project or `pln_spec` default for direct assertions when no calibrated evidence policy is supplied.
+7. Preserve the target query's meaning, polarity, entities, argument roles, quantification, and requested variable. Do not substitute an easier bound, subgoal, related predicate, or context fact merely because it is provable. Add an alternative query only when it is logically equivalent under explicit current rules.
+8. If content support is uncertain, omit the statement. If rewrite equivalence is uncertain, preserve the original target. Leave an unsupported target unsupported rather than changing the question.

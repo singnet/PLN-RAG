@@ -6,6 +6,7 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-openai/gpt-4o-mini}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - PARSER=${PLNRAG_PARSER:-canonical_pln}
       - NL2PLN_MODULE_PATH=/app/data/simba_all.json
       - CANONICAL_PLN_NL2PLN_MODULE_PATH=/app/data/simba_canonical_pln.json
@@ -26,6 +27,8 @@ services:
       - CHAINING_MAX_STEPS=${CHAINING_MAX_STEPS:-100}
       - QUERY_FALLBACK_ENABLED=${QUERY_FALLBACK_ENABLED:-true}
       - QUERY_CANDIDATE_MAX_TRIES=${QUERY_CANDIDATE_MAX_TRIES:-5}
+      - ANSWER_GENERATION_ENABLED=${ANSWER_GENERATION_ENABLED:-false}
+      - SOURCE_LOOKUP_MAX_ATOMS=${SOURCE_LOOKUP_MAX_ATOMS:-20}
       - CONCEPTNET_ENABLED=${CONCEPTNET_ENABLED:-false}
       - CONCEPTNET_AUTOLOAD=${CONCEPTNET_AUTOLOAD:-true}
       - CONCEPTNET_INPUT_FILE=/app/data/conceptnet/conceptnet-assertions-5.7.0.csv.gz
@@ -36,7 +39,7 @@ services:
       - CONCEPTNET_MIN_WEIGHT=${CONCEPTNET_MIN_WEIGHT:-2.0}
       - CONCEPTNET_COVERAGE_PERCENT=${CONCEPTNET_COVERAGE_PERCENT:-100.0}
       - CONCEPTNET_SAMPLE_SEED=${CONCEPTNET_SAMPLE_SEED:-42}
-      - CONCEPTNET_AUTO_REBUILD_ON_CHANGE=${CONCEPTNET_AUTO_REBUILD_ON_CHANGE:-true}
+      - CONCEPTNET_AUTO_REBUILD_ON_CHANGE=${CONCEPTNET_AUTO_REBUILD_ON_CHANGE:-false}
       - CONCEPTNET_REINDEX_ON_RESET=${CONCEPTNET_REINDEX_ON_RESET:-true}
       - CONCEPTNET_STARTUP_FAIL_OPEN=${CONCEPTNET_STARTUP_FAIL_OPEN:-true}
       - MANHIN_PARSER_PATH=/deps/manhin-parser
@@ -52,6 +55,12 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - qdrant  # Simple dependency, no healthcheck needed
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   qdrant:

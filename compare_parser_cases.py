@@ -102,7 +102,7 @@ async def _run_case(parser_name: str, case: dict, run_id: str) -> dict:
 
     try:
         ingest_results = await service.ingest_batch(case["texts"])
-        query_response = await service.query(case["question"])
+        query_response = await service.reason(case["question"])
 
         return {
             "collection": collection,
@@ -117,13 +117,13 @@ async def _run_case(parser_name: str, case: dict, run_id: str) -> dict:
                 for item in ingest_results
             ],
             "query": {
-                "question": query_response.question,
+                "query": query_response.query,
                 "pln_query": query_response.pln_query,
                 "original_query": query_response.original_query,
                 "executed_query": query_response.executed_query,
                 "fallback_used": query_response.fallback_used,
                 "query_status": query_response.query_status,
-                "raw_proof": query_response.raw_proof,
+                "proof": query_response.proof,
                 "sources": query_response.sources,
                 "answer": query_response.answer,
                 "candidate_count": query_response.candidate_count,
@@ -137,7 +137,7 @@ async def _run_case(parser_name: str, case: dict, run_id: str) -> dict:
                 "answer_generation_seconds": query_response.answer_generation_seconds,
             },
             "proof_found": bool(
-                query_response.raw_proof and query_response.raw_proof != "[]"
+                query_response.proof and query_response.proof != "[]"
             ),
         }
     finally:

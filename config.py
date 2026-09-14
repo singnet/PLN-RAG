@@ -8,8 +8,9 @@ class Settings(BaseSettings):
     # LLM
     openai_api_key: str
     openai_model: str = "openai/gpt-4o-mini"
+    openai_base_url: Optional[str] = None
 
-    # Options: "nl2pln" | "canonical_pln" | "manhin" | "langextract"
+    # Options: "nl2pln" | "canonical_pln" | "manhin" | "langextract" | "canonical_langextract"
     parser: str = "canonical_pln"
     nl2pln_module_path: str = "data/simba_all.json"
     canonical_pln_nl2pln_module_path: str = "data/simba_canonical_pln.json"
@@ -78,7 +79,7 @@ class Settings(BaseSettings):
     conceptnet_min_weight: float = 2.0
     conceptnet_coverage_percent: float = 100.0
     conceptnet_sample_seed: int = 42
-    conceptnet_auto_rebuild_on_change: bool = True
+    conceptnet_auto_rebuild_on_change: bool = False
     conceptnet_reindex_on_reset: bool = True
     conceptnet_startup_fail_open: bool = True
 

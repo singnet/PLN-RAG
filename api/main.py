@@ -1,12 +1,13 @@
+import logging
 import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 
 from api.models import (
     IngestRequest, IngestResponse,
-    QueryRequest, QueryResponse,
+    ReasonRequest, ReasonResponse,
     ResetRequest, ResetResponse,
-    HealthResponse,
+    HealthResponse, ReadyResponse,
 )
 from core.service import PLNRAGService
 from parsers import get_parser
@@ -14,18 +15,29 @@ from config import get_settings
 
 _start_time = time.time()
 _service: PLNRAGService | None = None
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _service
     cfg = get_settings()
-    print(f"[Startup] Loading parser: {cfg.parser}")
-    parser = get_parser()
-    _service = PLNRAGService(parser)
-    print("[Startup] Service ready.")
-    yield
-    print("[Shutdown] Cleaning up.")
+    logger.info("Loading parser: %s", cfg.parser)
+    try:
+        parser = get_parser()
+        _service = PLNRAGService(parser)
+        logger.info("Service ready.")
+        yield
+    except Exception:
+        logger.exception("Application startup failed.")
+        raise
+    finally:
+        logger.info("Cleaning up service resources.")
+        if _service is not None:
+            try:
+                _service.close()
+            except Exception:
+                logger.exception("Service cleanup failed.")
 
 
 app = FastAPI(
@@ -38,8 +50,25 @@ app = FastAPI(
 
 def get_service() -> PLNRAGService:
     if _service is None:
-        raise HTTPException(status_code=503, detail="Service not ready")
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "service_not_ready", "message": "Service not ready"},
+        )
     return _service
+
+
+def ensure_dependencies_ready(svc: PLNRAGService):
+    info = svc.ready()
+    if info["status"] == "unavailable":
+        logger.warning("Request rejected because dependencies are unavailable: %s", info["details"])
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "dependencies_unavailable",
+                "message": "Required dependencies are unavailable",
+                "details": info["details"],
+            },
+        )
 
 
 @app.post("/ingest", response_model=IngestResponse)
@@ -51,6 +80,7 @@ async def ingest(req: IngestRequest):
     Processing is sequential — each text sees all previous atoms.
     """
     svc = get_service()
+    ensure_dependencies_ready(svc)
     results = await svc.ingest_batch(req.texts)
     return IngestResponse(
         processed_count=len(results),
@@ -58,15 +88,16 @@ async def ingest(req: IngestRequest):
     )
 
 
-@app.post("/query", response_model=QueryResponse)
-async def query(req: QueryRequest):
+@app.post("/reason", response_model=ReasonResponse)
+async def reason(req: ReasonRequest):
     """
-    Ask a question against the knowledge base.
-    The question is parsed into a PLN query, reasoned over via
+    Run a reasoning request against the knowledge base.
+    The query is parsed into a PLN query, reasoned over via
     PeTTaChainer, and the proof trace is translated to natural language.
     """
     svc = get_service()
-    return await svc.query(req.question)
+    ensure_dependencies_ready(svc)
+    return await svc.reason(req.query)
 
 
 @app.delete("/reset", response_model=ResetResponse)
@@ -84,7 +115,7 @@ async def reset(req: ResetRequest = ResetRequest()):
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
-    """Service health check — returns component status and sizes."""
+    """Liveness check — returns process/component status and sizes."""
     svc = get_service()
     info = svc.health()
     return HealthResponse(
@@ -100,3 +131,11 @@ async def health():
         conceptnet_last_error=info["conceptnet_last_error"],
         uptime_seconds=round(time.time() - _start_time, 1),
     )
+
+
+@app.get("/ready", response_model=ReadyResponse)
+async def ready():
+    """Readiness check — returns dependency availability and degraded state."""
+    svc = get_service()
+    info = svc.ready()
+    return ReadyResponse(**info)
