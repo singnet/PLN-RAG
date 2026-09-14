@@ -1,0 +1,286 @@
+{
+  "suite_id": "coreference_pronouns_v1",
+  "version": "1.0",
+  "description": "Original synthetic sentences for deterministic, non-LLM coreference evaluation.",
+  "redistribution": {
+    "safe": true,
+    "license": "CC0-1.0",
+    "provenance": "All benchmark text was written specifically for this repository; no source text was copied."
+  },
+  "span_convention": "Zero-based, end-exclusive Unicode character offsets into text.",
+  "cases": [
+    {
+      "id": "subject_female",
+      "category": "subject",
+      "text": "Alice arrived. She smiled.",
+      "expected_resolved": "Alice arrived. Alice smiled.",
+      "clusters": [{"mentions": [{"start": 0, "end": 5, "text": "Alice"}, {"start": 15, "end": 18, "text": "She"}]}]
+    },
+    {
+      "id": "subject_male",
+      "category": "subject",
+      "text": "Daniel paused. He answered.",
+      "expected_resolved": "Daniel paused. Daniel answered.",
+      "clusters": [{"mentions": [{"start": 0, "end": 6, "text": "Daniel"}, {"start": 15, "end": 17, "text": "He"}]}]
+    },
+    {
+      "id": "subject_neuter",
+      "category": "subject",
+      "text": "The rover landed. It transmitted data.",
+      "expected_resolved": "The rover landed. The rover transmitted data.",
+      "clusters": [{"mentions": [{"start": 0, "end": 9, "text": "The rover"}, {"start": 18, "end": 20, "text": "It"}]}]
+    },
+    {
+      "id": "object_male",
+      "category": "object",
+      "text": "Alice called Bob. She thanked him.",
+      "expected_resolved": "Alice called Bob. Alice thanked Bob.",
+      "clusters": [
+        {"mentions": [{"start": 0, "end": 5, "text": "Alice"}, {"start": 18, "end": 21, "text": "She"}]},
+        {"mentions": [{"start": 13, "end": 16, "text": "Bob"}, {"start": 30, "end": 33, "text": "him"}]}
+      ]
+    },
+    {
+      "id": "object_plural",
+      "category": "object",
+      "text": "Mira greeted the twins. She invited them.",
+      "expected_resolved": "Mira greeted the twins. Mira invited the twins.",
+      "clusters": [
+        {"mentions": [{"start": 0, "end": 4, "text": "Mira"}, {"start": 24, "end": 27, "text": "She"}]},
+        {"mentions": [{"start": 13, "end": 22, "text": "the twins"}, {"start": 36, "end": 40, "text": "them"}]}
+      ]
+    },
+    {
+      "id": "possessive_his",
+      "category": "possessive",
+      "text": "James entered. His coat was wet.",
+      "expected_resolved": "James entered. James' coat was wet.",
+      "clusters": [{"mentions": [{"start": 0, "end": 5, "text": "James"}, {"start": 15, "end": 18, "text": "His"}]}]
+    },
+    {
+      "id": "possessive_their",
+      "category": "possessive",
+      "text": "The students met. Their project won.",
+      "expected_resolved": "The students met. The students' project won.",
+      "clusters": [{"mentions": [{"start": 0, "end": 12, "text": "The students"}, {"start": 18, "end": 23, "text": "Their"}]}]
+    },
+    {
+      "id": "possessive_its",
+      "category": "possessive",
+      "text": "The reactor stopped. Its alarm sounded.",
+      "expected_resolved": "The reactor stopped. The reactor's alarm sounded.",
+      "clusters": [{"mentions": [{"start": 0, "end": 11, "text": "The reactor"}, {"start": 21, "end": 24, "text": "Its"}]}]
+    },
+    {
+      "id": "possessive_hers",
+      "category": "possessive",
+      "text": "Ada displayed a badge. The badge was hers.",
+      "expected_resolved": "Ada displayed a badge. The badge was Ada's.",
+      "clusters": [{"mentions": [{"start": 0, "end": 3, "text": "Ada"}, {"start": 37, "end": 41, "text": "hers"}]}]
+    },
+    {
+      "id": "ambiguous_her_object",
+      "category": "ambiguous_her_abstention",
+      "text": "Alice met Bob. Bob thanked her.",
+      "expected_resolved": "Alice met Bob. Bob thanked her.",
+      "clusters": [{"mentions": [{"start": 0, "end": 5, "text": "Alice"}, {"start": 27, "end": 30, "text": "her"}]}]
+    },
+    {
+      "id": "ambiguous_her_possessive",
+      "category": "ambiguous_her_abstention",
+      "text": "Maria arrived. Her bicycle was red.",
+      "expected_resolved": "Maria arrived. Her bicycle was red.",
+      "clusters": [{"mentions": [{"start": 0, "end": 5, "text": "Maria"}, {"start": 15, "end": 18, "text": "Her"}]}]
+    },
+    {
+      "id": "ambiguous_her_repeat",
+      "category": "ambiguous_her_abstention",
+      "text": "Nora called. We heard her praise her team.",
+      "expected_resolved": "Nora called. We heard her praise her team.",
+      "clusters": [{"mentions": [{"start": 0, "end": 4, "text": "Nora"}, {"start": 22, "end": 25, "text": "her"}, {"start": 33, "end": 36, "text": "her"}]}]
+    },
+    {
+      "id": "plural_subject",
+      "category": "plural",
+      "text": "The nurses arrived. They began rounds.",
+      "expected_resolved": "The nurses arrived. The nurses began rounds.",
+      "clusters": [{"mentions": [{"start": 0, "end": 10, "text": "The nurses"}, {"start": 20, "end": 24, "text": "They"}]}]
+    },
+    {
+      "id": "plural_repeat",
+      "category": "plural",
+      "text": "The samples thawed. They changed because they warmed.",
+      "expected_resolved": "The samples thawed. The samples changed because The samples warmed.",
+      "clusters": [{"mentions": [{"start": 0, "end": 11, "text": "The samples"}, {"start": 20, "end": 24, "text": "They"}, {"start": 41, "end": 45, "text": "they"}]}]
+    },
+    {
+      "id": "plural_possessive",
+      "category": "plural",
+      "text": "The planets orbit. Their paths are elliptical.",
+      "expected_resolved": "The planets orbit. The planets' paths are elliptical.",
+      "clusters": [{"mentions": [{"start": 0, "end": 11, "text": "The planets"}, {"start": 19, "end": 24, "text": "Their"}]}]
+    },
+    {
+      "id": "multiple_clusters",
+      "category": "multiple_clusters",
+      "text": "Alice met Bob. She greeted him.",
+      "expected_resolved": "Alice met Bob. Alice greeted Bob.",
+      "clusters": [
+        {"mentions": [{"start": 0, "end": 5, "text": "Alice"}, {"start": 15, "end": 18, "text": "She"}]},
+        {"mentions": [{"start": 10, "end": 13, "text": "Bob"}, {"start": 27, "end": 30, "text": "him"}]}
+      ]
+    },
+    {
+      "id": "multiple_plural",
+      "category": "multiple_clusters",
+      "text": "The doctors examined the cells. They photographed them.",
+      "expected_resolved": "The doctors examined the cells. The doctors photographed the cells.",
+      "clusters": [
+        {"mentions": [{"start": 0, "end": 11, "text": "The doctors"}, {"start": 32, "end": 36, "text": "They"}]},
+        {"mentions": [{"start": 21, "end": 30, "text": "the cells"}, {"start": 50, "end": 54, "text": "them"}]}
+      ]
+    },
+    {
+      "id": "cataphora_male",
+      "category": "cataphora",
+      "text": "Before he spoke, Daniel paused. He then answered.",
+      "expected_resolved": "Before he spoke, Daniel paused. Daniel then answered.",
+      "clusters": [{"mentions": [{"start": 7, "end": 9, "text": "he"}, {"start": 17, "end": 23, "text": "Daniel"}, {"start": 32, "end": 34, "text": "He"}]}]
+    },
+    {
+      "id": "cataphora_plural",
+      "category": "cataphora",
+      "text": "Although they were tired, the hikers continued. They rested later.",
+      "expected_resolved": "Although they were tired, the hikers continued. the hikers rested later.",
+      "clusters": [{"mentions": [{"start": 9, "end": 13, "text": "they"}, {"start": 26, "end": 36, "text": "the hikers"}, {"start": 48, "end": 52, "text": "They"}]}]
+    },
+    {
+      "id": "cataphora_only",
+      "category": "cataphora",
+      "text": "When she arrived, Priya sat down.",
+      "expected_resolved": "When she arrived, Priya sat down.",
+      "clusters": [{"mentions": [{"start": 5, "end": 8, "text": "she"}, {"start": 18, "end": 23, "text": "Priya"}]}]
+    },
+    {
+      "id": "negative_no_pronoun",
+      "category": "negative",
+      "text": "Copper conducts electricity.",
+      "expected_resolved": "Copper conducts electricity.",
+      "clusters": []
+    },
+    {
+      "id": "negative_unsupported_pronoun",
+      "category": "negative",
+      "text": "Elena arrived. I smiled.",
+      "expected_resolved": "Elena arrived. I smiled.",
+      "clusters": []
+    },
+    {
+      "id": "negative_nominal_alias",
+      "category": "negative",
+      "text": "Acme opened. The company expanded.",
+      "expected_resolved": "Acme opened. The company expanded.",
+      "clusters": [{"mentions": [{"start": 0, "end": 4, "text": "Acme"}, {"start": 13, "end": 24, "text": "The company"}]}]
+    },
+    {
+      "id": "negative_pronoun_only",
+      "category": "negative",
+      "text": "They said they agreed.",
+      "expected_resolved": "They said they agreed.",
+      "clusters": [{"mentions": [{"start": 0, "end": 4, "text": "They"}, {"start": 10, "end": 14, "text": "they"}]}]
+    },
+    {
+      "id": "negative_backward",
+      "category": "negative",
+      "text": "It failed before the engine started.",
+      "expected_resolved": "It failed before the engine started.",
+      "clusters": [{"mentions": [{"start": 0, "end": 2, "text": "It"}, {"start": 17, "end": 27, "text": "the engine"}]}]
+    },
+    {
+      "id": "science_telescope",
+      "category": "science",
+      "text": "The telescope detected a comet. It tracked the comet.",
+      "expected_resolved": "The telescope detected a comet. The telescope tracked the comet.",
+      "clusters": [{"mentions": [{"start": 0, "end": 13, "text": "The telescope"}, {"start": 32, "end": 34, "text": "It"}]}]
+    },
+    {
+      "id": "science_molecule",
+      "category": "science",
+      "text": "The molecule bound the receptor. It changed its shape.",
+      "expected_resolved": "The molecule bound the receptor. The molecule changed The molecule's shape.",
+      "clusters": [{"mentions": [{"start": 0, "end": 12, "text": "The molecule"}, {"start": 33, "end": 35, "text": "It"}, {"start": 44, "end": 47, "text": "its"}]}]
+    },
+    {
+      "id": "science_stars",
+      "category": "science",
+      "text": "The stars exhausted their fuel. They collapsed.",
+      "expected_resolved": "The stars exhausted The stars' fuel. The stars collapsed.",
+      "clusters": [{"mentions": [{"start": 0, "end": 9, "text": "The stars"}, {"start": 20, "end": 25, "text": "their"}, {"start": 32, "end": 36, "text": "They"}]}]
+    },
+    {
+      "id": "biomedical_protein",
+      "category": "biomedical",
+      "text": "The protein entered the nucleus. It activated transcription.",
+      "expected_resolved": "The protein entered the nucleus. The protein activated transcription.",
+      "clusters": [{"mentions": [{"start": 0, "end": 11, "text": "The protein"}, {"start": 33, "end": 35, "text": "It"}]}]
+    },
+    {
+      "id": "biomedical_cells",
+      "category": "biomedical",
+      "text": "The T cells recognized the antigen. They destroyed it.",
+      "expected_resolved": "The T cells recognized the antigen. The T cells destroyed the antigen.",
+      "clusters": [
+        {"mentions": [{"start": 0, "end": 11, "text": "The T cells"}, {"start": 36, "end": 40, "text": "They"}]},
+        {"mentions": [{"start": 23, "end": 34, "text": "the antigen"}, {"start": 51, "end": 53, "text": "it"}]}
+      ]
+    },
+    {
+      "id": "biomedical_drug",
+      "category": "biomedical",
+      "text": "Remdesivir inhibited the virus. It reduced its replication.",
+      "expected_resolved": "Remdesivir inhibited the virus. Remdesivir reduced the virus' replication.",
+      "clusters": [
+        {"mentions": [{"start": 0, "end": 10, "text": "Remdesivir"}, {"start": 32, "end": 34, "text": "It"}]},
+        {"mentions": [{"start": 21, "end": 30, "text": "the virus"}, {"start": 43, "end": 46, "text": "its"}]}
+      ]
+    },
+    {
+      "id": "biomedical_patient",
+      "category": "biomedical",
+      "text": "The patient received insulin. He monitored his glucose.",
+      "expected_resolved": "The patient received insulin. The patient monitored The patient's glucose.",
+      "clusters": [{"mentions": [{"start": 0, "end": 11, "text": "The patient"}, {"start": 30, "end": 32, "text": "He"}, {"start": 43, "end": 46, "text": "his"}]}]
+    },
+    {
+      "id": "science_bacteria",
+      "category": "science",
+      "text": "The bacteria formed colonies. They protected their biofilm.",
+      "expected_resolved": "The bacteria formed colonies. The bacteria protected The bacteria's biofilm.",
+      "clusters": [{"mentions": [{"start": 0, "end": 12, "text": "The bacteria"}, {"start": 30, "end": 34, "text": "They"}, {"start": 45, "end": 50, "text": "their"}]}]
+    },
+    {
+      "id": "object_neuter",
+      "category": "object",
+      "text": "The probe approached Mars. Engineers guided it.",
+      "expected_resolved": "The probe approached Mars. Engineers guided The probe.",
+      "clusters": [{"mentions": [{"start": 0, "end": 9, "text": "The probe"}, {"start": 44, "end": 46, "text": "it"}]}]
+    },
+    {
+      "id": "repeat_object",
+      "category": "multiple_clusters",
+      "text": "Daniel saw the dog. He fed it and watched it.",
+      "expected_resolved": "Daniel saw the dog. Daniel fed the dog and watched the dog.",
+      "clusters": [
+        {"mentions": [{"start": 0, "end": 6, "text": "Daniel"}, {"start": 20, "end": 22, "text": "He"}]},
+        {"mentions": [{"start": 11, "end": 18, "text": "the dog"}, {"start": 27, "end": 29, "text": "it"}, {"start": 42, "end": 44, "text": "it"}]}
+      ]
+    },
+    {
+      "id": "multiple_entity_distractor",
+      "category": "multiple_clusters",
+      "text": "Alice met Bob. He waved.",
+      "expected_resolved": "Alice met Bob. Bob waved.",
+      "clusters": [{"mentions": [{"start": 10, "end": 13, "text": "Bob"}, {"start": 15, "end": 17, "text": "He"}]}]
+    }
+  ]
+}

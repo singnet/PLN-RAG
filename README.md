@@ -142,22 +142,70 @@ it may try later fallback candidates produced by the parser.
 
 ### Coreference preprocessing
 
-Coreference resolution is disabled by default. To enable it, install the
-optional `fastcoref` dependency/model and set:
+Coreference resolution is disabled by default. It runs once per document before
+chunking; user queries are not rewritten. To enable a CPU backend, set:
 
 ```bash
 COREFERENCE_ENABLED=true
-COREFERENCE_MODEL=biu-nlp/f-coref
+COREFERENCE_BACKEND=fcoref  # or lingmess
+COREFERENCE_DEVICE=cpu
+COREFERENCE_FAIL_OPEN=true
+# Optional override; omit to use the backend's default model.
+COREFERENCE_MODEL=
 COREFERENCE_MIN_CONFIDENCE=0.65
 ```
 
-The resolver runs before document chunking and leaves text unchanged if the
-optional model is unavailable. Compare benchmark runs with:
+The conservative rewriter handles unambiguous subject, object, plural, and
+possessive pronouns. It deliberately abstains on `her` and on possessive
+antecedents with risky list, clause, quantifier, or attachment structure. There
+is no fixed phrase-length limit. With fail-open enabled, text remains unchanged
+and diagnostics report model failures. Pair logits are reported for
+observability but are not filtered by `COREFERENCE_MIN_CONFIDENCE`.
+
+Run the deterministic no-LLM rewrite evaluation with:
 
 ```bash
-python3 benchmark_parsers.py --suite-file data/benchmarks/stress25_v1.json --parsers canonical_pln --no-coreference
-python3 benchmark_parsers.py --suite-file data/benchmarks/stress25_v1.json --parsers canonical_pln --coreference
+python3 scripts/evaluate_coreference.py --backend fixture --require-effective --output /tmp/coref-fixture.json
+python3 scripts/evaluate_coreference.py --backend fcoref --require-effective --output /tmp/coref-fcoref.json
+python3 scripts/evaluate_coreference.py --backend lingmess --require-effective --output /tmp/coref-lingmess.json
 ```
+
+Run comparable downstream benchmarks sequentially, then compare any two output
+reports listed in the generated manifest:
+
+```bash
+python3 scripts/run_paired_benchmark.py \
+  --suite-file data/benchmarks/stress25_v1.json \
+  --parsers canonical_pln \
+  --backends none fcoref lingmess
+python3 scripts/compare_coreference_benchmarks.py LEFT_REPORT.json RIGHT_REPORT.json
+```
+
+For a correctness-labeled isolated comparison, select the audited Stress7 cases,
+capture a shared LM response pool, and score proofs using exact atom provenance:
+
+```bash
+python3 scripts/run_paired_benchmark.py \
+  --mode isolated \
+  --suite-file data/benchmarks/stress25_v1.json \
+  --case-ids A01 --case-ids A04 --case-ids A06 --case-ids A08 \
+  --case-ids A09 --case-ids A10 --case-ids A11 \
+  --parsers canonical_pln \
+  --backends none fcoref lingmess \
+  --llm-cassette-mode capture \
+  --llm-cassette-path data/benchmarks/cassettes/stress7.json
+
+python3 scripts/evaluate_coreference_benchmark.py REPORT.json \
+  --labels data/benchmarks/stress7_coreference_labels_v1.json
+
+python3 scripts/compare_coreference_benchmarks.py LEFT_REPORT.json RIGHT_REPORT.json \
+  --labels data/benchmarks/stress7_coreference_labels_v1.json
+```
+
+Repeat the paired command with `--llm-cassette-mode replay` and the same path to
+verify each backend's exact ordered trace without network fallback. Real
+cassettes remain ignored because generated responses can contain source-derived
+material.
 
 ## ConceptNet Background Knowledge
 

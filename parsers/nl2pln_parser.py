@@ -24,7 +24,7 @@ class NL2PLNParser(SemanticParser):
         self._pln_spec = pln_spec
         self._module = NL2PLNModule()
         self._module.load(cfg.nl2pln_module_path)
-        self._module.set_lm(create_lm())
+        self._module.set_lm(create_lm(purpose="nl2pln_parser"))
         self._nl2pln = self._module.nl2pln
 
     def parse(self, text: str, context: List[str]) -> ParseResult:

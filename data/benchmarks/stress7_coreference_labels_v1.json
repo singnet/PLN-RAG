@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "label_set": "stress7_coreference_labels_v1",
+  "benchmark_reference": {
+    "suite_id": "stress25_v1",
+    "path": "data/benchmarks/stress25_v1.json"
+  },
+  "default_score_threshold": 0.8,
+  "cases": [
+    {
+      "case_id": "A01",
+      "case_hash": "36df82ea16dca857bc02375a873bfba21118c8ce184fd9e464651695157a2621",
+      "minimum_entity_groups": 2,
+      "minimum_semantic_groups": 1,
+      "required_entity_groups": [
+        {"id": "digital_logbook", "aliases": ["digital diabetes logbook", "diabetes logbook", "digital logbook", "mysugr logbook", "logbook"]},
+        {"id": "glycemic_control", "aliases": ["glycemic control", "glycaemic control", "optimal glycemic control", "blood glucose control"]}
+      ],
+      "required_semantic_groups": [
+        {"id": "improved_control", "aliases": ["improves glycemic control", "improved glycemic control", "increases likelihood achieving optimal glycemic control", "increased likelihood of achieving optimal glycemic control", "likelihood achieving optimal glycemic control", "nearly doubled"]}
+      ],
+      "forbidden_groups": []
+    },
+    {
+      "case_id": "A04",
+      "case_hash": "3e3d40fbf5ddd0ab998f212fdf0759a3d899c8ce1a92ab51798320560acafc28",
+      "minimum_entity_groups": 2,
+      "minimum_semantic_groups": 2,
+      "required_entity_groups": [
+        {"id": "semaglutide", "aliases": ["semaglutide"]},
+        {"id": "glp1_comparators", "aliases": ["GLP-1 receptor agonists", "GLP1 receptor agonists", "GLP-1 RAs", "other glucagon-like peptide-1 receptor agonists"]}
+      ],
+      "required_semantic_groups": [
+        {"id": "hba1c_reduction", "aliases": ["superior reductions in HbA1c", "reduces HbA1c", "HbA1c reduction", "glycemic control"]},
+        {"id": "weight_reduction", "aliases": ["superior reductions in weight", "reduces body weight", "body weight reduction", "weight loss"]}
+      ],
+      "forbidden_groups": []
+    },
+    {
+      "case_id": "A06",
+      "case_hash": "b16af4fd7cee8aa7b4c5a1d4dcead6b8e34d0b3c1ee4d4d4f11316195498a868",
+      "minimum_entity_groups": 4,
+      "minimum_semantic_groups": 2,
+      "required_entity_groups": [
+        {"id": "serafilcon_a", "aliases": ["serafilcon A", "serafilcon_a"]},
+        {"id": "silicone_hydrogel_comparators", "aliases": ["silicone hydrogel lens materials", "silicone hydrogel lenses", "SiHy lens materials", "reusable SiHy materials", "senofilcon A", "samfilcon A", "comfilcon A"]},
+        {"id": "wettability", "aliases": ["wettability", "contact angle", "contact angles", "NIKBUT"]},
+        {"id": "friction", "aliases": ["coefficient of friction", "friction"]}
+      ],
+      "required_semantic_groups": [
+        {"id": "serafilcon_contact_angle_increase", "aliases": ["increase in contact angle for serafilcon A", "serafilcon A contact angle increased", "increased contact angles serafilcon A"]},
+        {"id": "serafilcon_friction_stable", "aliases": ["no changes in coefficient of friction", "coefficient of friction unchanged", "stable coefficient of friction", "friction did not change"]}
+      ],
+      "forbidden_groups": []
+    },
+    {
+      "case_id": "A08",
+      "case_hash": "e4a5baa000d6e9a4426de989f027cbf62d976a2635ead75c0fde227953207549",
+      "minimum_entity_groups": 3,
+      "minimum_semantic_groups": 1,
+      "required_entity_groups": [
+        {"id": "microbiota", "aliases": ["microbiota", "microbiome", "intestinal microbiota"]},
+        {"id": "mechanism", "aliases": ["host immune system", "immune system", "innate immunity", "adaptive immunity", "immunological players", "microbiota-derived bioactive molecules", "microbiome-derived molecules", "bioactive molecules", "microbial metabolites"]},
+        {"id": "inflammation", "aliases": ["inflammation", "inflammatory response"]}
+      ],
+      "required_semantic_groups": [
+        {"id": "regulates_inflammation", "aliases": ["bioactive molecules affect inflammation", "microbiota-derived molecules regulate inflammation", "microbial metabolites modulate inflammation", "effects on inflammation", "microbiota modulates immune system", "microbiome influences host immune response", "affects innate and adaptive immunity"]}
+      ],
+      "forbidden_groups": []
+    },
+    {
+      "case_id": "A09",
+      "case_hash": "ab22cdf6f096dfa26c9f03e8c2c69d36a31caae999de361875b6b2eb69eddb90",
+      "minimum_entity_groups": 4,
+      "minimum_semantic_groups": 2,
+      "required_entity_groups": [
+        {"id": "heparin_sodium", "aliases": ["heparin sodium", "sodium heparin"]},
+        {"id": "perovskite_solar_cells", "aliases": ["perovskite solar cells", "perovskite cells", "PSCs"]},
+        {"id": "interface", "aliases": ["SnO2 perovskite interface", "heterointerface", "interface bridge layer", "interfaces"]},
+        {"id": "device_performance", "aliases": ["power conversion efficiency", "PCE", "operational stability", "thermal stability", "efficiency and stability"]}
+      ],
+      "required_semantic_groups": [
+        {"id": "interface_mechanism", "aliases": ["interface bridge", "bridge connecting SnO2 and perovskite", "enhances heterointerface bonding", "robust chemical bonding", "mitigates defects", "reduces defects", "defect passivation", "passivates defects"]},
+        {"id": "performance_improvement", "aliases": ["improves efficiency", "enhances efficiency", "power conversion efficiency 26.61", "PCE of 26.61", "improves stability", "excellent operational and thermal stability", "enhances stability", "retained initial PCE"]}
+      ],
+      "forbidden_groups": []
+    },
+    {
+      "case_id": "A10",
+      "case_hash": "f1884934b9209c684723d4ff95b225ef3bc8ba8f87231f16d004125848e8a9fc",
+      "minimum_entity_groups": 6,
+      "minimum_semantic_groups": 1,
+      "required_entity_groups": [
+        {"id": "covid_severity", "aliases": ["COVID-19 severity", "severity of COVID-19", "severe COVID-19", "disease severity"]},
+        {"id": "d_dimer", "aliases": ["D-dimer", "d dimer"]},
+        {"id": "crp", "aliases": ["CRP", "C-reactive protein"]},
+        {"id": "ldh", "aliases": ["LDH", "lactate dehydrogenase"]},
+        {"id": "alt_sgpt", "aliases": ["ALT", "SGPT", "alanine aminotransferase"]},
+        {"id": "neutrophils", "aliases": ["neutrophil", "neutrophils", "neutrophil count"]}
+      ],
+      "required_semantic_groups": [
+        {"id": "predict_severity", "aliases": ["predict COVID-19 severity", "predicts COVID-19 severity", "predict disease severity", "predicts disease severity", "predicts severe COVID-19", "predictive value", "risk factors for severity", "biomarkers for severity"]}
+      ],
+      "forbidden_groups": []
+    },
+    {
+      "case_id": "A11",
+      "case_hash": "dab8ddd81ea20d8a52be32a136a91654aefa52de5b1a79ca2124852360342f2f",
+      "minimum_entity_groups": 4,
+      "minimum_semantic_groups": 1,
+      "required_entity_groups": [
+        {"id": "covid_severity", "aliases": ["COVID-19 severity", "severity of COVID-19", "severe disease", "risk of severe disease"]},
+        {"id": "pni", "aliases": ["PNI", "prognostic nutritional index"]},
+        {"id": "hscar", "aliases": ["HsCAR", "high sensitivity C-reactive protein-albumin ratio", "high-sensitivity CRP albumin ratio"]},
+        {"id": "hscpar", "aliases": ["HsCPAR", "high sensitivity C-reactive protein-prealbumin ratio", "high-sensitivity CRP prealbumin ratio"]}
+      ],
+      "required_semantic_groups": [
+        {"id": "predict_severity", "aliases": ["predict disease severity", "predicts disease severity", "prediction of disease severity", "predict severe COVID-19", "predicts COVID-19 severity", "biomarkers for the prediction of disease severity", "correlated with risk of severe disease"]}
+      ],
+      "forbidden_groups": [
+        {"id": "foreign_patient_191", "aliases": ["patient 191", "patients 191", "191 patients", "patient_191"]},
+        {"id": "foreign_a10_d_dimer", "aliases": ["D-dimer", "d dimer"]},
+        {"id": "foreign_a10_alt_sgpt", "aliases": ["ALT", "SGPT", "alanine aminotransferase"]},
+        {"id": "foreign_a10_cutoffs", "aliases": ["0.91 ng/ml", "82.4 mg/dl", "600 U/L", "35.5 U/L"]}
+      ]
+    }
+  ]
+}

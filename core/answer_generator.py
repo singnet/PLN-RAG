@@ -31,7 +31,7 @@ class AnswerGenerator:
 
     def __init__(self):
         self._predict = dspy.Predict(_ProofToAnswer)
-        self._predict.lm = create_lm()
+        self._predict.lm = create_lm(purpose="answer_generator")
 
     def generate(self, question: str, proof_traces: List[str]) -> str:
         if not proof_traces:

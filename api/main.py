@@ -129,6 +129,7 @@ async def health():
         conceptnet_vectors_indexed=info["conceptnet_vectors_indexed"],
         conceptnet_vectors_expected=info["conceptnet_vectors_expected"],
         conceptnet_last_error=info["conceptnet_last_error"],
+        coreference=info["coreference"],
         uptime_seconds=round(time.time() - _start_time, 1),
     )
 

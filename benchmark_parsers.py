@@ -1,17 +1,17 @@
+from __future__ import annotations
+
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import statistics
+import subprocess
 import sys
 import time
 import uuid
 from pathlib import Path
 from typing import Any
-
-from config import get_settings
-from core.service import PLNRAGService
-
 
 SMOKE_CASES = [
     {
@@ -128,6 +128,24 @@ CASE_FILES = {
 }
 
 
+def get_settings():
+    from config import get_settings as load_settings
+
+    return load_settings()
+
+
+def _clear_settings_cache() -> None:
+    from config import get_settings as load_settings
+
+    load_settings.cache_clear()
+
+
+def _create_service(parser: object):
+    from core.service import PLNRAGService
+
+    return PLNRAGService(parser)
+
+
 def _is_truthy(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -149,6 +167,79 @@ AVAILABLE_PARSERS = (
 
 def _slugify(value: str) -> str:
     return value.lower().replace(" ", "_").replace("-", "_")
+
+
+def _case_id(case: dict[str, Any]) -> str:
+    return str(case.get("case_id") or case.get("id") or case.get("name") or "case")
+
+
+def _case_hash(case: dict[str, Any]) -> str:
+    comparable = {
+        "id": _case_id(case),
+        "texts": [str(text) for text in case.get("texts", [])],
+        "question": str(case.get("question", "")),
+        "expected_proof": case.get("expected_proof"),
+    }
+    encoded = json.dumps(comparable, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _configure_coreference(coreference: bool | None, backend: str | None) -> None:
+    if backend is not None:
+        implied_enabled = backend != "none"
+        if coreference is not None and coreference != implied_enabled:
+            raise ValueError(
+                f"--coreference-backend {backend} conflicts with the requested coreference flag"
+            )
+        os.environ["COREFERENCE_ENABLED"] = str(implied_enabled).lower()
+        os.environ["COREFERENCE_BACKEND"] = backend
+    elif coreference is not None:
+        os.environ["COREFERENCE_ENABLED"] = str(coreference).lower()
+        if not coreference:
+            os.environ["COREFERENCE_BACKEND"] = "none"
+        elif os.environ.get("COREFERENCE_BACKEND", "").lower() == "none":
+            os.environ["COREFERENCE_BACKEND"] = "fcoref"
+    _clear_settings_cache()
+
+
+def _configure_lm_cassette(
+    mode: str | None,
+    path: str | None,
+    scope: str | None,
+) -> dict[str, Any]:
+    if mode is not None:
+        os.environ["LLM_CASSETTE_MODE"] = mode
+    if path is not None:
+        os.environ["LLM_CASSETTE_PATH"] = str(Path(path).resolve())
+    elif mode == "off":
+        os.environ.pop("LLM_CASSETTE_PATH", None)
+    if scope is not None:
+        os.environ["LLM_CASSETTE_SCOPE"] = scope
+    elif mode == "off":
+        os.environ.pop("LLM_CASSETTE_SCOPE", None)
+
+    from core.lm import cassette_status, reset_cassette_state
+
+    reset_cassette_state()
+    return cassette_status()
+
+
+def _git_metadata() -> dict[str, Any]:
+    def run(*args: str) -> str | None:
+        try:
+            completed = subprocess.run(
+                ["git", *args], capture_output=True, text=True, check=True
+            )
+            return completed.stdout.strip() or None
+        except (OSError, subprocess.CalledProcessError):
+            return None
+
+    status = run("status", "--porcelain")
+    return {
+        "commit": run("rev-parse", "HEAD"),
+        "branch": run("branch", "--show-current"),
+        "dirty": bool(status) if status is not None else None,
+    }
 
 
 def _normalize_loaded_case(case: dict[str, Any]) -> dict[str, Any]:
@@ -292,7 +383,7 @@ def _configure_case_environment(parser_name: str, case_name: str, run_id: str):
     os.environ["CONCEPTNET_INDEX_ON_STARTUP"] = "false"
     os.environ["CONCEPTNET_AUTOLOAD"] = "false"
     os.environ["CONCEPTNET_AUTO_REBUILD_ON_CHANGE"] = "false"
-    get_settings.cache_clear()
+    _clear_settings_cache()
     return slug, Path(os.environ["ATOMSPACE_PATH"])
 
 
@@ -304,22 +395,47 @@ def _configure_suite_environment(parser_name: str, suite_name: str, run_id: str)
     os.environ["CONCEPTNET_INDEX_ON_STARTUP"] = "false"
     os.environ["CONCEPTNET_AUTOLOAD"] = "false"
     os.environ["CONCEPTNET_AUTO_REBUILD_ON_CHANGE"] = "false"
-    get_settings.cache_clear()
+    _clear_settings_cache()
     return slug, Path(os.environ["ATOMSPACE_PATH"])
 
 
 def _compact_ingest_results(results) -> list[dict]:
-    return [
-        {
+    compact = []
+    for item in results:
+        coreference = getattr(item, "coreference", None)
+        coreference_data = None
+        if coreference is not None:
+            coreference_data = {
+                "backend": coreference.backend,
+                "model": coreference.model,
+                "status": coreference.status,
+                "changed": coreference.changed,
+                "replacement_count": coreference.replacement_count,
+                "duration_seconds": coreference.duration_seconds,
+                "score_available": coreference.score_available,
+                "error": coreference.error,
+                "diagnostics": list(coreference.diagnostics),
+                # This internal field is intentionally retained in benchmark artifacts.
+                "resolved_text": coreference.resolved_text,
+            }
+        compact.append({
             "text": item.text,
             "status": item.status,
             "atoms": item.atoms,
             "error": item.error,
+            "chunk_count": getattr(item, "chunk_count", 0),
+            "batch_count": getattr(item, "batch_count", 0),
+            "batch_sizes": getattr(item, "batch_sizes", []),
+            "parser_calls": getattr(item, "parser_calls", 0),
             "rejected_count": getattr(item, "rejected_count", 0),
             "rejected_samples": getattr(item, "rejected_samples", []),
-        }
-        for item in results
-    ]
+            "coreference": coreference_data,
+        })
+    return compact
+
+
+def _result_identity(case: dict[str, Any]) -> dict[str, str]:
+    return {"case_id": _case_id(case), "case_hash": _case_hash(case)}
 
 
 async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
@@ -335,16 +451,17 @@ async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
     query_parse = _run_parse(parser, case["question"], [], is_query=True)
     parse_seconds = time.perf_counter() - parse_started
 
-    service = PLNRAGService(parser)
+    service = _create_service(parser)
     service.reset("all")
 
     try:
         ingest_started = time.perf_counter()
-        ingest_results = await service.ingest_batch(case["texts"])
+        case_id = _case_id(case)
+        ingest_results = await service.ingest_batch(case["texts"], case_id=case_id)
         ingest_seconds = time.perf_counter() - ingest_started
 
         query_started = time.perf_counter()
-        query_response = await service.reason(case["question"])
+        query_response = await service.reason(case["question"], case_id=case_id)
         query_seconds = time.perf_counter() - query_started
 
         total_seconds = parser_init_seconds + parse_seconds + ingest_seconds + query_seconds
@@ -353,6 +470,7 @@ async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
         correct = None if expected is None else (found == expected)
 
         return {
+            **_result_identity(case),
             "case": case,
             "collection": collection,
             "atomspace_path": str(atomspace_path),
@@ -383,6 +501,8 @@ async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
                     "proof": query_response.proof,
                     "sources": query_response.sources,
                     "answer": query_response.answer,
+                    "proof_provenance": query_response.proof_provenance,
+                    "query_support_atoms": query_response.query_support_atoms,
                     "candidate_count": query_response.candidate_count,
                     "candidate_count_tried": query_response.candidate_count_tried,
                     "executed_candidate_index": query_response.executed_candidate_index,
@@ -403,7 +523,7 @@ async def _benchmark_case(parser_name: str, case: dict, run_id: str) -> dict:
             atomspace_path.unlink()
 
 
-def _knowledge_state(service: PLNRAGService) -> dict[str, int]:
+def _knowledge_state(service: object) -> dict[str, int]:
     info = service.health()
     return {
         "atomspace_size": int(info.get("atomspace_size", 0)),
@@ -419,7 +539,7 @@ async def _benchmark_case_with_service(
     collection: str,
     atomspace_path: Path,
     parser: object,
-    service: PLNRAGService,
+    service: object,
 ) -> dict:
     parse_started = time.perf_counter()
     statement_parse = [_run_parse(parser, text, [], is_query=False) for text in case["texts"]]
@@ -429,11 +549,12 @@ async def _benchmark_case_with_service(
     state_before = _knowledge_state(service)
 
     ingest_started = time.perf_counter()
-    ingest_results = await service.ingest_batch(case["texts"])
+    case_id = _case_id(case)
+    ingest_results = await service.ingest_batch(case["texts"], case_id=case_id)
     ingest_seconds = time.perf_counter() - ingest_started
 
     query_started = time.perf_counter()
-    query_response = await service.reason(case["question"])
+    query_response = await service.reason(case["question"], case_id=case_id)
     query_seconds = time.perf_counter() - query_started
 
     total_seconds = parse_seconds + ingest_seconds + query_seconds
@@ -443,6 +564,7 @@ async def _benchmark_case_with_service(
     state_after = _knowledge_state(service)
 
     return {
+        **_result_identity(case),
         "case": case,
         "collection": collection,
         "atomspace_path": str(atomspace_path),
@@ -475,6 +597,8 @@ async def _benchmark_case_with_service(
                 "proof": query_response.proof,
                 "sources": query_response.sources,
                 "answer": query_response.answer,
+                "proof_provenance": query_response.proof_provenance,
+                "query_support_atoms": query_response.query_support_atoms,
                 "candidate_count": query_response.candidate_count,
                 "candidate_count_tried": query_response.candidate_count_tried,
                 "executed_candidate_index": query_response.executed_candidate_index,
@@ -507,7 +631,7 @@ async def _benchmark_parser_cumulative(
     init_started = time.perf_counter()
     parser = parser_factory()
     parser_init_seconds = time.perf_counter() - init_started
-    service = PLNRAGService(parser)
+    service = _create_service(parser)
     service.reset("all")
 
     results: list[dict[str, Any]] = []
@@ -579,7 +703,28 @@ def _summarize_parser(results: list[dict]) -> dict:
         for result in results
         if result.get("end_to_end", {}).get("query", {}).get("fallback_used")
     )
-    latencies = [result.get("timing", {}).get("total_seconds", 0.0) for result in results]
+    latencies = [
+        value
+        for result in results
+        if isinstance((value := result.get("timing", {}).get("total_seconds")), (int, float))
+    ]
+    ingest_items = [
+        item
+        for result in results
+        for item in result.get("end_to_end", {}).get("ingest", [])
+    ]
+    coref_items = [
+        item.get("coreference")
+        for item in ingest_items
+        if item.get("coreference") and item["coreference"].get("status") != "disabled"
+    ]
+    coref_latencies = [
+        item["duration_seconds"]
+        for item in coref_items
+        if isinstance(item.get("duration_seconds"), (int, float))
+    ]
+    execution_errors = sum(1 for result in results if result.get("error"))
+    ingest_failures = sum(1 for item in ingest_items if item.get("status") == "failed")
     return {
         "cases": total_cases,
         "correct": correct,
@@ -588,9 +733,49 @@ def _summarize_parser(results: list[dict]) -> dict:
         "no_query": no_query,
         "weakly_aligned": weakly_aligned,
         "fallback_used": fallback_used,
-        "avg_latency_seconds": round(sum(latencies) / total_cases, 4) if total_cases else 0.0,
-        "median_latency_seconds": round(statistics.median(latencies), 4) if latencies else 0.0,
+        "execution_errors": execution_errors,
+        "parser_errors": execution_errors,
+        "ingest_failures": ingest_failures,
+        "coreference": {
+            "processed": len(coref_items),
+            "successful_invocations": sum(
+                1 for item in coref_items if item.get("status") in {"unchanged", "resolved"}
+            ),
+            "changed": sum(1 for item in coref_items if item.get("changed")),
+            "replacements": sum(int(item.get("replacement_count") or 0) for item in coref_items),
+            "failures": sum(1 for item in coref_items if item.get("status") == "failed_open"),
+            "total_latency_seconds": round(sum(coref_latencies), 6) if coref_latencies else None,
+            "avg_latency_seconds": (
+                round(sum(coref_latencies) / len(coref_latencies), 6)
+                if coref_latencies else None
+            ),
+            "median_latency_seconds": (
+                round(statistics.median(coref_latencies), 6) if coref_latencies else None
+            ),
+        },
+        "latency_samples": len(latencies),
+        "avg_latency_seconds": round(sum(latencies) / len(latencies), 4) if latencies else None,
+        "median_latency_seconds": round(statistics.median(latencies), 4) if latencies else None,
     }
+
+
+def _invalid_reasons(
+    case_count: int, summary: dict[str, dict[str, Any]], coreference_enabled: bool
+) -> list[str]:
+    reasons = []
+    if case_count == 0:
+        reasons.append("zero_cases")
+    if any(stats.get("execution_errors") or stats.get("parser_errors") for stats in summary.values()):
+        reasons.append("execution_or_parser_errors")
+    if any(stats.get("ingest_failures") for stats in summary.values()):
+        reasons.append("ingest_failures")
+    if coreference_enabled:
+        coref = [stats.get("coreference", {}) for stats in summary.values()]
+        if any(stats.get("failures") for stats in coref):
+            reasons.append("coreference_failed_open")
+        if sum(int(stats.get("successful_invocations") or 0) for stats in coref) == 0:
+            reasons.append("coreference_no_successful_invocations")
+    return reasons
 
 
 def _markdown_summary(summary: dict[str, dict]) -> str:
@@ -599,10 +784,14 @@ def _markdown_summary(summary: dict[str, dict]) -> str:
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for parser_name, stats in summary.items():
+        avg = stats["avg_latency_seconds"]
+        median = stats["median_latency_seconds"]
+        avg_display = f"{avg:.4f}s" if avg is not None else "n/a"
+        median_display = f"{median:.4f}s" if median is not None else "n/a"
         lines.append(
             f"| {parser_name} | {stats['cases']} | {stats['correct']} | {stats['proof_found']} | "
             f"{stats['no_query']} | {stats['weakly_aligned']} | {stats['fallback_used']} | "
-            f"{stats['avg_latency_seconds']:.4f}s | {stats['median_latency_seconds']:.4f}s |"
+            f"{avg_display} | {median_display} |"
         )
     return "\n".join(lines)
 
@@ -649,6 +838,19 @@ async def main() -> int:
     )
     cli.set_defaults(coreference=None)
     cli.add_argument(
+        "--coreference-backend",
+        choices=("none", "fcoref", "lingmess"),
+        help="Select and enable a coreference backend; 'none' disables coreference",
+    )
+    cli.add_argument("--pair-id", help="Optional identifier shared by paired benchmark runs")
+    cli.add_argument(
+        "--llm-cassette-mode",
+        choices=("off", "capture", "replay"),
+        help="Capture or strictly replay DSPy LM responses",
+    )
+    cli.add_argument("--llm-cassette-path", help="Local cassette JSON path")
+    cli.add_argument("--llm-cassette-scope", help="Ordered trace name within the cassette")
+    cli.add_argument(
         "--output-dir",
         default="data/benchmarks",
         help="Directory where benchmark JSON reports are written",
@@ -667,8 +869,15 @@ async def main() -> int:
     )
     args = cli.parse_args()
 
-    if args.coreference is not None:
-        os.environ["COREFERENCE_ENABLED"] = str(args.coreference).lower()
+    try:
+        _configure_coreference(args.coreference, args.coreference_backend)
+        initial_cassette = _configure_lm_cassette(
+            args.llm_cassette_mode,
+            args.llm_cassette_path,
+            args.llm_cassette_scope,
+        )
+    except ValueError as exc:
+        cli.error(str(exc))
 
     if args.suite_file:
         suite_path = Path(args.suite_file)
@@ -690,20 +899,58 @@ async def main() -> int:
     run_id = uuid.uuid4().hex[:8]
     suite_label = suite_metadata.get("suite") if isinstance(suite_metadata, dict) else None
     suite_label = suite_label or (Path(args.suite_file).stem if args.suite_file else args.suite)
+    settings = get_settings()
+    coref_metadata = {
+        "enabled": bool(settings.coreference_enabled),
+        "backend": settings.coreference_backend,
+        "model": settings.coreference_model,
+        "device": settings.coreference_device,
+        "fail_open": settings.coreference_fail_open,
+    }
+    suite_report = dict(suite_metadata)
+    suite_report.setdefault("name", suite_label)
 
     payload: dict[str, object] = {
+        "schema_version": 2,
+        "valid": True,
+        "invalid_reasons": [],
         "run_id": run_id,
+        "pair_id": args.pair_id,
+        "git": _git_metadata(),
         "conceptnet_enabled": False,
-        "coreference_enabled": bool(get_settings().coreference_enabled),
+        "coreference_enabled": coref_metadata["enabled"],
+        "coref": coref_metadata,
+        "lm_cassette": initial_cassette,
+        "config": {
+            "mode": args.mode,
+            "quick": args.quick,
+            "parsers": list(args.parsers),
+            "case_ids": list(args.case_ids),
+            "limit": args.limit,
+            "conceptnet_enabled": False,
+            "chunk_size": settings.chunk_size,
+            "chunk_overlap": settings.chunk_overlap,
+            "context_top_k": settings.context_top_k,
+            "parser_batch_sentences": settings.parser_batch_sentences,
+            "parser_batch_max_chars": settings.parser_batch_max_chars,
+            "query_fallback_enabled": settings.query_fallback_enabled,
+            "query_candidate_max_tries": settings.query_candidate_max_tries,
+            "answer_generation_enabled": settings.answer_generation_enabled,
+            "source_lookup_max_atoms": settings.source_lookup_max_atoms,
+        },
         "mode": args.mode,
-        "suite": suite_label,
-        "suite_metadata": suite_metadata,
+        "suite": suite_report,
+        "suite_name": suite_label,
+        "suite_metadata": suite_report,
         "case_count": len(cases),
         "parsers": {},
         "summary": {},
     }
 
     payload["active_parsers"] = list(args.parsers)
+    payload["config"]["suite_file"] = (
+        str(Path(args.suite_file).resolve()) if args.suite_file else None
+    )
 
     parser_total = len(args.parsers)
     for parser_index, parser_name in enumerate(args.parsers, start=1):
@@ -723,16 +970,18 @@ async def main() -> int:
                 for case in cases:
                     results.append(
                         {
+                            **_result_identity(case),
                             "case": case,
                             "error": str(exc),
+                            "error_type": type(exc).__name__,
                             "proof_found": False,
                             "correct": False,
                             "timing": {
-                                "parser_init_seconds": 0.0,
-                                "parse_only_seconds": 0.0,
-                                "ingest_seconds": 0.0,
-                                "query_seconds": 0.0,
-                                "total_seconds": 0.0,
+                                "parser_init_seconds": None,
+                                "parse_only_seconds": None,
+                                "ingest_seconds": None,
+                                "query_seconds": None,
+                                "total_seconds": None,
                             },
                             "end_to_end": {
                                 "query": {"query_status": "error", "fallback_used": False}
@@ -745,22 +994,39 @@ async def main() -> int:
                     result = await _benchmark_case(parser_name, case, run_id)
                 except Exception as exc:
                     result = {
+                        **_result_identity(case),
                         "case": case,
                         "error": str(exc),
+                        "error_type": type(exc).__name__,
                         "proof_found": False,
                         "correct": False,
                         "timing": {
-                            "parser_init_seconds": 0.0,
-                            "parse_only_seconds": 0.0,
-                            "ingest_seconds": 0.0,
-                            "query_seconds": 0.0,
-                            "total_seconds": 0.0,
+                            "parser_init_seconds": None,
+                            "parse_only_seconds": None,
+                            "ingest_seconds": None,
+                            "query_seconds": None,
+                            "total_seconds": None,
                         },
                         "end_to_end": {"query": {"query_status": "error", "fallback_used": False}},
                     }
                 results.append(result)
         payload["parsers"][parser_name] = results
         payload["summary"][parser_name] = _summarize_parser(results)
+
+    invalid_reasons = _invalid_reasons(
+        len(cases), payload["summary"], bool(coref_metadata["enabled"])
+    )
+    from core.lm import cassette_status
+
+    final_cassette = cassette_status()
+    payload["lm_cassette"] = final_cassette
+    if final_cassette["mode"] == "replay":
+        if not final_cassette["replay_valid"] or final_cassette["misses"]:
+            invalid_reasons.append("llm_cassette_replay_failed")
+        if final_cassette["unconsumed"]:
+            invalid_reasons.append("llm_cassette_trace_unconsumed")
+    payload["invalid_reasons"] = invalid_reasons
+    payload["valid"] = not invalid_reasons
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -770,7 +1036,7 @@ async def main() -> int:
     print(json.dumps({"output": str(output_path), "summary": payload["summary"]}, indent=2))
     print()
     print(_markdown_summary(payload["summary"]))
-    return 0
+    return 0 if payload["valid"] else 1
 
 
 if __name__ == "__main__":

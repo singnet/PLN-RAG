@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from pydantic import ConfigDict
-from typing import Optional
+from typing import Literal, Optional
 
 
 class Settings(BaseSettings):
@@ -46,7 +46,12 @@ class Settings(BaseSettings):
 
     # Optional document-level coreference preprocessing
     coreference_enabled: bool = False
-    coreference_model: str = "biu-nlp/f-coref"
+    coreference_backend: Literal["none", "fcoref", "lingmess"] = "fcoref"
+    coreference_model: Optional[str] = None
+    coreference_device: Literal["cpu"] = "cpu"
+    coreference_fail_open: bool = True
+    # Retained for configuration compatibility. Model logits are reported but
+    # are not treated as calibrated probabilities during model comparison.
     coreference_min_confidence: float = 0.65
 
     # Reasoning

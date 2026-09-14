@@ -1,8 +1,10 @@
+import hashlib
 import logging
 import os
 import re
 import threading
-from typing import List
+from dataclasses import asdict, dataclass
+from typing import List, Literal
 from config import get_settings
 from core.symbol_normalization import canonical_symbol
 
@@ -10,6 +12,21 @@ from pettachainer.pettachainer import PeTTaChainer
 
 
 logger = logging.getLogger(__name__)
+
+ProvenanceKind = Literal["document", "query_support", "background", "persisted"]
+
+
+@dataclass(frozen=True)
+class AtomProvenance:
+    kind: ProvenanceKind
+    case_id: str | None = None
+    document_index: int | None = None
+
+
+@dataclass(frozen=True)
+class QueryResult:
+    proofs: tuple[str, ...]
+    proof_provenance: tuple[dict, ...]
 
 
 class Reasoner:
@@ -31,6 +48,8 @@ class Reasoner:
         self._lock = threading.Lock()
         self._handler = PeTTaChainer()
         self._background_files: set[str] = set()
+        self._provenance_by_name: dict[str, set[AtomProvenance]] = {}
+        self._statement_hashes_by_name: dict[str, set[str]] = {}
         self._load_from_disk()
 
     def _load_from_disk(self):
@@ -38,10 +57,10 @@ class Reasoner:
             os.makedirs(os.path.dirname(self._atomspace_path), exist_ok=True)
             return
         logger.info("Loading atomspace from %s", self._atomspace_path)
-        self._load_file(self._atomspace_path)
+        self._load_file(self._atomspace_path, "persisted")
         logger.info("Atomspace loaded.")
 
-    def _load_file(self, path: str):
+    def _load_file(self, path: str, provenance_kind: ProvenanceKind = "persisted"):
         if not os.path.exists(path):
             return
         with open(path, "r", encoding="utf-8") as f:
@@ -50,6 +69,7 @@ class Reasoner:
                 if atom:
                     try:
                         self._handler.add_atom(atom)
+                        self._register_provenance(atom, AtomProvenance(provenance_kind))
                     except Exception as exc:
                         logger.warning("Skipping atom %r: %s", atom, exc)
 
@@ -58,19 +78,27 @@ class Reasoner:
         if normalized in self._background_files:
             return
         logger.info("Loading background atomspace from %s", path)
-        self._load_file(path)
+        self._load_file(path, "background")
         self._background_files.add(normalized)
         logger.info("Background atomspace loaded.")
 
-    def add_statements(self, statements: List[str]) -> List[str]:
+    def add_statements(
+        self,
+        statements: List[str],
+        provenance: AtomProvenance | None = None,
+    ) -> List[str]:
         """
         Add parsed MeTTa statements to the atomspace and persist them.
         Returns the list of successfully added atoms.
         """
-        added, _rejected = self.add_statements_report(statements)
+        added, _rejected = self.add_statements_report(statements, provenance=provenance)
         return added
 
-    def add_statements_report(self, statements: List[str]) -> tuple[List[str], List[dict]]:
+    def add_statements_report(
+        self,
+        statements: List[str],
+        provenance: AtomProvenance | None = None,
+    ) -> tuple[List[str], List[dict]]:
         """Like add_statements, but also returns structured rejections.
 
         Returns:
@@ -90,6 +118,10 @@ class Reasoner:
                         self._handler.add_atom(clean)
                         f.write(clean + "\n")
                         added.append(clean)
+                        self._register_provenance(
+                            clean,
+                            provenance or AtomProvenance("persisted"),
+                        )
                     except Exception as exc:
                         err = str(exc)
                         logger.warning("Failed to add atom %r: %s", clean, err)
@@ -102,15 +134,107 @@ class Reasoner:
         Try exact fact lookup first for grounded queries, then fall back to
         PeTTaChainer proof search with the configured timeout.
         """
+        return list(self.query_with_provenance(pln_query).proofs)
+
+    def query_with_provenance(
+        self,
+        pln_query: str,
+        current_case_id: str | None = None,
+    ) -> QueryResult:
+        """Run a query and report exact source metadata for named proof atoms."""
         exact = self._query_exact_fact(pln_query)
         if exact:
-            return exact
+            proofs = exact
+        else:
+            proofs = self._query_chainer(pln_query)
+        return QueryResult(
+            proofs=tuple(proofs),
+            proof_provenance=tuple(
+                self._proof_provenance(proof, current_case_id)
+                for proof in proofs
+            ),
+        )
+
+    def _query_chainer(self, pln_query: str) -> List[str]:
         try:
             result = self._handler.query(pln_query, timeout_sec=self._query_timeout)
             return result if result else []
         except Exception as exc:
             logger.warning("Query failed for %r: %s", pln_query, exc)
             return []
+
+    def _register_provenance(self, statement: str, provenance: AtomProvenance) -> None:
+        name = self._extract_statement_name(statement)
+        if name:
+            self._provenance_by_name.setdefault(name, set()).add(provenance)
+            statement_hash = hashlib.sha256(
+                " ".join(statement.split()).encode("utf-8")
+            ).hexdigest()
+            self._statement_hashes_by_name.setdefault(name, set()).add(statement_hash)
+
+    @staticmethod
+    def _extract_statement_name(statement: str) -> str:
+        match = re.match(r"^\(:\s+([^\s()]+)", statement.strip())
+        return match.group(1) if match else ""
+
+    def _proof_provenance(self, proof: str, current_case_id: str | None) -> dict:
+        tokens = set(re.findall(r"[A-Za-z_][A-Za-z0-9_./-]*", str(proof)))
+        atom_names = sorted(tokens.intersection(self._provenance_by_name))
+        source_rows = []
+        for atom_name in atom_names:
+            for source in sorted(
+                self._provenance_by_name[atom_name],
+                key=lambda item: (item.kind, item.case_id or "", item.document_index or -1),
+            ):
+                source_rows.append({"atom_name": atom_name, **asdict(source)})
+
+        document_case_ids_by_name = {
+            atom_name: {
+                source.case_id
+                for source in self._provenance_by_name[atom_name]
+                if source.kind == "document" and source.case_id
+            }
+            for atom_name in atom_names
+        }
+        ambiguous_atom_names = sorted(
+            name
+            for name, case_ids in document_case_ids_by_name.items()
+            if len(case_ids) > 1
+            or len(self._statement_hashes_by_name.get(name, ())) > 1
+        )
+        current_case_atom_names = {
+            name
+            for name, case_ids in document_case_ids_by_name.items()
+            if case_ids == {current_case_id} and name not in ambiguous_atom_names
+        }
+        current_case_sources = [
+            row
+            for row in source_rows
+            if row["kind"] == "document"
+            and row.get("case_id") == current_case_id
+            and row["atom_name"] in current_case_atom_names
+        ]
+        foreign_case_ids = sorted(
+            {
+                str(row["case_id"])
+                for row in source_rows
+                if row["kind"] == "document"
+                and row.get("case_id")
+                and row.get("case_id") != current_case_id
+            }
+        )
+        return {
+            "atom_names": atom_names,
+            "ambiguous_atom_names": ambiguous_atom_names,
+            "sources": source_rows,
+            "current_case_grounded": bool(current_case_sources),
+            "foreign_case_ids": foreign_case_ids,
+            "foreign_only": bool(foreign_case_ids and not current_case_sources),
+            "query_support_only": bool(source_rows) and all(
+                row["kind"] == "query_support" for row in source_rows
+            ),
+            "unknown": not source_rows,
+        }
 
     def _query_exact_fact(self, pln_query: str) -> List[str]:
         target = self._extract_grounded_query_atom(pln_query)
@@ -198,6 +322,8 @@ class Reasoner:
         with self._lock:
             self._handler = PeTTaChainer()
             self._background_files = set()
+            self._provenance_by_name = {}
+            self._statement_hashes_by_name = {}
             if os.path.exists(self._atomspace_path):
                 os.remove(self._atomspace_path)
         logger.info("Atomspace reset.")

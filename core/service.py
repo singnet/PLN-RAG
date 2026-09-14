@@ -2,17 +2,18 @@ import asyncio
 import logging
 import re
 import time
+from dataclasses import asdict
 from typing import List
 
 from config import get_settings
 from core.chunker import Chunker
-from core.coreference import CoreferenceResolver
+from core.coreference import CoreferenceResolver, ResolvedDocument
 from core.parser import SemanticParser
-from core.reasoner import Reasoner
+from core.reasoner import AtomProvenance, Reasoner
 from core.answer_generator import AnswerGenerator
 from core.conceptnet import ConceptNetManager
 from storage.vector_store import VectorStore
-from api.models import IngestItemResult, ReasonResponse
+from api.models import CoreferenceSummary, IngestItemResult, ReasonResponse
 
 
 logger = logging.getLogger(__name__)
@@ -27,12 +28,19 @@ class PLNRAGService:
     Each component only knows about its own interface.
     """
 
-    def __init__(self, parser: SemanticParser):
+    def __init__(
+        self,
+        parser: SemanticParser,
+        coreference_resolver: CoreferenceResolver | None = None,
+    ):
         cfg = get_settings()
         self._parser = parser
-        self._coreference = CoreferenceResolver(
+        self._coreference = coreference_resolver or CoreferenceResolver(
             enabled=cfg.coreference_enabled,
+            backend_name=cfg.coreference_backend,
             model_name=cfg.coreference_model,
+            device=cfg.coreference_device,
+            fail_open=cfg.coreference_fail_open,
             min_confidence=cfg.coreference_min_confidence,
         )
         create_chunker = getattr(parser, "create_chunker", None)
@@ -47,21 +55,31 @@ class PLNRAGService:
 
     #  Ingest
 
-    async def ingest_batch(self, texts: List[str]) -> List[IngestItemResult]:
+    async def ingest_batch(
+        self,
+        texts: List[str],
+        case_id: str | None = None,
+    ) -> List[IngestItemResult]:
         """
         Process texts sequentially so each sentence can see
         all previously ingested atoms as context.
         """
         results = []
         loop = asyncio.get_running_loop()
-        for text in texts:
+        for document_index, text in enumerate(texts):
             result = await loop.run_in_executor(
-                None, self._ingest_single, text
+                None, self._ingest_single, text, case_id, document_index
             )
             results.append(result)
         return results
 
-    def _ingest_single(self, text: str) -> IngestItemResult:
+    def _ingest_single(
+        self,
+        text: str,
+        case_id: str | None = None,
+        document_index: int | None = None,
+    ) -> IngestItemResult:
+        resolved: ResolvedDocument | None = None
         try:
             resolved = self._coreference.resolve(text)
             parser_text = resolved.resolved
@@ -101,7 +119,14 @@ class PLNRAGService:
 
                     valid, rejected_local = self._validate_statements(parse_result.statements)
                     rejected.extend(rejected_local)
-                    added, rejected_reasoner = self._reasoner.add_statements_report(valid)
+                    added, rejected_reasoner = self._reasoner.add_statements_report(
+                        valid,
+                        provenance=AtomProvenance(
+                            "document",
+                            case_id=case_id,
+                            document_index=document_index,
+                        ),
+                    )
                     rejected.extend(rejected_reasoner)
                     all_atoms.extend(added)
                     if added:
@@ -128,7 +153,14 @@ class PLNRAGService:
                     # 4. Add to atomspace via reasoner
                     valid, rejected_local = self._validate_statements(parse_result.statements)
                     rejected.extend(rejected_local)
-                    added, rejected_reasoner = self._reasoner.add_statements_report(valid)
+                    added, rejected_reasoner = self._reasoner.add_statements_report(
+                        valid,
+                        provenance=AtomProvenance(
+                            "document",
+                            case_id=case_id,
+                            document_index=document_index,
+                        ),
+                    )
                     rejected.extend(rejected_reasoner)
                     all_atoms.extend(added)
 
@@ -148,6 +180,7 @@ class PLNRAGService:
                     parser_calls=parser_calls,
                     rejected_count=len(rejected),
                     rejected_samples=[r.get("stmt", "") for r in rejected[:3] if r.get("stmt")],
+                    coreference=self._coreference_summary(resolved),
                 )
 
             return IngestItemResult(
@@ -160,6 +193,7 @@ class PLNRAGService:
                 parser_calls=parser_calls,
                 rejected_count=len(rejected),
                 rejected_samples=[r.get("stmt", "") for r in rejected[:3] if r.get("stmt")],
+                coreference=self._coreference_summary(resolved),
             )
 
         except Exception as exc:
@@ -174,7 +208,25 @@ class PLNRAGService:
                 parser_calls=0,
                 rejected_count=0,
                 rejected_samples=[],
+                coreference=(
+                    self._coreference_summary(resolved) if resolved is not None else None
+                ),
             )
+
+    @staticmethod
+    def _coreference_summary(resolved: ResolvedDocument) -> CoreferenceSummary:
+        return CoreferenceSummary(
+            backend=resolved.backend,
+            model=resolved.model,
+            status=resolved.status,
+            changed=resolved.resolved != resolved.original,
+            replacement_count=len(resolved.replacements),
+            duration_seconds=round(resolved.duration_seconds, 6),
+            score_available=resolved.score_available,
+            error=resolved.error,
+            diagnostics=list(resolved.diagnostics),
+            resolved_text=resolved.resolved,
+        )
 
     def _validate_statements(self, statements: List[str]) -> tuple[List[str], List[dict]]:
         """Drop malformed statements before sending them to the reasoner.
@@ -256,7 +308,7 @@ class PLNRAGService:
 
     #  Query
 
-    async def reason(self, query: str) -> ReasonResponse:
+    async def reason(self, query: str, case_id: str | None = None) -> ReasonResponse:
         cfg = get_settings()
         # 1. Retrieve context for translation
         t0 = time.perf_counter()
@@ -292,6 +344,7 @@ class PLNRAGService:
             )
 
         # 3. Add any supporting statements the parser generated for the query
+        query_support_atoms: List[str] = []
         if parse_result.statements:
             valid, rejected_local = self._validate_statements(parse_result.statements)
             if rejected_local:
@@ -300,11 +353,15 @@ class PLNRAGService:
                         "Dropping malformed query-support statement: %s",
                         item.get("error"),
                     )
-            self._reasoner.add_statements(valid)
+            query_support_atoms = self._reasoner.add_statements(
+                valid,
+                provenance=AtomProvenance("query_support", case_id=case_id),
+            )
 
         # 4. Run reasoning via PeTTaChainer against ordered candidates
         t2 = time.perf_counter()
         proof_traces: List[str] = []
+        proof_provenance: List[dict] = []
         executed_query = ""
         candidates = (
             parse_result.queries if self._query_fallback_enabled else parse_result.queries[:1]
@@ -321,7 +378,12 @@ class PLNRAGService:
         for idx, candidate in enumerate(candidates):
             executed_query = candidate
             executed_candidate_index = idx
-            proof_traces = self._reasoner.query(candidate)
+            query_result = self._reasoner.query_with_provenance(
+                candidate,
+                current_case_id=case_id,
+            )
+            proof_traces = list(query_result.proofs)
+            proof_provenance = list(query_result.proof_provenance)
             if proof_traces:
                 break
 
@@ -348,7 +410,12 @@ class PLNRAGService:
                     for idx, candidate in enumerate(more, start=(executed_candidate_index or 0) + 1):
                         executed_query = candidate
                         executed_candidate_index = idx
-                        proof_traces = self._reasoner.query(candidate)
+                        query_result = self._reasoner.query_with_provenance(
+                            candidate,
+                            current_case_id=case_id,
+                        )
+                        proof_traces = list(query_result.proofs)
+                        proof_provenance = list(query_result.proof_provenance)
                         if proof_traces:
                             break
             except Exception as exc:
@@ -395,6 +462,8 @@ class PLNRAGService:
             proof=proof,
             sources=sources,
             answer=answer,
+            proof_provenance=proof_provenance,
+            query_support_atoms=query_support_atoms,
             candidate_count=candidate_count_total,
             candidate_count_tried=candidate_count_tried,
             executed_candidate_index=executed_candidate_index,
@@ -476,6 +545,7 @@ class PLNRAGService:
 
     def health(self) -> dict:
         conceptnet = self._conceptnet.status()
+        coreference = asdict(self._coreference.status())
         return {
             "atomspace_size": self._reasoner.size,
             "background_atomspace_size": self._reasoner.background_size,
@@ -486,11 +556,15 @@ class PLNRAGService:
             "conceptnet_vectors_indexed": conceptnet["indexed_count"],
             "conceptnet_vectors_expected": conceptnet["expected_count"],
             "conceptnet_last_error": conceptnet["last_error"],
-            "status": "degraded" if conceptnet["last_error"] else "ok",
+            "coreference": coreference,
+            "status": "degraded"
+            if conceptnet["last_error"] or coreference["state"] == "degraded"
+            else "ok",
         }
 
     def ready(self) -> dict:
         conceptnet = self._conceptnet.status()
+        coreference = asdict(self._coreference.status())
         qdrant_ready, qdrant_detail = self._vector_store.is_qdrant_available()
         ollama_ready, ollama_detail = self._vector_store.is_ollama_available()
         reasoner_ready = self._reasoner is not None
@@ -500,8 +574,12 @@ class PLNRAGService:
             conceptnet_status = "degraded" if conceptnet["last_error"] else "ready"
 
         ready = reasoner_ready and qdrant_ready and ollama_ready
+        if not coreference["fail_open"] and coreference["state"] != "ready":
+            ready = False
         status = "ready" if ready else "unavailable"
-        if ready and conceptnet_status == "degraded":
+        if ready and (
+            conceptnet_status == "degraded" or coreference["state"] == "degraded"
+        ):
             status = "degraded"
 
         return {
@@ -513,6 +591,7 @@ class PLNRAGService:
             "conceptnet_enabled": conceptnet["enabled"],
             "conceptnet_status": conceptnet_status,
             "conceptnet_last_error": conceptnet["last_error"],
+            "coreference": coreference,
             "details": {
                 "qdrant": qdrant_detail,
                 "ollama": ollama_detail,

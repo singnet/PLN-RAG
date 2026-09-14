@@ -80,6 +80,8 @@ RUN cd /deps/PeTTaChainer && \
 WORKDIR /app
 COPY requirements.txt .
 RUN rm -rf /usr/lib/python3/dist-packages/blinker*
+RUN pip3 install --default-timeout=1000 \
+    torch==2.14.0+cpu --index-url https://download.pytorch.org/whl/cpu
 RUN pip3 install --default-timeout=1000 -r requirements.txt
 
 COPY . .

@@ -17,6 +17,19 @@ class IngestRequest(BaseModel):
         return value
 
 
+class CoreferenceSummary(BaseModel):
+    backend: str
+    model: Optional[str] = None
+    status: Literal["disabled", "unchanged", "resolved", "failed_open"]
+    changed: bool
+    replacement_count: int
+    duration_seconds: float
+    score_available: bool
+    error: Optional[str] = None
+    diagnostics: List[str] = Field(default_factory=list)
+    resolved_text: Optional[str] = Field(default=None, exclude=True)
+
+
 class IngestItemResult(BaseModel):
     text: str
     atoms: List[str] = []
@@ -30,6 +43,7 @@ class IngestItemResult(BaseModel):
     # Parser/reasoner contract diagnostics
     rejected_count: int = 0
     rejected_samples: List[str] = []
+    coreference: Optional[CoreferenceSummary] = None
 
 
 class IngestResponse(BaseModel):
@@ -60,6 +74,9 @@ class ReasonResponse(BaseModel):
     proof: str
     sources: List[str]       # NL sentences that contributed to the proof
     answer: str
+    # Internal evaluation diagnostics; omitted from public API serialization.
+    proof_provenance: List[dict[str, Any]] = Field(default_factory=list, exclude=True)
+    query_support_atoms: List[str] = Field(default_factory=list, exclude=True)
 
     # Candidate execution diagnostics
     candidate_count: Optional[int] = None  # total candidates available
@@ -88,6 +105,22 @@ class ResetResponse(BaseModel):
 
 #  Health 
 
+class CoreferenceHealth(BaseModel):
+    enabled: bool
+    fail_open: bool
+    backend: str
+    model: Optional[str] = None
+    state: Literal["disabled", "not_loaded", "ready", "degraded"]
+    score_available: bool
+    documents_processed: int
+    documents_changed: int
+    replacements: int
+    failures: int
+    total_duration_seconds: float
+    last_duration_seconds: float
+    last_error: Optional[str] = None
+
+
 class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     parser: str
@@ -99,6 +132,7 @@ class HealthResponse(BaseModel):
     conceptnet_vectors_indexed: int
     conceptnet_vectors_expected: int
     conceptnet_last_error: str
+    coreference: CoreferenceHealth
     uptime_seconds: float
 
 
@@ -111,4 +145,5 @@ class ReadyResponse(BaseModel):
     conceptnet_enabled: bool
     conceptnet_status: str
     conceptnet_last_error: str
+    coreference: CoreferenceHealth
     details: dict[str, Any] = Field(default_factory=dict)
