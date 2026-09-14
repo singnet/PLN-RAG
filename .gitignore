@@ -14,4 +14,8 @@ berekets_fallback_on_off.json
 local-deps/
 data/benchmarks/*
 !data/benchmarks/stress25_v1.json
+!data/benchmarks/coreference_pronouns_v1.json
+!data/benchmarks/stress7_coreference_labels_v1.json
+!data/benchmarks/evidence/
+!data/benchmarks/evidence/**
 data/conceptnet/conceptnet-assertions-5.7.0.csv.gz

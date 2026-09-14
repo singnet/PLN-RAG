@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "comparison": "normalized_capture_replay_logical_equivalence",
+  "normalization": {
+    "removed_keys": [
+      "run_id",
+      "pair_id",
+      "lm_cassette",
+      "atomspace_path",
+      "collection"
+    ],
+    "removed_key_suffixes": [
+      "_seconds"
+    ],
+    "serialization": "JSON with UTF-8, sorted keys, and compact separators"
+  },
+  "backends": {
+    "none": {
+      "capture_run_id": "ae5fb7d3",
+      "replay_run_ids": [
+        "72121a0b",
+        "77ae8245"
+      ],
+      "normalized_sha256": "6f5be4b36057ee56c962ea642fb2a815316165eac78b583d1388a11f4eabf6df",
+      "all_equal": true
+    },
+    "fcoref": {
+      "capture_run_id": "3bcc8505",
+      "replay_run_ids": [
+        "813e6e2f",
+        "07cd472a"
+      ],
+      "normalized_sha256": "85362d8c5dbe352fe05de21e83f64b2cde15660fe9aa2dc71d5af1780ffd42ba",
+      "all_equal": true
+    },
+    "lingmess": {
+      "capture_run_id": "6de65f2a",
+      "replay_run_ids": [
+        "975dbf24",
+        "77f1ddc6"
+      ],
+      "normalized_sha256": "98fe3db51097951e64cef26ed63d8f050c40d8f04b4407ea9fa1cb12ff14eb2a",
+      "all_equal": true
+    }
+  }
+}

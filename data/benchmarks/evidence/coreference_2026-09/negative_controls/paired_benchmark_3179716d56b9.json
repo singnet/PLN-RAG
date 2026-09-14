@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "pair_id": "3179716d56b9",
+  "settings": {
+    "mode": "isolated",
+    "suite": "combined",
+    "suite_file": "data/benchmarks/stress25_v1.json",
+    "parsers": [
+      "canonical_pln"
+    ],
+    "quick": false,
+    "case_ids": [
+      "E01",
+      "E03"
+    ],
+    "limit": 0
+  },
+  "runs": [
+    {
+      "backend": "none",
+      "returncode": 0,
+      "command": [
+        "/usr/bin/python3",
+        "/app/benchmark_parsers.py",
+        "--mode",
+        "isolated",
+        "--parsers",
+        "canonical_pln",
+        "--coreference-backend",
+        "none",
+        "--pair-id",
+        "3179716d56b9",
+        "--output-dir",
+        "data/benchmarks",
+        "--suite-file",
+        "data/benchmarks/stress25_v1.json",
+        "--progress",
+        "--case-ids",
+        "E01",
+        "--case-ids",
+        "E03"
+      ],
+      "output": "data/benchmarks/parser_benchmark_stress25_v1_isolated_d6af5068.json"
+    },
+    {
+      "backend": "fcoref",
+      "returncode": 0,
+      "command": [
+        "/usr/bin/python3",
+        "/app/benchmark_parsers.py",
+        "--mode",
+        "isolated",
+        "--parsers",
+        "canonical_pln",
+        "--coreference-backend",
+        "fcoref",
+        "--pair-id",
+        "3179716d56b9",
+        "--output-dir",
+        "data/benchmarks",
+        "--suite-file",
+        "data/benchmarks/stress25_v1.json",
+        "--progress",
+        "--case-ids",
+        "E01",
+        "--case-ids",
+        "E03"
+      ],
+      "output": "data/benchmarks/parser_benchmark_stress25_v1_isolated_ce24ef95.json"
+    }
+  ]
+}

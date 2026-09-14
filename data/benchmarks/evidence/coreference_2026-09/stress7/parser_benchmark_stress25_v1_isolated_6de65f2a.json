@@ -1,0 +1,1340 @@
+{
+  "schema_version": 2,
+  "valid": true,
+  "invalid_reasons": [],
+  "run_id": "6de65f2a",
+  "pair_id": "stress7-structural-v1",
+  "git": {
+    "commit": null,
+    "branch": null,
+    "dirty": null
+  },
+  "conceptnet_enabled": false,
+  "coreference_enabled": true,
+  "coref": {
+    "enabled": true,
+    "backend": "lingmess",
+    "model": null,
+    "device": "cpu",
+    "fail_open": true
+  },
+  "lm_cassette": {
+    "mode": "capture",
+    "path": "/output/stress7_structural_v1_cassette.json",
+    "scope": "lingmess",
+    "hits": 39,
+    "live_calls": 3,
+    "misses": 3,
+    "calls": 42,
+    "replay_valid": true,
+    "unconsumed": 0
+  },
+  "config": {
+    "mode": "isolated",
+    "quick": false,
+    "parsers": [
+      "canonical_pln"
+    ],
+    "case_ids": [
+      "A01",
+      "A04",
+      "A06",
+      "A08",
+      "A09",
+      "A10",
+      "A11"
+    ],
+    "limit": 0,
+    "conceptnet_enabled": false,
+    "chunk_size": 512,
+    "chunk_overlap": 64,
+    "context_top_k": 10,
+    "parser_batch_sentences": 4,
+    "parser_batch_max_chars": 2000,
+    "query_fallback_enabled": true,
+    "query_candidate_max_tries": 5,
+    "answer_generation_enabled": false,
+    "source_lookup_max_atoms": 20,
+    "suite_file": "/workspace/data/benchmarks/stress25_v1.json"
+  },
+  "mode": "isolated",
+  "suite": {
+    "suite_id": "stress25_v1",
+    "description": "15 abstracts, 7 web snippet bundles, 3 entailmentbank. Abstract cases with unclear redistribution rights are flagged for manual copy.",
+    "version": "1.0",
+    "copyright_policy": {
+      "abstracts": "For cases where verbatim abstract reuse was not clearly safe, input_text is left empty and requires_manual_copy=true.",
+      "snippets": "Snippet bundles are original benchmark snippets written for this dataset from public factual topic framing, not verbatim search-result copies.",
+      "entailmentbank": "EntailmentBank cases are included as supporting-premise style text; verify local dataset license/attribution before redistribution."
+    },
+    "suite": "stress25_v1",
+    "status": "external",
+    "source_type": "custom",
+    "intended_use": "end_to_end_usefulness",
+    "suite_path": "data/benchmarks/stress25_v1.json",
+    "name": "stress25_v1"
+  },
+  "suite_name": "stress25_v1",
+  "suite_metadata": {
+    "suite_id": "stress25_v1",
+    "description": "15 abstracts, 7 web snippet bundles, 3 entailmentbank. Abstract cases with unclear redistribution rights are flagged for manual copy.",
+    "version": "1.0",
+    "copyright_policy": {
+      "abstracts": "For cases where verbatim abstract reuse was not clearly safe, input_text is left empty and requires_manual_copy=true.",
+      "snippets": "Snippet bundles are original benchmark snippets written for this dataset from public factual topic framing, not verbatim search-result copies.",
+      "entailmentbank": "EntailmentBank cases are included as supporting-premise style text; verify local dataset license/attribution before redistribution."
+    },
+    "suite": "stress25_v1",
+    "status": "external",
+    "source_type": "custom",
+    "intended_use": "end_to_end_usefulness",
+    "suite_path": "data/benchmarks/stress25_v1.json",
+    "name": "stress25_v1"
+  },
+  "case_count": 7,
+  "parsers": {
+    "canonical_pln": [
+      {
+        "case_id": "A01",
+        "case_hash": "36df82ea16dca857bc02375a873bfba21118c8ce184fd9e464651695157a2621",
+        "case": {
+          "case_id": "A01",
+          "name": "A01_digital_diabetes_logbook",
+          "source_type": "abstract",
+          "category": "direct_factual_relation",
+          "input_text": "Background: The treatment of diabetes requires substantial self-management. Digital tools can help reduce the burden of self-management and may improve glycemic control. Objective: This study aims to determine whether the use of a digital diabetes logbook increased the likelihood of achieving optimal glycemic control (glycated hemoglobin [HbA1c] \u22646.5%) after 3 months, based on a secondary analysis of randomized controlled trial (RCT) data. A secondary objective was to evaluate the long-term impact of the logbook on mean blood glucose levels over 3 and 12 months using observational, real-world data (RWD). Methods: Data from 342 participants with type 1 or type 2 diabetes enrolled in the mySugr PRO-RCT were analyzed. A robust logistic regression was performed to examine the likelihood of achieving optimal glycemic control, defined as an HbA1c value \u22646.5% at the 3-month follow-up. The dependent variable was the dichotomous outcome indicating whether this threshold was met. The primary independent variable was group allocation, with baseline HbA1c included as a covariate. For the analysis of RWD, a total of 2861 participants with type 1 or type 2 diabetes were identified using propensity score matching to align their characteristics with those of the RCT participants closely. One-sample t tests were conducted to analyze changes in mean blood glucose separately for each diabetes type, from baseline to 3 months of app use, and from baseline to 12 months of app use (in a subcohort of 1176 participants).Results: The RCT data showed that the likelihood of achieving optimal glycemic control was nearly doubled in the intervention group compared with the control group (odds ratio 2.24, 95% CI 1.12-4.47; P=.02). RWD indicated that mean blood glucose levels significantly improved over 3 months of app use in both groups (type 1: -16.3 mg/dL; 95% CI -20.6 to -12.4; P<.001 and type 2: -27.3 mg/dL, 95% CI -28.7 to -25.9; P<.001). Participants with an estimated HbA1c>8.5% at baseline (before app use) showed the greatest reductions in mean blood glucose (type 1: -82.2 mg/dL; 95% CI -102.0 to -61.8; P<.001; type 2: -104.6 mg/dL, 95% CI -109.1 to -100.3; P<.001). Long-term analyses revealed a sustained reduction in mean blood glucose over a 12-month period, with a mean decrease of -19.8 mg/dL (95% CI -21.8 to -17.9; P<.001) after 12 months of app use in the total RWD sample.Conclusions: The secondary analysis of the RCT demonstrated a significant increase in the likelihood of achieving optimal glycemic control after 3 months of using the mySugr logbook. This finding was supported by observational, real-world data, which showed significant reductions in mean blood glucose after 3 and 12 months of app use-particularly among individuals with elevated baseline HbA1c levels.",
+          "user_query": "Did the digital diabetes logbook improve glycemic control?",
+          "expected_focus": {
+            "predicate_family": "intervention_outcome",
+            "main_entities": [
+              "digital diabetes logbook",
+              "glycemic control"
+            ],
+            "polarity": "positive",
+            "reasoning_type": "lookup"
+          },
+          "notes": "Clean clinical intervention-to-outcome case. Use abstract only.",
+          "source_url": "https://pubmed.ncbi.nlm.nih.gov/40587847/",
+          "pmid": "40587847",
+          "requires_manual_copy": true,
+          "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+          "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text.",
+          "question": "Did the digital diabetes logbook improve glycemic control?",
+          "texts": [
+            "Background: The treatment of diabetes requires substantial self-management. Digital tools can help reduce the burden of self-management and may improve glycemic control. Objective: This study aims to determine whether the use of a digital diabetes logbook increased the likelihood of achieving optimal glycemic control (glycated hemoglobin [HbA1c] \u22646.5%) after 3 months, based on a secondary analysis of randomized controlled trial (RCT) data. A secondary objective was to evaluate the long-term impact of the logbook on mean blood glucose levels over 3 and 12 months using observational, real-world data (RWD). Methods: Data from 342 participants with type 1 or type 2 diabetes enrolled in the mySugr PRO-RCT were analyzed. A robust logistic regression was performed to examine the likelihood of achieving optimal glycemic control, defined as an HbA1c value \u22646.5% at the 3-month follow-up. The dependent variable was the dichotomous outcome indicating whether this threshold was met. The primary independent variable was group allocation, with baseline HbA1c included as a covariate. For the analysis of RWD, a total of 2861 participants with type 1 or type 2 diabetes were identified using propensity score matching to align their characteristics with those of the RCT participants closely. One-sample t tests were conducted to analyze changes in mean blood glucose separately for each diabetes type, from baseline to 3 months of app use, and from baseline to 12 months of app use (in a subcohort of 1176 participants).Results: The RCT data showed that the likelihood of achieving optimal glycemic control was nearly doubled in the intervention group compared with the control group (odds ratio 2.24, 95% CI 1.12-4.47; P=.02). RWD indicated that mean blood glucose levels significantly improved over 3 months of app use in both groups (type 1: -16.3 mg/dL; 95% CI -20.6 to -12.4; P<.001 and type 2: -27.3 mg/dL, 95% CI -28.7 to -25.9; P<.001). Participants with an estimated HbA1c>8.5% at baseline (before app use) showed the greatest reductions in mean blood glucose (type 1: -82.2 mg/dL; 95% CI -102.0 to -61.8; P<.001; type 2: -104.6 mg/dL, 95% CI -109.1 to -100.3; P<.001). Long-term analyses revealed a sustained reduction in mean blood glucose over a 12-month period, with a mean decrease of -19.8 mg/dL (95% CI -21.8 to -17.9; P<.001) after 12 months of app use in the total RWD sample.Conclusions: The secondary analysis of the RCT demonstrated a significant increase in the likelihood of achieving optimal glycemic control after 3 months of using the mySugr logbook. This finding was supported by observational, real-world data, which showed significant reductions in mean blood glucose after 3 and 12 months of app use-particularly among individuals with elevated baseline HbA1c levels."
+          ],
+          "expected_proof": null
+        },
+        "collection": "bench_canonical_pln_A01_digital_diabetes_logbook_6de65f2a",
+        "atomspace_path": "data/atomspace/bench_canonical_pln_A01_digital_diabetes_logbook_6de65f2a.metta",
+        "timing": {
+          "parser_init_seconds": 0.8936,
+          "parse_only_seconds": 0.0998,
+          "ingest_seconds": 11.1813,
+          "query_seconds": 0.4909,
+          "total_seconds": 12.6656
+        },
+        "parse_only": {
+          "statements": [
+            [
+              "(: digital_logbook_effective (Implication (Premises (UseDigitalTool $treatment) (Treats $treatment diabete)) (Conclusions (IncreasesLikelihood $treatment optimal_glycemic_control))) (STV 1.0 1.0))",
+              "(: glycemic_control_improvement (Implication (Premises (IncreasesLikelihood $treatment optimal_glycemic_control)) (Conclusions (ReducesBloodGlucose $treatment))) (STV 1.0 1.0))",
+              "(: long_term_effect (Implication (Premises (ReducesBloodGlucose $treatment)) (Conclusions (SustainedReductionInBloodGlucose $treatment))) (STV 1.0 1.0))",
+              "(: effective_treatment_logbook (UseDigitalTool my_sugr_logbook) (STV 1.0 1.0))",
+              "(: materialized_use_digital_tool_fact (UseDigitalTool treatment) (STV 1.0 1.0))",
+              "(: materialized_treat_fact (Treats treatment diabete) (STV 1.0 1.0))",
+              "(: materialized_increas_likelihood_fact (IncreasesLikelihood treatment optimal_glycemic_control) (STV 1.0 1.0))",
+              "(: materialized_reduce_blood_glucose_fact (ReducesBloodGlucose treatment) (STV 1.0 1.0))"
+            ]
+          ],
+          "statement_counts": [
+            8
+          ],
+          "query_statements": [],
+          "query_statements_count": 0,
+          "queries": [
+            "(: $prf (Improve digital_diabete_logbook glycemic_control) $tv)"
+          ],
+          "query_count": 1
+        },
+        "end_to_end": {
+          "ingest": [
+            {
+              "text": "Background: The treatment of diabetes requires substantial self-management. Digital tools can help reduce the burden of self-management and may improve glycemic control. Objective: This study aims to determine whether the use of a digital diabetes logbook increased the likelihood of achieving optimal glycemic control (glycated hemoglobin [HbA1c] \u22646.5%) after 3 months, based on a secondary analysis of randomized controlled trial (RCT) data. A secondary objective was to evaluate the long-term impact of the logbook on mean blood glucose levels over 3 and 12 months using observational, real-world data (RWD). Methods: Data from 342 participants with type 1 or type 2 diabetes enrolled in the mySugr PRO-RCT were analyzed. A robust logistic regression was performed to examine the likelihood of achieving optimal glycemic control, defined as an HbA1c value \u22646.5% at the 3-month follow-up. The dependent variable was the dichotomous outcome indicating whether this threshold was met. The primary independent variable was group allocation, with baseline HbA1c included as a covariate. For the analysis of RWD, a total of 2861 participants with type 1 or type 2 diabetes were identified using propensity score matching to align their characteristics with those of the RCT participants closely. One-sample t tests were conducted to analyze changes in mean blood glucose separately for each diabetes type, from baseline to 3 months of app use, and from baseline to 12 months of app use (in a subcohort of 1176 participants).Results: The RCT data showed that the likelihood of achieving optimal glycemic control was nearly doubled in the intervention group compared with the control group (odds ratio 2.24, 95% CI 1.12-4.47; P=.02). RWD indicated that mean blood glucose levels significantly improved over 3 months of app use in both groups (type 1: -16.3 mg/dL; 95% CI -20.6 to -12.4; P<.001 and type 2: -27.3 mg/dL, 95% CI -28.7 to -25.9; P<.001). Participants with an estimated HbA1c>8.5% at baseline (before app use) showed the greatest reductions in mean blood glucose (type 1: -82.2 mg/dL; 95% CI -102.0 to -61.8; P<.001; type 2: -104.6 mg/dL, 95% CI -109.1 to -100.3; P<.001). Long-term analyses revealed a sustained reduction in mean blood glucose over a 12-month period, with a mean decrease of -19.8 mg/dL (95% CI -21.8 to -17.9; P<.001) after 12 months of app use in the total RWD sample.Conclusions: The secondary analysis of the RCT demonstrated a significant increase in the likelihood of achieving optimal glycemic control after 3 months of using the mySugr logbook. This finding was supported by observational, real-world data, which showed significant reductions in mean blood glucose after 3 and 12 months of app use-particularly among individuals with elevated baseline HbA1c levels.",
+              "status": "success",
+              "atoms": [
+                "(: diabete_management_rule (Implication (Premises (Using digital_tool $tool) (Managing $condition diabete)) (Conclusions (ImprovedGlycemicControl $condition))) (STV 1.0 1.0))",
+                "(: logbook_effectiveness (Implication (Premises (Using digital_tool digital_diabete_logbook) (After 3month $outcome)) (Conclusions (AchievedOptimalGlycemicControl $outcome))) (STV 1.0 1.0))",
+                "(: materialized_using_fact (Using digital_tool digital_diabete_logbook) (STV 1.0 1.0))",
+                "(: diabete_data_analysis_rule (Implication (Premises (Using mysugr_pro_rct data) (Analyzed data)) (Conclusions (DataFromParticipants data 342))) (STV 1.0 1.0))",
+                "(: logistic_regression_rule (Implication (Premises (Analyzed data) (Robust logistic_regression)) (Conclusions (ExamineLikelihood optimal_glycemic_control))) (STV 1.0 1.0))",
+                "(: optimal_control_rule (Implication (Premises (ExamineLikelihood optimal_glycemic_control) (ClassA optimal_glycemic_control)) (Conclusions (AchievedOptimalGlycemicControl optimal_glycemic_control))) (STV 1.0 1.0))",
+                "(: materialized_using_fact (Using mysugr_pro_rct data) (STV 1.0 1.0))",
+                "(: materialized_analyzed_fact (Analyzed data) (STV 1.0 1.0))",
+                "(: materialized_robust_fact (Robust logistic_regression) (STV 1.0 1.0))",
+                "(: materialized_examine_likelihood_fact (ExamineLikelihood optimal_glycemic_control) (STV 1.0 1.0))",
+                "(: materialized_class_a_fact (ClassA optimal_glycemic_control) (STV 1.0 1.0))",
+                "(: rwd_analysis_rule (Implication (Premises (Identified 2861 participants (Or type_1 type_2)) (Using propensity_score_matching)) (Conclusions (Analyzed participant_rwd_data))) (STV 1.0 1.0))",
+                "(: mean_glucose_analysis_rule (Implication (Premises (Analyzed rwd_data) (Using app)) (Conclusions (MeanBloodGlucoseImprovement $condition))) (STV 1.0 1.0))",
+                "(: glucose_reduction_rule (Implication (Premises (After 3month app_use) (HasOptimalGlycemicControl $condition)) (Conclusions (ReducedMeanBloodGlucose $condition))) (STV 1.0 1.0))",
+                "(: baseline_condition_rule (Implication (Premises (HasHbA1c_gt_8_5 $condition) (IsType $type)) (Conclusions (GreatestReductionsInBloodGlucose $condition))) (STV 1.0 1.0))",
+                "(: materialized_or_fact (Or type_1 type_2) (STV 1.0 1.0))",
+                "(: materialized_using_fact (Using propensity_score_matching) (STV 1.0 1.0))",
+                "(: materialized_analyzed_fact (Analyzed rwd_data) (STV 1.0 1.0))",
+                "(: materialized_using_fact (Using app) (STV 1.0 1.0))",
+                "(: materialized_after_fact (After 3month app_use) (STV 1.0 1.0))",
+                "(: materialized_is_type_fact (IsType type) (STV 1.0 1.0))",
+                "(: mean_glucose_reduction_rule (Implication (Premises (Analyzed rwd_data) (Using app)) (Conclusions (ReducedMeanBloodGlucose $condition))) (STV 1.0 1.0))",
+                "(: sustained_reduction_rule (Implication (Premises (ReducedMeanBloodGlucose $condition) (After 12month app_use)) (Conclusions (MeanBloodGlucoseImprovement $condition))) (STV 1.0 1.0))",
+                "(: long_term_analysis_rule (Implication (Premises (Using my_sugr_logbook) (After 3month app_use)) (Conclusions (AchievedOptimalGlycemicControl optimal_glycemic_control))) (STV 1.0 1.0))",
+                "(: materialized_analyzed_fact (Analyzed rwd_data) (STV 1.0 1.0))",
+                "(: materialized_using_fact (Using app) (STV 1.0 1.0))",
+                "(: materialized_after_fact (After 12month app_use) (STV 1.0 1.0))",
+                "(: materialized_using_fact (Using my_sugr_logbook) (STV 1.0 1.0))",
+                "(: materialized_after_fact (After 3month app_use) (STV 1.0 1.0))"
+              ],
+              "error": null,
+              "chunk_count": 14,
+              "batch_count": 4,
+              "batch_sizes": [
+                4,
+                4,
+                4,
+                2
+              ],
+              "parser_calls": 4,
+              "rejected_count": 0,
+              "rejected_samples": [],
+              "coreference": {
+                "backend": "lingmess",
+                "model": "biu-nlp/lingmess-coref",
+                "status": "unchanged",
+                "changed": false,
+                "replacement_count": 0,
+                "duration_seconds": 10.607969,
+                "score_available": true,
+                "error": null,
+                "diagnostics": [
+                  "cluster_2:unsafe_possessive_antecedent:quantified_phrase:1227:1232"
+                ],
+                "resolved_text": "Background: The treatment of diabetes requires substantial self-management. Digital tools can help reduce the burden of self-management and may improve glycemic control. Objective: This study aims to determine whether the use of a digital diabetes logbook increased the likelihood of achieving optimal glycemic control (glycated hemoglobin [HbA1c] \u22646.5%) after 3 months, based on a secondary analysis of randomized controlled trial (RCT) data. A secondary objective was to evaluate the long-term impact of the logbook on mean blood glucose levels over 3 and 12 months using observational, real-world data (RWD). Methods: Data from 342 participants with type 1 or type 2 diabetes enrolled in the mySugr PRO-RCT were analyzed. A robust logistic regression was performed to examine the likelihood of achieving optimal glycemic control, defined as an HbA1c value \u22646.5% at the 3-month follow-up. The dependent variable was the dichotomous outcome indicating whether this threshold was met. The primary independent variable was group allocation, with baseline HbA1c included as a covariate. For the analysis of RWD, a total of 2861 participants with type 1 or type 2 diabetes were identified using propensity score matching to align their characteristics with those of the RCT participants closely. One-sample t tests were conducted to analyze changes in mean blood glucose separately for each diabetes type, from baseline to 3 months of app use, and from baseline to 12 months of app use (in a subcohort of 1176 participants).Results: The RCT data showed that the likelihood of achieving optimal glycemic control was nearly doubled in the intervention group compared with the control group (odds ratio 2.24, 95% CI 1.12-4.47; P=.02). RWD indicated that mean blood glucose levels significantly improved over 3 months of app use in both groups (type 1: -16.3 mg/dL; 95% CI -20.6 to -12.4; P<.001 and type 2: -27.3 mg/dL, 95% CI -28.7 to -25.9; P<.001). Participants with an estimated HbA1c>8.5% at baseline (before app use) showed the greatest reductions in mean blood glucose (type 1: -82.2 mg/dL; 95% CI -102.0 to -61.8; P<.001; type 2: -104.6 mg/dL, 95% CI -109.1 to -100.3; P<.001). Long-term analyses revealed a sustained reduction in mean blood glucose over a 12-month period, with a mean decrease of -19.8 mg/dL (95% CI -21.8 to -17.9; P<.001) after 12 months of app use in the total RWD sample.Conclusions: The secondary analysis of the RCT demonstrated a significant increase in the likelihood of achieving optimal glycemic control after 3 months of using the mySugr logbook. This finding was supported by observational, real-world data, which showed significant reductions in mean blood glucose after 3 and 12 months of app use-particularly among individuals with elevated baseline HbA1c levels."
+              }
+            }
+          ],
+          "query": {
+            "query": "Did the digital diabetes logbook improve glycemic control?",
+            "pln_query": "(: $prf (ImprovedGlycemicControl diabete) $tv)",
+            "original_query": "(: $prf (ImprovedGlycemicControl diabete) $tv)",
+            "executed_query": "(: $prf (ImprovedGlycemicControl diabete) $tv)",
+            "fallback_used": false,
+            "query_status": "well_aligned",
+            "proof": "[]",
+            "sources": [],
+            "answer": "",
+            "proof_provenance": [],
+            "query_support_atoms": [
+              "(: logbook_improve_control_rule (Implication (Premises (Using digital_tool digital_diabete_logbook) (Managing diabete)) (Conclusions (ImprovedGlycemicControl diabete))) (STV 1.0 1.0))"
+            ],
+            "candidate_count": 1,
+            "candidate_count_tried": 1,
+            "executed_candidate_index": 0,
+            "retry_used": false,
+            "context_retrieval_seconds": 0.0283,
+            "parse_query_seconds": 0.0097,
+            "reasoning_seconds": 0.4506,
+            "source_lookup_seconds": 0.0,
+            "answer_generation_seconds": 0.0
+          }
+        },
+        "proof_found": false,
+        "correct": null
+      },
+      {
+        "case_id": "A04",
+        "case_hash": "3e3d40fbf5ddd0ab998f212fdf0759a3d899c8ce1a92ab51798320560acafc28",
+        "case": {
+          "case_id": "A04",
+          "name": "A04_semaglutide_comparative_outcomes",
+          "source_type": "abstract",
+          "category": "comparative_claim",
+          "input_text": "Semaglutide is a high-profile glucose-lowering drug that medical decision-makers have acknowledged in recent years. This rapid review aims to provide evidence-based clinical recommendations for the treatment of type 2 diabetes mellitus (T2DM) with semaglutide. Methods: We conducted a rapid review of randomized controlled trial (RCT)-based meta-analyses (MAs) and systematic reviews (SRs) of cost-effectiveness analyses (CEAs) compared to other glucagon-like peptide-1 receptor agonists (GLP-1 RAs) or placebo in patients with T2DM. Prospective cohort real-world studies (RWS) were also retrieved and subjected to MA. Four databases, including PubMed, the Cochrane Library, Embase, and ISPOR, were searched from inception to 5 March 2023. The outcomes of interest were hemoglobin A1c (HbA1c), body weight, major adverse cardiovascular events (MACE), and economic outcomes such as quality-adjusted life-years and total cost. Results: We identified 33 publications: 22 RCT-based MAs, 1 SR of CEAs, and 10 RWS. Evidence showed that semaglutide at usual doses was associated with superior reductions in HbA1c and weight compared to most GLP-1 RAs in patients with T2DM who were drug naive, receiving basal insulin, or using oral hypoglycemic agents, and it was also associated with a lower number of MACE and was more cost-effective. Further, once-weekly semaglutide resulted in a significant reduction in HbA1c levels (-1.1%) and body weight (-4.88 kg) in routine clinical practice. Conclusions: This review consolidates the positive current evidence base for prescribing semaglutide to patients with T2DM, but further rigorous studies are still urgently required to develop practice guidelines as innovative drugs become commercially available.",
+          "user_query": "How does semaglutide compare with other GLP-1 receptor agonists?",
+          "expected_focus": {
+            "predicate_family": "comparative_treatment_outcome",
+            "main_entities": [
+              "semaglutide",
+              "GLP-1 receptor agonists"
+            ],
+            "polarity": "comparative",
+            "reasoning_type": "comparison"
+          },
+          "notes": "Comparative treatment case across glycemic control, weight, cardiovascular safety, and cost-effectiveness.",
+          "source_url": "https://pubmed.ncbi.nlm.nih.gov/38175486/",
+          "pmid": "38175486",
+          "requires_manual_copy": true,
+          "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+          "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text.",
+          "question": "How does semaglutide compare with other GLP-1 receptor agonists?",
+          "texts": [
+            "Semaglutide is a high-profile glucose-lowering drug that medical decision-makers have acknowledged in recent years. This rapid review aims to provide evidence-based clinical recommendations for the treatment of type 2 diabetes mellitus (T2DM) with semaglutide. Methods: We conducted a rapid review of randomized controlled trial (RCT)-based meta-analyses (MAs) and systematic reviews (SRs) of cost-effectiveness analyses (CEAs) compared to other glucagon-like peptide-1 receptor agonists (GLP-1 RAs) or placebo in patients with T2DM. Prospective cohort real-world studies (RWS) were also retrieved and subjected to MA. Four databases, including PubMed, the Cochrane Library, Embase, and ISPOR, were searched from inception to 5 March 2023. The outcomes of interest were hemoglobin A1c (HbA1c), body weight, major adverse cardiovascular events (MACE), and economic outcomes such as quality-adjusted life-years and total cost. Results: We identified 33 publications: 22 RCT-based MAs, 1 SR of CEAs, and 10 RWS. Evidence showed that semaglutide at usual doses was associated with superior reductions in HbA1c and weight compared to most GLP-1 RAs in patients with T2DM who were drug naive, receiving basal insulin, or using oral hypoglycemic agents, and it was also associated with a lower number of MACE and was more cost-effective. Further, once-weekly semaglutide resulted in a significant reduction in HbA1c levels (-1.1%) and body weight (-4.88 kg) in routine clinical practice. Conclusions: This review consolidates the positive current evidence base for prescribing semaglutide to patients with T2DM, but further rigorous studies are still urgently required to develop practice guidelines as innovative drugs become commercially available."
+          ],
+          "expected_proof": null
+        },
+        "collection": "bench_canonical_pln_A04_semaglutide_comparative_outcomes_6de65f2a",
+        "atomspace_path": "data/atomspace/bench_canonical_pln_A04_semaglutide_comparative_outcomes_6de65f2a.metta",
+        "timing": {
+          "parser_init_seconds": 0.0487,
+          "parse_only_seconds": 0.0165,
+          "ingest_seconds": 4.5568,
+          "query_seconds": 0.4991,
+          "total_seconds": 5.121
+        },
+        "parse_only": {
+          "statements": [
+            [
+              "(: semaglutide_drug (IsA semaglutide glucose_lowering_drug) (STV 1.0 1.0))",
+              "(: treatment_effectiveness_rule (Implication (Premises (EffectiveOn $drug t2dm)) (Conclusions (Recommendation $drug))) (STV 1.0 1.0))",
+              "(: clinical_outcome_rule (Implication (Premises (EffectiveOn semaglutide t2dm)) (Conclusions (HasOutcome semaglutide hemoglobin_a1c body_weight mace cost))) (STV 1.0 1.0))",
+              "(: materialized_effective_on_fact (EffectiveOn drug t2dm) (STV 1.0 1.0))",
+              "(: materialized_effective_on_fact (EffectiveOn semaglutide t2dm) (STV 1.0 1.0))"
+            ]
+          ],
+          "statement_counts": [
+            5
+          ],
+          "query_statements": [],
+          "query_statements_count": 0,
+          "queries": [
+            "(: $prf (Compare semaglutide $agonist) $tv)"
+          ],
+          "query_count": 1
+        },
+        "end_to_end": {
+          "ingest": [
+            {
+              "text": "Semaglutide is a high-profile glucose-lowering drug that medical decision-makers have acknowledged in recent years. This rapid review aims to provide evidence-based clinical recommendations for the treatment of type 2 diabetes mellitus (T2DM) with semaglutide. Methods: We conducted a rapid review of randomized controlled trial (RCT)-based meta-analyses (MAs) and systematic reviews (SRs) of cost-effectiveness analyses (CEAs) compared to other glucagon-like peptide-1 receptor agonists (GLP-1 RAs) or placebo in patients with T2DM. Prospective cohort real-world studies (RWS) were also retrieved and subjected to MA. Four databases, including PubMed, the Cochrane Library, Embase, and ISPOR, were searched from inception to 5 March 2023. The outcomes of interest were hemoglobin A1c (HbA1c), body weight, major adverse cardiovascular events (MACE), and economic outcomes such as quality-adjusted life-years and total cost. Results: We identified 33 publications: 22 RCT-based MAs, 1 SR of CEAs, and 10 RWS. Evidence showed that semaglutide at usual doses was associated with superior reductions in HbA1c and weight compared to most GLP-1 RAs in patients with T2DM who were drug naive, receiving basal insulin, or using oral hypoglycemic agents, and it was also associated with a lower number of MACE and was more cost-effective. Further, once-weekly semaglutide resulted in a significant reduction in HbA1c levels (-1.1%) and body weight (-4.88 kg) in routine clinical practice. Conclusions: This review consolidates the positive current evidence base for prescribing semaglutide to patients with T2DM, but further rigorous studies are still urgently required to develop practice guidelines as innovative drugs become commercially available.",
+              "status": "success",
+              "atoms": [
+                "(: semaglutide_classification_rule (Implication (Premises (IsA semaglutide glucose_lowering_drug)) (Conclusions (Acknowledged semaglutide medical_decision_maker))) (STV 1.0 1.0))",
+                "(: treatment_rule (Implication (Premises (IsA semaglutide glucose_lowering_drug)) (Conclusions (HasRecommendation semaglutide t2dm_treatment))) (STV 1.0 1.0))",
+                "(: evidence_rule (Implication (Premises (HasRecommendation semaglutide t2dm_treatment)) (Conclusions (ProvidesEvidence semaglutide clinical_recommendation))) (STV 1.0 1.0))",
+                "(: materialized_is_a_fact (IsA semaglutide glucose_lowering_drug) (STV 1.0 1.0))",
+                "(: materialized_has_recommendation_fact (HasRecommendation semaglutide t2dm_treatment) (STV 1.0 1.0))",
+                "(: outcome_interest_rule (Implication (Premises (IsA outcome hemoglobin_a1c) (IsA outcome body_weight) (IsA outcome major_adverse_cardiovascular_event) (IsA outcome economic_outcome)) (Conclusions (HasInterest outcome))) (STV 1.0 1.0))",
+                "(: publication_identification_rule (Implication (Premises (Identified 33 publication)) (Conclusions (HasCount 33))) (STV 1.0 1.0))",
+                "(: evidence_for_semaglutide_rule (Implication (Premises (IsA semaglutide glucose_lowering_drug)) (Conclusions (ProvidesEvidence semaglutide glucose_efficacy))) (STV 1.0 1.0))",
+                "(: significant_reduction_rule (Implication (Premises (HasResult semaglutide hb_a1c_reduction) (HasResult semaglutide weight_reduction)) (Conclusions (IsSignificant semaglutide effectiveness))) (STV 1.0 1.0))",
+                "(: materialized_is_a_fact (IsA outcome hemoglobin_a1c) (STV 1.0 1.0))",
+                "(: materialized_is_a_fact (IsA outcome body_weight) (STV 1.0 1.0))",
+                "(: materialized_is_a_fact (IsA outcome major_adverse_cardiovascular_event) (STV 1.0 1.0))",
+                "(: materialized_is_a_fact (IsA outcome economic_outcome) (STV 1.0 1.0))",
+                "(: materialized_identified_fact (Identified 33 publication) (STV 1.0 1.0))",
+                "(: materialized_is_a_fact (IsA semaglutide glucose_lowering_drug) (STV 1.0 1.0))",
+                "(: materialized_has_result_fact (HasResult semaglutide hb_a1c_reduction) (STV 1.0 1.0))",
+                "(: materialized_has_result_fact (HasResult semaglutide weight_reduction) (STV 1.0 1.0))",
+                "(: semaglutide_evidence_rule (Implication (Premises (ProvidesEvidence semaglutide clinical_recommendation)) (Conclusions (Acknowledged semaglutide clinical_guideline_necessity))) (STV 1.0 1.0))",
+                "(: semaglutide_practice_guideline_rule (Implication (Premises (ProvidesEvidence semaglutide glucose_efficacy)) (Conclusions (RequiresFurtherStudies semaglutide practice_guideline))) (STV 1.0 1.0))",
+                "(: materialized_provide_evidence_fact (ProvidesEvidence semaglutide clinical_recommendation) (STV 1.0 1.0))",
+                "(: materialized_provide_evidence_fact (ProvidesEvidence semaglutide glucose_efficacy) (STV 1.0 1.0))"
+              ],
+              "error": null,
+              "chunk_count": 9,
+              "batch_count": 3,
+              "batch_sizes": [
+                4,
+                4,
+                1
+              ],
+              "parser_calls": 3,
+              "rejected_count": 0,
+              "rejected_samples": [],
+              "coreference": {
+                "backend": "lingmess",
+                "model": "biu-nlp/lingmess-coref",
+                "status": "resolved",
+                "changed": true,
+                "replacement_count": 1,
+                "duration_seconds": 4.160683,
+                "score_available": true,
+                "error": null,
+                "diagnostics": [],
+                "resolved_text": "Semaglutide is a high-profile glucose-lowering drug that medical decision-makers have acknowledged in recent years. This rapid review aims to provide evidence-based clinical recommendations for the treatment of type 2 diabetes mellitus (T2DM) with semaglutide. Methods: We conducted a rapid review of randomized controlled trial (RCT)-based meta-analyses (MAs) and systematic reviews (SRs) of cost-effectiveness analyses (CEAs) compared to other glucagon-like peptide-1 receptor agonists (GLP-1 RAs) or placebo in patients with T2DM. Prospective cohort real-world studies (RWS) were also retrieved and subjected to MA. Four databases, including PubMed, the Cochrane Library, Embase, and ISPOR, were searched from inception to 5 March 2023. The outcomes of interest were hemoglobin A1c (HbA1c), body weight, major adverse cardiovascular events (MACE), and economic outcomes such as quality-adjusted life-years and total cost. Results: We identified 33 publications: 22 RCT-based MAs, 1 SR of CEAs, and 10 RWS. Evidence showed that semaglutide at usual doses was associated with superior reductions in HbA1c and weight compared to most GLP-1 RAs in patients with T2DM who were drug naive, receiving basal insulin, or using oral hypoglycemic agents, and semaglutide at usual doses was also associated with a lower number of MACE and was more cost-effective. Further, once-weekly semaglutide resulted in a significant reduction in HbA1c levels (-1.1%) and body weight (-4.88 kg) in routine clinical practice. Conclusions: This review consolidates the positive current evidence base for prescribing semaglutide to patients with T2DM, but further rigorous studies are still urgently required to develop practice guidelines as innovative drugs become commercially available."
+              }
+            }
+          ],
+          "query": {
+            "query": "How does semaglutide compare with other GLP-1 receptor agonists?",
+            "pln_query": "(: $prf (Compare semaglutide other_glp1_receptor_agonist) $tv)",
+            "original_query": "(: $prf (Compare semaglutide other_glp1_receptor_agonist) $tv)",
+            "executed_query": "(: $prf (Compare semaglutide other_glp1_receptor_agonist) $tv)",
+            "fallback_used": false,
+            "query_status": "well_aligned",
+            "proof": "[]",
+            "sources": [],
+            "answer": "",
+            "proof_provenance": [],
+            "query_support_atoms": [
+              "(: glp1_receptor_agonist_comparison_rule (Implication (Premises (IsA semaglutide glp1_receptor_agonist)) (Conclusions (Compare semaglutide other_glp1_receptor_agonist))) (STV 1.0 1.0))"
+            ],
+            "candidate_count": 1,
+            "candidate_count_tried": 1,
+            "executed_candidate_index": 0,
+            "retry_used": false,
+            "context_retrieval_seconds": 0.0631,
+            "parse_query_seconds": 0.0103,
+            "reasoning_seconds": 0.4215,
+            "source_lookup_seconds": 0.0,
+            "answer_generation_seconds": 0.0
+          }
+        },
+        "proof_found": false,
+        "correct": null
+      },
+      {
+        "case_id": "A06",
+        "case_hash": "b16af4fd7cee8aa7b4c5a1d4dcead6b8e34d0b3c1ee4d4d4f11316195498a868",
+        "case": {
+          "case_id": "A06",
+          "name": "A06_contact_lens_wettability_friction",
+          "source_type": "abstract",
+          "category": "comparative_claim",
+          "input_text": "Purpose: To evaluate the in vitro wettability and coefficient of friction of a novel amphiphilic polymeric surfactant (APS), poly(oxyethylene)-co-poly(oxybutylene) (PEO-PBO) releasing silicone hydrogel (SiHy) contact lens material (serafilcon A), compared to other reusable SiHy lens materials. Methods: The release of fluorescently-labelled nitrobenzoxadiazole (NBD)-PEO-PBO was evaluated from serafilcon A over 7 days in a vial. The wettability and coefficient of friction of serafilcon A and three contemporary SiHy contact lens materials (senofilcon A; samfilcon A; comfilcon A) were evaluated using an in vitro blink model over their recommended wearing period; t = 0, 1, 7, 14 days for all lens types and t = 30 days for samfilcon A and comfilcon A (n = 4). Sessile drop contact angles were determined and in vitro non-invasive keratographic break-up time (NIKBUT) measurements were assessed on a blink model via the OCULUS Keratograph 5 M. The coefficient of friction was measured using a nano tribometer. Results: The relative fluorescence of NBD-PEO-PBO decreased in serafilcon A by approximately 18 % after 7 days. The amount of NBD-PEO-PBO released on day 7 was 50 % less than the amount released on day 1 (6.5\u00b11.0 vs 3.4\u00b10.5 \u00b5g/lens). The reduction in PEO-PBO in the lens also coincided with an increase in contact angles for serafilcon A after 7 days (p < 0.05), although there were no changes in NIKBUT or coefficient of friction (p > 0.05). The other contact lens materials had stable contact angles and NIKBUT over their recommended wearing period (p > 0.05), with the exception of samfilcon A, which had an increase in contact angle after 14 days as compared to t = 0 (p < 0.05). Senofilcon A and samfilcon A also showed an increase in coefficient of friction at 14 and 30 days, respectively, compared to their blister pack values (p < 0.05). Conclusion: The results indicate that serafilcon A gradually depletes its reserve of PEO-PBO over 1 week, but this decrease did not significantly change the lens performance in vitro during this time frame.",
+          "user_query": "How does serafilcon A compare with other reusable silicone hydrogel lens materials?",
+          "expected_focus": {
+            "predicate_family": "material_property_comparison",
+            "main_entities": [
+              "serafilcon A",
+              "silicone hydrogel lens materials",
+              "wettability",
+              "coefficient of friction"
+            ],
+            "polarity": "comparative",
+            "reasoning_type": "comparison"
+          },
+          "notes": "Materials comparison case involving wettability and friction.",
+          "source_url": "https://pubmed.ncbi.nlm.nih.gov/38423868/",
+          "pmid": "38423868",
+          "requires_manual_copy": true,
+          "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+          "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text.",
+          "question": "How does serafilcon A compare with other reusable silicone hydrogel lens materials?",
+          "texts": [
+            "Purpose: To evaluate the in vitro wettability and coefficient of friction of a novel amphiphilic polymeric surfactant (APS), poly(oxyethylene)-co-poly(oxybutylene) (PEO-PBO) releasing silicone hydrogel (SiHy) contact lens material (serafilcon A), compared to other reusable SiHy lens materials. Methods: The release of fluorescently-labelled nitrobenzoxadiazole (NBD)-PEO-PBO was evaluated from serafilcon A over 7 days in a vial. The wettability and coefficient of friction of serafilcon A and three contemporary SiHy contact lens materials (senofilcon A; samfilcon A; comfilcon A) were evaluated using an in vitro blink model over their recommended wearing period; t = 0, 1, 7, 14 days for all lens types and t = 30 days for samfilcon A and comfilcon A (n = 4). Sessile drop contact angles were determined and in vitro non-invasive keratographic break-up time (NIKBUT) measurements were assessed on a blink model via the OCULUS Keratograph 5 M. The coefficient of friction was measured using a nano tribometer. Results: The relative fluorescence of NBD-PEO-PBO decreased in serafilcon A by approximately 18 % after 7 days. The amount of NBD-PEO-PBO released on day 7 was 50 % less than the amount released on day 1 (6.5\u00b11.0 vs 3.4\u00b10.5 \u00b5g/lens). The reduction in PEO-PBO in the lens also coincided with an increase in contact angles for serafilcon A after 7 days (p < 0.05), although there were no changes in NIKBUT or coefficient of friction (p > 0.05). The other contact lens materials had stable contact angles and NIKBUT over their recommended wearing period (p > 0.05), with the exception of samfilcon A, which had an increase in contact angle after 14 days as compared to t = 0 (p < 0.05). Senofilcon A and samfilcon A also showed an increase in coefficient of friction at 14 and 30 days, respectively, compared to their blister pack values (p < 0.05). Conclusion: The results indicate that serafilcon A gradually depletes its reserve of PEO-PBO over 1 week, but this decrease did not significantly change the lens performance in vitro during this time frame."
+          ],
+          "expected_proof": null
+        },
+        "collection": "bench_canonical_pln_A06_contact_lens_wettability_friction_6de65f2a",
+        "atomspace_path": "data/atomspace/bench_canonical_pln_A06_contact_lens_wettability_friction_6de65f2a.metta",
+        "timing": {
+          "parser_init_seconds": 0.0474,
+          "parse_only_seconds": 0.0159,
+          "ingest_seconds": 6.1921,
+          "query_seconds": 1.0001,
+          "total_seconds": 7.2555
+        },
+        "parse_only": {
+          "statements": [
+            [
+              "(: polymer_wettability_rule (Implication (Premises (HasProperty serafilcon_a wettability)) (Conclusions (EvaluateWettability serafilcon_a))) (STV 1.0 1.0))",
+              "(: polymer_friction_rule (Implication (Premises (HasProperty serafilcon_a coefficient_of_friction)) (Conclusions (EvaluateCoefficient serafilcon_a))) (STV 1.0 1.0))",
+              "(: release_nbd_rule (Implication (Premises (Releases $polymer fluorescently_labelled_nbd)) (Conclusions (ReleaseAmount $polymer 6.5))) (STV 1.0 1.0))",
+              "(: decrease_fluorescence (Implication (Premises (NBDRelease $lens 6.5) (TimeDay 7)) (Conclusions (RelativeFluorescenceDecrease $lens 18))) (STV 1.0 1.0))"
+            ]
+          ],
+          "statement_counts": [
+            4
+          ],
+          "query_statements": [],
+          "query_statements_count": 0,
+          "queries": [
+            "(: $prf (Compare serafilcon_a $other) $tv)"
+          ],
+          "query_count": 1
+        },
+        "end_to_end": {
+          "ingest": [
+            {
+              "text": "Purpose: To evaluate the in vitro wettability and coefficient of friction of a novel amphiphilic polymeric surfactant (APS), poly(oxyethylene)-co-poly(oxybutylene) (PEO-PBO) releasing silicone hydrogel (SiHy) contact lens material (serafilcon A), compared to other reusable SiHy lens materials. Methods: The release of fluorescently-labelled nitrobenzoxadiazole (NBD)-PEO-PBO was evaluated from serafilcon A over 7 days in a vial. The wettability and coefficient of friction of serafilcon A and three contemporary SiHy contact lens materials (senofilcon A; samfilcon A; comfilcon A) were evaluated using an in vitro blink model over their recommended wearing period; t = 0, 1, 7, 14 days for all lens types and t = 30 days for samfilcon A and comfilcon A (n = 4). Sessile drop contact angles were determined and in vitro non-invasive keratographic break-up time (NIKBUT) measurements were assessed on a blink model via the OCULUS Keratograph 5 M. The coefficient of friction was measured using a nano tribometer. Results: The relative fluorescence of NBD-PEO-PBO decreased in serafilcon A by approximately 18 % after 7 days. The amount of NBD-PEO-PBO released on day 7 was 50 % less than the amount released on day 1 (6.5\u00b11.0 vs 3.4\u00b10.5 \u00b5g/lens). The reduction in PEO-PBO in the lens also coincided with an increase in contact angles for serafilcon A after 7 days (p < 0.05), although there were no changes in NIKBUT or coefficient of friction (p > 0.05). The other contact lens materials had stable contact angles and NIKBUT over their recommended wearing period (p > 0.05), with the exception of samfilcon A, which had an increase in contact angle after 14 days as compared to t = 0 (p < 0.05). Senofilcon A and samfilcon A also showed an increase in coefficient of friction at 14 and 30 days, respectively, compared to their blister pack values (p < 0.05). Conclusion: The results indicate that serafilcon A gradually depletes its reserve of PEO-PBO over 1 week, but this decrease did not significantly change the lens performance in vitro during this time frame.",
+              "status": "success",
+              "atoms": [
+                "(: purpose_evaluation_rule (Implication (Premises (Purpose evaluate $property)) (Conclusions (Evaluate $material $property))) (STV 1.0 1.0))",
+                "(: wettability_coefficient_rule (Implication (Premises (Evaluate $material wettability) (Evaluate $material coefficient_of_friction)) (Conclusions (Evaluate $material friction))) (STV 1.0 1.0))",
+                "(: test_method (Implication (Premises (Evaluate serafilcon_a release) (Evaluate three_si_hy_material wettability)) (Conclusions (Evaluate testing_method in_vitro_blink_model))) (STV 1.0 1.0))",
+                "(: fluorescent_label_rule (Implication (Premises (Evaluate serafilcon_a release) (Evaluate nbd_peo_pbo fluorescent_label)) (Conclusions (FluorescentlyLabelled $material nbd_peo_pbo))) (STV 1.0 1.0))",
+                "(: materialized_evaluate_fact (Evaluate material wettability) (STV 1.0 1.0))",
+                "(: materialized_evaluate_fact (Evaluate material coefficient_of_friction) (STV 1.0 1.0))",
+                "(: materialized_evaluate_fact (Evaluate serafilcon_a release) (STV 1.0 1.0))",
+                "(: materialized_evaluate_fact (Evaluate three_si_hy_material wettability) (STV 1.0 1.0))",
+                "(: materialized_evaluate_fact (Evaluate nbd_peo_pbo fluorescent_label) (STV 1.0 1.0))",
+                "(: measure_coefficient_friction (Evaluate material coefficient_of_friction) (STV 1.0 1.0))",
+                "(: measure_nbd_peo_pbo (Evaluate nbd_peo_pbo fluorescent_label) (STV 1.0 1.0))",
+                "(: materialized_evaluate_fact (Evaluate serafilcon_a release) (STV 1.0 1.0))",
+                "(: materialized_evaluate_fact (Evaluate nbd_peo_pbo fluorescent_label) (STV 1.0 1.0))",
+                "(: materialized_evaluate_fact (Evaluate nbd_peo_pbo release) (STV 1.0 1.0))",
+                "(: materialized_amount_released_fact (AmountReleased nbd_peo_pbo day7) (STV 1.0 1.0))",
+                "(: contact_material_stability_rule (Implication (Premises (Evaluate $material contact_angle) (Evaluate $material nikbut)) (Conclusions (Stable $material))) (STV 1.0 1.0))",
+                "(: friction_coefficient_rule (Implication (Premises (Evaluate $material coefficient_of_friction)) (Conclusions (IncreaseFriction $material))) (STV 1.0 1.0))",
+                "(: serafilcon_a_depletion_rule (Implication (Premises (Evaluate serafilcon_a release) (Evaluate $property performance)) (Conclusions (StablePerformance serafilcon_a))) (STV 1.0 1.0))"
+              ],
+              "error": null,
+              "chunk_count": 11,
+              "batch_count": 3,
+              "batch_sizes": [
+                4,
+                4,
+                3
+              ],
+              "parser_calls": 3,
+              "rejected_count": 3,
+              "rejected_samples": [
+                "(: relative_fluorescence_rule (Implication (Premises (Evaluate serafilcon_a release) (Evaluate nbd_peo_pbo fluorescent_label)) (Conclusions (DecreaseInRelativeFluorescence nbd_peo_pbo serafilcon_a)) (STV 1.0 1.0))",
+                "(: amount_released_day7_rule (Implication (Premises (Evaluate nbd_peo_pbo release) (AmountReleased nbd_peo_pbo day7)) (Conclusions (IsLessThanAmount day7 day1)) (STV 1.0 1.0))",
+                "(: samfilcon_a_exception_rule (Implication (Premises (IsA samfilcon_a contact_material)) (Conclusions (IncreaseContactAngle samfilcon_a)) (STV 1.0 1.0)))"
+              ],
+              "coreference": {
+                "backend": "lingmess",
+                "model": "biu-nlp/lingmess-coref",
+                "status": "unchanged",
+                "changed": false,
+                "replacement_count": 0,
+                "duration_seconds": 5.692167,
+                "score_available": true,
+                "error": null,
+                "diagnostics": [
+                  "cluster_0:unsafe_possessive_antecedent:internal_punctuation:1930:1933",
+                  "cluster_2:unsafe_possessive_antecedent:internal_punctuation:633:638",
+                  "cluster_2:unsafe_possessive_antecedent:internal_punctuation:1822:1827",
+                  "cluster_6:unsafe_possessive_antecedent:comparative_group:1531:1536"
+                ],
+                "resolved_text": "Purpose: To evaluate the in vitro wettability and coefficient of friction of a novel amphiphilic polymeric surfactant (APS), poly(oxyethylene)-co-poly(oxybutylene) (PEO-PBO) releasing silicone hydrogel (SiHy) contact lens material (serafilcon A), compared to other reusable SiHy lens materials. Methods: The release of fluorescently-labelled nitrobenzoxadiazole (NBD)-PEO-PBO was evaluated from serafilcon A over 7 days in a vial. The wettability and coefficient of friction of serafilcon A and three contemporary SiHy contact lens materials (senofilcon A; samfilcon A; comfilcon A) were evaluated using an in vitro blink model over their recommended wearing period; t = 0, 1, 7, 14 days for all lens types and t = 30 days for samfilcon A and comfilcon A (n = 4). Sessile drop contact angles were determined and in vitro non-invasive keratographic break-up time (NIKBUT) measurements were assessed on a blink model via the OCULUS Keratograph 5 M. The coefficient of friction was measured using a nano tribometer. Results: The relative fluorescence of NBD-PEO-PBO decreased in serafilcon A by approximately 18 % after 7 days. The amount of NBD-PEO-PBO released on day 7 was 50 % less than the amount released on day 1 (6.5\u00b11.0 vs 3.4\u00b10.5 \u00b5g/lens). The reduction in PEO-PBO in the lens also coincided with an increase in contact angles for serafilcon A after 7 days (p < 0.05), although there were no changes in NIKBUT or coefficient of friction (p > 0.05). The other contact lens materials had stable contact angles and NIKBUT over their recommended wearing period (p > 0.05), with the exception of samfilcon A, which had an increase in contact angle after 14 days as compared to t = 0 (p < 0.05). Senofilcon A and samfilcon A also showed an increase in coefficient of friction at 14 and 30 days, respectively, compared to their blister pack values (p < 0.05). Conclusion: The results indicate that serafilcon A gradually depletes its reserve of PEO-PBO over 1 week, but this decrease did not significantly change the lens performance in vitro during this time frame."
+              }
+            }
+          ],
+          "query": {
+            "query": "How does serafilcon A compare with other reusable silicone hydrogel lens materials?",
+            "pln_query": "(: $prf (Compare serafilcon_a $other_material friction) $tv)",
+            "original_query": "(: $prf (Compare serafilcon_a $other_material wettability) $tv)",
+            "executed_query": "(: $prf (Compare serafilcon_a $other_material friction) $tv)",
+            "fallback_used": true,
+            "query_status": "weakly_aligned",
+            "proof": "[]",
+            "sources": [],
+            "answer": "No proof was found. The generated query is only weakly aligned with the current knowledge base, so the failure may come from query shape mismatch or missing witness facts.",
+            "proof_provenance": [],
+            "query_support_atoms": [
+              "(: compare_material_rule (Implication (Premises (Evaluate serafilcon_a wettability) (Evaluate $other_material wettability)) (Conclusions (Compare serafilcon_a $other_material wettability))) (STV 1.0 1.0))",
+              "(: compare_friction_rule (Implication (Premises (Evaluate serafilcon_a coefficient_of_friction) (Evaluate $other_material coefficient_of_friction)) (Conclusions (Compare serafilcon_a $other_material friction))) (STV 1.0 1.0))"
+            ],
+            "candidate_count": 2,
+            "candidate_count_tried": 2,
+            "executed_candidate_index": 1,
+            "retry_used": false,
+            "context_retrieval_seconds": 0.0314,
+            "parse_query_seconds": 0.0091,
+            "reasoning_seconds": 0.9561,
+            "source_lookup_seconds": 0.0,
+            "answer_generation_seconds": 0.0
+          }
+        },
+        "proof_found": false,
+        "correct": null
+      },
+      {
+        "case_id": "A08",
+        "case_hash": "e4a5baa000d6e9a4426de989f027cbf62d976a2635ead75c0fde227953207549",
+        "case": {
+          "case_id": "A08",
+          "name": "A08_microbiota_host_inflammation",
+          "source_type": "abstract",
+          "category": "causal_mechanistic_claim",
+          "input_text": "The study of the intestinal microbiota has begun to shift from cataloging individual members of the commensal community to understanding their contributions to the physiology of the host organism in health and disease. Here, we review the effects of the microbiome on innate and adaptive immunological players from epithelial cells and antigen-presenting cells to innate lymphoid cells and regulatory T cells. We discuss recent studies that have identified diverse microbiota-derived bioactive molecules and their effects on inflammation within the intestine and distally at sites as anatomically remote as the brain. Finally, we highlight new insights into how the microbiome influences the host response to infection, vaccination and cancer, as well as susceptibility to autoimmune and neurodegenerative disorders.",
+          "user_query": "How can microbiota affect inflammation?",
+          "expected_focus": {
+            "predicate_family": "mechanistic_regulation",
+            "main_entities": [
+              "microbiota",
+              "host immune system",
+              "inflammation"
+            ],
+            "polarity": "positive_or_regulatory",
+            "reasoning_type": "causal"
+          },
+          "notes": "Mechanistic review-style abstract; good for microbiota-derived molecule and immunity relations.",
+          "source_url": "https://www.nature.com/articles/ni.3780",
+          "requires_manual_copy": true,
+          "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+          "copy_instructions": "Open the source_url, copy the article abstract only if reuse is permitted, and paste it into input_text as one string. Do not include title, authors, journal metadata, references, or license text.",
+          "question": "How can microbiota affect inflammation?",
+          "texts": [
+            "The study of the intestinal microbiota has begun to shift from cataloging individual members of the commensal community to understanding their contributions to the physiology of the host organism in health and disease. Here, we review the effects of the microbiome on innate and adaptive immunological players from epithelial cells and antigen-presenting cells to innate lymphoid cells and regulatory T cells. We discuss recent studies that have identified diverse microbiota-derived bioactive molecules and their effects on inflammation within the intestine and distally at sites as anatomically remote as the brain. Finally, we highlight new insights into how the microbiome influences the host response to infection, vaccination and cancer, as well as susceptibility to autoimmune and neurodegenerative disorders."
+          ],
+          "expected_proof": null
+        },
+        "collection": "bench_canonical_pln_A08_microbiota_host_inflammation_6de65f2a",
+        "atomspace_path": "data/atomspace/bench_canonical_pln_A08_microbiota_host_inflammation_6de65f2a.metta",
+        "timing": {
+          "parser_init_seconds": 0.0496,
+          "parse_only_seconds": 0.0171,
+          "ingest_seconds": 4.4067,
+          "query_seconds": 0.5303,
+          "total_seconds": 5.0038
+        },
+        "parse_only": {
+          "statements": [
+            [
+              "(: microbiota_shift_rule (Implication (Premises (Study microbiota)) (Conclusions (ShiftedUnderstanding microbiota))) (STV 1.0 1.0))",
+              "(: microbiota_effect_rule (Implication (Premises (Understanding microbiota)) (Conclusions (Effects microbiota host))) (STV 1.0 1.0))",
+              "(: inflammation_rule (Implication (Premises (Effects microbiota inflammation)) (Conclusions (IdentifiedMolecules microbiota))) (STV 1.0 1.0))",
+              "(: influence_rule (Implication (Premises (Effects microbiota susceptibility)) (Conclusions (InfectionResponse microbiota health))) (STV 1.0 1.0))",
+              "(: materialized_study_fact (Study microbiota) (STV 1.0 1.0))",
+              "(: materialized_understanding_fact (Understanding microbiota) (STV 1.0 1.0))",
+              "(: materialized_effect_fact (Effects microbiota inflammation) (STV 1.0 1.0))",
+              "(: materialized_effect_fact (Effects microbiota susceptibility) (STV 1.0 1.0))"
+            ]
+          ],
+          "statement_counts": [
+            8
+          ],
+          "query_statements": [],
+          "query_statements_count": 0,
+          "queries": [
+            "(: $prf (Affect microbiota inflammation) $tv)"
+          ],
+          "query_count": 1
+        },
+        "end_to_end": {
+          "ingest": [
+            {
+              "text": "The study of the intestinal microbiota has begun to shift from cataloging individual members of the commensal community to understanding their contributions to the physiology of the host organism in health and disease. Here, we review the effects of the microbiome on innate and adaptive immunological players from epithelial cells and antigen-presenting cells to innate lymphoid cells and regulatory T cells. We discuss recent studies that have identified diverse microbiota-derived bioactive molecules and their effects on inflammation within the intestine and distally at sites as anatomically remote as the brain. Finally, we highlight new insights into how the microbiome influences the host response to infection, vaccination and cancer, as well as susceptibility to autoimmune and neurodegenerative disorders.",
+              "status": "success",
+              "atoms": [
+                "(: microbiota_impact_rule (Implication (Premises (StudyOf microbiota) (UnderstandingContribution $member $physiology)) (Conclusions (EffectsOn $member $physiology))) (STV 1.0 1.0))",
+                "(: review_effect_rule (Implication (Premises (StudyOf microbiota) (EffectsOn $microbiome immune_system)) (Conclusions (MicrobiotaEffectsOn health))) (STV 1.0 1.0))",
+                "(: bioactive_molecule_rule (Implication (Premises (MicrobiotaDerivedBiomolecules $molecule) (EffectsOnInfection $molecule)) (Conclusions (InflammationImpactInIntestine $molecule))) (STV 1.0 1.0))",
+                "(: host_response_rule (Implication (Premises (MicrobiomeInfluence $factor) (ResponseTo $factor)) (Conclusions (SusceptibilityTo $factor))) (STV 1.0 1.0))",
+                "(: materialized_study_of_fact (StudyOf microbiota) (STV 1.0 1.0))",
+                "(: materialized_effect_on_fact (EffectsOn microbiome immune_system) (STV 1.0 1.0))"
+              ],
+              "error": null,
+              "chunk_count": 4,
+              "batch_count": 1,
+              "batch_sizes": [
+                4
+              ],
+              "parser_calls": 1,
+              "rejected_count": 0,
+              "rejected_samples": [],
+              "coreference": {
+                "backend": "lingmess",
+                "model": "biu-nlp/lingmess-coref",
+                "status": "resolved",
+                "changed": true,
+                "replacement_count": 2,
+                "duration_seconds": 4.191494,
+                "score_available": true,
+                "error": null,
+                "diagnostics": [],
+                "resolved_text": "The study of the intestinal microbiota has begun to shift from cataloging individual members of the commensal community to understanding individual members of the commensal community's contributions to the physiology of the host organism in health and disease. Here, we review the effects of the microbiome on innate and adaptive immunological players from epithelial cells and antigen-presenting cells to innate lymphoid cells and regulatory T cells. We discuss recent studies that have identified diverse microbiota-derived bioactive molecules and diverse microbiota-derived bioactive molecules' effects on inflammation within the intestine and distally at sites as anatomically remote as the brain. Finally, we highlight new insights into how the microbiome influences the host response to infection, vaccination and cancer, as well as susceptibility to autoimmune and neurodegenerative disorders."
+              }
+            }
+          ],
+          "query": {
+            "query": "How can microbiota affect inflammation?",
+            "pln_query": "(: $prf (InflammationImpactInIntestine $molecule) $tv)",
+            "original_query": "(: $prf (InflammationImpactInIntestine $molecule) $tv)",
+            "executed_query": "(: $prf (InflammationImpactInIntestine $molecule) $tv)",
+            "fallback_used": false,
+            "query_status": "well_aligned",
+            "proof": "[]",
+            "sources": [],
+            "answer": "",
+            "proof_provenance": [],
+            "query_support_atoms": [
+              "(: microbiota_impact_rule (Implication (Premises (StudyOf microbiota) (UnderstandingContribution $member $physiology)) (Conclusions (EffectsOn $member $physiology))) (STV 1.0 1.0))",
+              "(: review_effect_rule (Implication (Premises (StudyOf microbiota) (EffectsOn microbiome immune_system)) (Conclusions (MicrobiotaEffectsOn health))) (STV 1.0 1.0))",
+              "(: bioactive_molecule_rule (Implication (Premises (MicrobiotaDerivedBiomolecules $molecule) (EffectsOnInfection $molecule)) (Conclusions (InflammationImpactInIntestine $molecule))) (STV 1.0 1.0))",
+              "(: host_response_rule (Implication (Premises (MicrobiomeInfluence $factor) (ResponseTo $factor)) (Conclusions (SusceptibilityTo $factor))) (STV 1.0 1.0))",
+              "(: materialized_study_of_fact (StudyOf microbiota) (STV 1.0 1.0))",
+              "(: materialized_effect_on_fact (EffectsOn microbiome immune_system) (STV 1.0 1.0))"
+            ],
+            "candidate_count": 1,
+            "candidate_count_tried": 1,
+            "executed_candidate_index": 0,
+            "retry_used": false,
+            "context_retrieval_seconds": 0.0679,
+            "parse_query_seconds": 0.0092,
+            "reasoning_seconds": 0.4426,
+            "source_lookup_seconds": 0.0,
+            "answer_generation_seconds": 0.0
+          }
+        },
+        "proof_found": false,
+        "correct": null
+      },
+      {
+        "case_id": "A09",
+        "case_hash": "ab22cdf6f096dfa26c9f03e8c2c69d36a31caae999de361875b6b2eb69eddb90",
+        "case": {
+          "case_id": "A09",
+          "name": "A09_sodium_heparin_perovskite_solar_cells",
+          "source_type": "abstract",
+          "category": "causal_mechanistic_claim",
+          "input_text": "Defective and mechanically weak interfaces substantially undermine both the efficiency and stability of perovskite solar cells (PSCs). Here we introduce a linear polymer, heparin sodium, as a multifunctional interface bridge layer in n\u2013i\u2013p PSCs. Unlike commonly employed small-molecule interface modification/passivation materials, heparin sodium features functional groups and ions including COO\u2212, SO3\u2212 and Na+ distributed along the top and bottom sides of its backbone. It thus serves as a bridge connecting the SnO2 electron transport layer and the perovskite film through robust chemical bonding, mitigating defects and enhancing heterointerface bonding in PSCs. The power conversion efficiency (PCE) of the resulting rigid devices is 26.61% (certified 26.54%), positioning it among the highest-efficiency PSCs. We also fabricate flexible SnO2/heparin sodium-based PSCs that achieve a PCE of 25.23%. The heparin sodium-based devices demonstrate excellent operational and thermal stability. After 1,800\u2009h under maximum power point tracking under simulated 1-Sun conditions, 94.9% of the initial PCE is retained. The devices also maintain 95.2% of their initial PCE after ageing at 85\u00b0C for 1,800h.",
+          "user_query": "Why does sodium heparin improve perovskite solar cells?",
+          "expected_focus": {
+            "predicate_family": "material_mechanism_outcome",
+            "main_entities": [
+              "sodium heparin",
+              "perovskite solar cells",
+              "efficiency",
+              "stability"
+            ],
+            "polarity": "positive",
+            "reasoning_type": "causal"
+          },
+          "notes": "Mechanism-chain case: additive/passivation/bonding to device performance.",
+          "source_url": "https://www.nature.com/articles/s41566-025-01676-3",
+          "requires_manual_copy": true,
+          "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+          "copy_instructions": "Open the source_url, copy the article abstract only if reuse is permitted, and paste it into input_text as one string. Do not include title, authors, journal metadata, references, or license text.",
+          "question": "Why does sodium heparin improve perovskite solar cells?",
+          "texts": [
+            "Defective and mechanically weak interfaces substantially undermine both the efficiency and stability of perovskite solar cells (PSCs). Here we introduce a linear polymer, heparin sodium, as a multifunctional interface bridge layer in n\u2013i\u2013p PSCs. Unlike commonly employed small-molecule interface modification/passivation materials, heparin sodium features functional groups and ions including COO\u2212, SO3\u2212 and Na+ distributed along the top and bottom sides of its backbone. It thus serves as a bridge connecting the SnO2 electron transport layer and the perovskite film through robust chemical bonding, mitigating defects and enhancing heterointerface bonding in PSCs. The power conversion efficiency (PCE) of the resulting rigid devices is 26.61% (certified 26.54%), positioning it among the highest-efficiency PSCs. We also fabricate flexible SnO2/heparin sodium-based PSCs that achieve a PCE of 25.23%. The heparin sodium-based devices demonstrate excellent operational and thermal stability. After 1,800\u2009h under maximum power point tracking under simulated 1-Sun conditions, 94.9% of the initial PCE is retained. The devices also maintain 95.2% of their initial PCE after ageing at 85\u00b0C for 1,800h."
+          ],
+          "expected_proof": null
+        },
+        "collection": "bench_canonical_pln_A09_sodium_heparin_perovskite_solar_cells_6de65f2a",
+        "atomspace_path": "data/atomspace/bench_canonical_pln_A09_sodium_heparin_perovskite_solar_cells_6de65f2a.metta",
+        "timing": {
+          "parser_init_seconds": 0.052,
+          "parse_only_seconds": 0.0168,
+          "ingest_seconds": 11.3331,
+          "query_seconds": 3.2803,
+          "total_seconds": 14.6822
+        },
+        "parse_only": {
+          "statements": [
+            [
+              "(: defective_interface_rule (Implication (Premises (Defective $interface) (MechanicallyWeak $interface)) (Conclusions (UndermineEfficiency $interface))) (STV 1.0 1.0))",
+              "(: stability_rule (Implication (Premises (UndermineEfficiency $interface)) (Conclusions (UndermineStability $interface))) (STV 1.0 1.0))",
+              "(: heparin_response_rule (Implication (Premises (IsA $material heparin_sodium)) (Conclusions (EnhanceEfficiency $material))) (STV 1.0 1.0))",
+              "(: solar_cell_performance (PowerConversionEfficiency rigid_solar_cell (PointMass 26.61)) (STV 1.0 1.0))",
+              "(: solar_cell_flexible_performance (PowerConversionEfficiency flexible_solar_cell (PointMass 25.23)) (STV 1.0 1.0))",
+              "(: stability_assessment (Implication (Premises (PowerConversionEfficiency $cell $pce) (UnderMaximumPowerTracking $cell)) (Conclusions (RetainPCE $cell $pce 94.9))) (STV 1.0 1.0))",
+              "(: thermal_ageing_assessment (Implication (Premises (AgeingCondition $cell 85) (PowerConversionEfficiency $cell $pce)) (Conclusions (RetainPCE $cell $pce 95.2))) (STV 1.0 1.0))",
+              "(: materialized_defective_fact (Defective interface) (STV 1.0 1.0))",
+              "(: materialized_mechanically_weak_fact (MechanicallyWeak interface) (STV 1.0 1.0))",
+              "(: materialized_undermine_efficiency_fact (UndermineEfficiency interface) (STV 1.0 1.0))"
+            ]
+          ],
+          "statement_counts": [
+            10
+          ],
+          "query_statements": [],
+          "query_statements_count": 0,
+          "queries": [
+            "(: $prf (Improves sodium_heparin perovskite_solar_cell) $tv)"
+          ],
+          "query_count": 1
+        },
+        "end_to_end": {
+          "ingest": [
+            {
+              "text": "Defective and mechanically weak interfaces substantially undermine both the efficiency and stability of perovskite solar cells (PSCs). Here we introduce a linear polymer, heparin sodium, as a multifunctional interface bridge layer in n\u2013i\u2013p PSCs. Unlike commonly employed small-molecule interface modification/passivation materials, heparin sodium features functional groups and ions including COO\u2212, SO3\u2212 and Na+ distributed along the top and bottom sides of its backbone. It thus serves as a bridge connecting the SnO2 electron transport layer and the perovskite film through robust chemical bonding, mitigating defects and enhancing heterointerface bonding in PSCs. The power conversion efficiency (PCE) of the resulting rigid devices is 26.61% (certified 26.54%), positioning it among the highest-efficiency PSCs. We also fabricate flexible SnO2/heparin sodium-based PSCs that achieve a PCE of 25.23%. The heparin sodium-based devices demonstrate excellent operational and thermal stability. After 1,800\u2009h under maximum power point tracking under simulated 1-Sun conditions, 94.9% of the initial PCE is retained. The devices also maintain 95.2% of their initial PCE after ageing at 85\u00b0C for 1,800h.",
+              "status": "success",
+              "atoms": [
+                "(: defect_impact_rule (Implication (Premises (DefectiveAndMechanicallyWeakInterface $interface)) (Conclusions (UnderminesEfficiencyAndStability $interface))) (STV 1.0 1.0))",
+                "(: heparin_function (Implication (Premises (IsA $material heparin_sodium)) (Conclusions (FunctionsAsBridge $material))) (STV 1.0 1.0))",
+                "(: enhance_bonding_rule (Implication (Premises (FunctionsAsBridge $material) (ConnectsLayer $material $layer1 $layer2)) (Conclusions (EnhancesHeterointerfaceBonding $material))) (STV 1.0 1.0))",
+                "(: materialized_defective_and_mechanically_weak_interface_fact (DefectiveAndMechanicallyWeakInterface interface) (STV 1.0 1.0))",
+                "(: pce_rule (Implication (Premises (MapDist * (PCE $device) (TargetEfficiency 26.61)) (IsA $device rigid_device)) (Conclusions (AmongHighestEfficiency $device))) (STV 1.0 1.0))",
+                "(: pce_fabrication_rule (Implication (Premises (MapDist * (PCE $device) (TargetEfficiency 25.23)) (IsA $material sn_o2_heparin)) (Conclusions (AchievesPCE $device))) (STV 1.0 1.0))",
+                "(: heparin_stability_rule (Implication (Premises (IsA $device heparin_sodium_based_device)) (Conclusions (DemonstratesOperationalStability $device))) (STV 1.0 1.0))",
+                "(: longterm_pce_retention_rule (Implication (Premises (RetainsPCEForHours $device 1800 (PointMass 94.9))) (Conclusions (RetainsInitialPCE $device))) (STV 1.0 1.0))",
+                "(: materialized_target_efficiency_fact (TargetEfficiency 26_61) (STV 1.0 1.0))",
+                "(: materialized_target_efficiency_fact (TargetEfficiency 25_23) (STV 1.0 1.0))",
+                "(: materialized_point_mass_fact (PointMass 94_9) (STV 1.0 1.0))",
+                "(: pce_retention_rule (Implication (Premises (RetainsPCEForHours $device 1800 (PointMass 95.2))) (Conclusions (RetainsInitialPCE $device))) (STV 1.0 1.0))",
+                "(: device_pce_fact (RetainsPCEForHours device 1800 (PointMass 952)) (STV 1.0 1.0))",
+                "(: materialized_point_mass_fact (PointMass 95_2) (STV 1.0 1.0))"
+              ],
+              "error": null,
+              "chunk_count": 9,
+              "batch_count": 3,
+              "batch_sizes": [
+                4,
+                4,
+                1
+              ],
+              "parser_calls": 3,
+              "rejected_count": 0,
+              "rejected_samples": [],
+              "coreference": {
+                "backend": "lingmess",
+                "model": "biu-nlp/lingmess-coref",
+                "status": "resolved",
+                "changed": true,
+                "replacement_count": 2,
+                "duration_seconds": 4.347356,
+                "score_available": true,
+                "error": null,
+                "diagnostics": [
+                  "cluster_0:unsafe_possessive_antecedent:internal_punctuation:458:461",
+                  "cluster_3:unsafe_possessive_antecedent:relative_clause:1150:1155"
+                ],
+                "resolved_text": "Defective and mechanically weak interfaces substantially undermine both the efficiency and stability of perovskite solar cells (PSCs). Here we introduce a linear polymer, heparin sodium, as a multifunctional interface bridge layer in n\u2013i\u2013p PSCs. Unlike commonly employed small-molecule interface modification/passivation materials, heparin sodium features functional groups and ions including COO\u2212, SO3\u2212 and Na+ distributed along the top and bottom sides of its backbone. a linear polymer, heparin sodium thus serves as a bridge connecting the SnO2 electron transport layer and the perovskite film through robust chemical bonding, mitigating defects and enhancing heterointerface bonding in PSCs. The power conversion efficiency (PCE) of the resulting rigid devices is 26.61% (certified 26.54%), positioning the resulting rigid devices among the highest-efficiency PSCs. We also fabricate flexible SnO2/heparin sodium-based PSCs that achieve a PCE of 25.23%. The heparin sodium-based devices demonstrate excellent operational and thermal stability. After 1,800\u2009h under maximum power point tracking under simulated 1-Sun conditions, 94.9% of the initial PCE is retained. The devices also maintain 95.2% of their initial PCE after ageing at 85\u00b0C for 1,800h."
+              }
+            }
+          ],
+          "query": {
+            "query": "Why does sodium heparin improve perovskite solar cells?",
+            "pln_query": "(: $prf (ImproviseSolarCellFunction sodium_heparin perovskite_solar_cell) $tv)",
+            "original_query": "(: $prf (ImproviseSolarCellFunction sodium_heparin perovskite_solar_cell) $tv)",
+            "executed_query": "(: $prf (ImproviseSolarCellFunction sodium_heparin perovskite_solar_cell) $tv)",
+            "fallback_used": false,
+            "query_status": "well_aligned",
+            "proof": "[]",
+            "sources": [],
+            "answer": "",
+            "proof_provenance": [],
+            "query_support_atoms": [
+              "(: relk_fact (RelK sodium_heparin perovskite_solar_cell) (STV 1.0 1.0))",
+              "(: heparin_function (Implication (Premises (IsA sodium_heparin heparin_sodium)) (Conclusions (FunctionsAsBridge sodium_heparin))) (STV 1.0 1.0))",
+              "(: enhance_bonding_rule (Implication (Premises (FunctionsAsBridge sodium_heparin) (ConnectsLayer sodium_heparin perovskite_layer1 perovskite_layer2)) (Conclusions (EnhancesHeterointerfaceBonding sodium_heparin))) (STV 1.0 1.0))",
+              "(: stability_rule (Implication (Premises (EnhancesHeterointerfaceBonding sodium_heparin)) (Conclusions (ImproviseSolarCellFunction sodium_heparin perovskite_solar_cell))) (STV 1.0 1.0))"
+            ],
+            "candidate_count": 1,
+            "candidate_count_tried": 1,
+            "executed_candidate_index": 0,
+            "retry_used": false,
+            "context_retrieval_seconds": 0.0237,
+            "parse_query_seconds": 2.8262,
+            "reasoning_seconds": 0.422,
+            "source_lookup_seconds": 0.0,
+            "answer_generation_seconds": 0.0
+          }
+        },
+        "proof_found": false,
+        "correct": null
+      },
+      {
+        "case_id": "A10",
+        "case_hash": "f1884934b9209c684723d4ff95b225ef3bc8ba8f87231f16d004125848e8a9fc",
+        "case": {
+          "case_id": "A10",
+          "name": "A10_biochemical_hematological_markers_covid_severity",
+          "source_type": "abstract",
+          "category": "indicator_proxy_language",
+          "input_text": "Background: The global threat of COVID-19 has created the need for researchers to investigate the disease's progression, especially through the use of biomarkers to inform interventions. This study aims to assess the correlations of laboratory parameters to determine the severity of COVID-19 infection. Methods: This study was conducted among 191 COVID-19 patients in Sumeru Hospital, Lalitpur, Nepal. According to their clinical outcomes, these patients were divided into severe and nonsevere groups. Inflammatory markers such as LDH, D-dimer, CRP, ferritin, complete blood cell count, liver function tests, and renal function tests were performed. Binary logistic regression analysis determined relative risk factors associated with severe COVID-19. The area under the curve (AUC) was calculated with ROC curves to assess the potential predictive value of risk factors. Results: Out of 191 patients, 38 (19.8%) subjects died due to COVID-19 complications, while 156 (81.7%) survived and were discharged from hospital. The COVID-19 severity was found in patients with older age and comorbidities such as CKD, HTN, DM, COPD, and pneumonia. Parameters such as d-dimer, CRP, LDH, SGPT, neutrophil, lymphocyte count, and LMR were significant independent risk factors for the severity of the disease. The AUC was highest for d-dimer (AUC = 0.874) with a sensitivity of 82.2% and specificity of 81.2%. Similarly, the cut-off values for other factors were age >54.5 years, D-dimer >0.91 ng/ml, CRP >82.4 mg/dl, neutrophil >78.5%, LDH >600 U/L, and SGPT >35.5 U/L, respectively. Conclusion: Endorsement of biochemical and hematological parameters with their cut-off values also aids in predicting COVID-19 severity. The biomarkers such as D-dimer, CRP levels, LDH, ALT, and neutrophil count could be used to predict disease severity. So, timely analysis of these markers might allow early prediction of disease progression.",
+          "user_query": "Which biomarkers predict COVID-19 severity?",
+          "expected_focus": {
+            "predicate_family": "biomarker_indicator",
+            "main_entities": [
+              "biomarkers",
+              "COVID-19 severity"
+            ],
+            "polarity": "positive",
+            "reasoning_type": "indicator"
+          },
+          "notes": "Proxy/indicator case involving biochemical and hematological markers.",
+          "source_url": "https://pubmed.ncbi.nlm.nih.gov/37900669/",
+          "pmid": "37900669",
+          "requires_manual_copy": true,
+          "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+          "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text.",
+          "question": "Which biomarkers predict COVID-19 severity?",
+          "texts": [
+            "Background: The global threat of COVID-19 has created the need for researchers to investigate the disease's progression, especially through the use of biomarkers to inform interventions. This study aims to assess the correlations of laboratory parameters to determine the severity of COVID-19 infection. Methods: This study was conducted among 191 COVID-19 patients in Sumeru Hospital, Lalitpur, Nepal. According to their clinical outcomes, these patients were divided into severe and nonsevere groups. Inflammatory markers such as LDH, D-dimer, CRP, ferritin, complete blood cell count, liver function tests, and renal function tests were performed. Binary logistic regression analysis determined relative risk factors associated with severe COVID-19. The area under the curve (AUC) was calculated with ROC curves to assess the potential predictive value of risk factors. Results: Out of 191 patients, 38 (19.8%) subjects died due to COVID-19 complications, while 156 (81.7%) survived and were discharged from hospital. The COVID-19 severity was found in patients with older age and comorbidities such as CKD, HTN, DM, COPD, and pneumonia. Parameters such as d-dimer, CRP, LDH, SGPT, neutrophil, lymphocyte count, and LMR were significant independent risk factors for the severity of the disease. The AUC was highest for d-dimer (AUC = 0.874) with a sensitivity of 82.2% and specificity of 81.2%. Similarly, the cut-off values for other factors were age >54.5 years, D-dimer >0.91 ng/ml, CRP >82.4 mg/dl, neutrophil >78.5%, LDH >600 U/L, and SGPT >35.5 U/L, respectively. Conclusion: Endorsement of biochemical and hematological parameters with their cut-off values also aids in predicting COVID-19 severity. The biomarkers such as D-dimer, CRP levels, LDH, ALT, and neutrophil count could be used to predict disease severity. So, timely analysis of these markers might allow early prediction of disease progression."
+          ],
+          "expected_proof": null
+        },
+        "collection": "bench_canonical_pln_A10_biochemical_hematological_markers_covid_severity_6de65f2a",
+        "atomspace_path": "data/atomspace/bench_canonical_pln_A10_biochemical_hematological_markers_covid_severity_6de65f2a.metta",
+        "timing": {
+          "parser_init_seconds": 0.0084,
+          "parse_only_seconds": 0.0168,
+          "ingest_seconds": 4.7827,
+          "query_seconds": 0.7944,
+          "total_seconds": 5.6024
+        },
+        "parse_only": {
+          "statements": [
+            [
+              "(: covid_severity_rule (Implication (Premises (IsA $patient covid_patient) (And (Age $patient $age) (GreaterThan $age 54.5)) (And (D_dimer $patient $d_dimer) (GreaterThan $d_dimer 0.91)) (And (CRP $patient $crp) (GreaterThan $crp 82.4)) (And (Neutrophil $patient $neutrophil) (GreaterThan $neutrophil 78.5)) (And (LDH $patient $ldh) (GreaterThan $ldh 600.0)) (And (SGPT $patient $sgpt) (GreaterThan $sgpt 35.5))) ) (Conclusions (SeverityHigh $patient))) (STV 1.0 1.0))",
+              "(: death_rate_observed (Implication (Premises (IsA $patient covid_patient)) (Conclusions (DeathRate $patient 19.8))) (STV 1.0 1.0))",
+              "(: materialized_greater_than_fact (GreaterThan age 54_5) (STV 1.0 1.0))",
+              "(: materialized_greater_than_fact (GreaterThan crp 82_4) (STV 1.0 1.0))",
+              "(: materialized_greater_than_fact (GreaterThan neutrophil 78_5) (STV 1.0 1.0))",
+              "(: materialized_greater_than_fact (GreaterThan ldh 600_0) (STV 1.0 1.0))",
+              "(: materialized_greater_than_fact (GreaterThan sgpt 35_5) (STV 1.0 1.0))"
+            ]
+          ],
+          "statement_counts": [
+            7
+          ],
+          "query_statements": [],
+          "query_statements_count": 0,
+          "queries": [
+            "(: $prf (Predict $biomarker covid severity) $tv)"
+          ],
+          "query_count": 1
+        },
+        "end_to_end": {
+          "ingest": [
+            {
+              "text": "Background: The global threat of COVID-19 has created the need for researchers to investigate the disease's progression, especially through the use of biomarkers to inform interventions. This study aims to assess the correlations of laboratory parameters to determine the severity of COVID-19 infection. Methods: This study was conducted among 191 COVID-19 patients in Sumeru Hospital, Lalitpur, Nepal. According to their clinical outcomes, these patients were divided into severe and nonsevere groups. Inflammatory markers such as LDH, D-dimer, CRP, ferritin, complete blood cell count, liver function tests, and renal function tests were performed. Binary logistic regression analysis determined relative risk factors associated with severe COVID-19. The area under the curve (AUC) was calculated with ROC curves to assess the potential predictive value of risk factors. Results: Out of 191 patients, 38 (19.8%) subjects died due to COVID-19 complications, while 156 (81.7%) survived and were discharged from hospital. The COVID-19 severity was found in patients with older age and comorbidities such as CKD, HTN, DM, COPD, and pneumonia. Parameters such as d-dimer, CRP, LDH, SGPT, neutrophil, lymphocyte count, and LMR were significant independent risk factors for the severity of the disease. The AUC was highest for d-dimer (AUC = 0.874) with a sensitivity of 82.2% and specificity of 81.2%. Similarly, the cut-off values for other factors were age >54.5 years, D-dimer >0.91 ng/ml, CRP >82.4 mg/dl, neutrophil >78.5%, LDH >600 U/L, and SGPT >35.5 U/L, respectively. Conclusion: Endorsement of biochemical and hematological parameters with their cut-off values also aids in predicting COVID-19 severity. The biomarkers such as D-dimer, CRP levels, LDH, ALT, and neutrophil count could be used to predict disease severity. So, timely analysis of these markers might allow early prediction of disease progression.",
+              "status": "success",
+              "atoms": [
+                "(: covid_threat (IsA covid global_threat) (STV 1.0 1.0))",
+                "(: investigation_rule (Implication (Premises (IsA researcher r) (Investigate $r disease_progression)) (Conclusions (Need $r investigate_disease))) (STV 1.0 1.0))",
+                "(: patient_grouping_rule (Implication (Premises (Group $patients) (ClinicalOutcome $patients $outcome)) (Conclusions (Divided $patients severe_nonsevere))) (STV 1.0 1.0))",
+                "(: biomarker_assessment_rule (Implication (Premises (HasBiomarker $patient $marker) (DetermineSeverity $patient $severity)) (Conclusions (Correlation $marker $severity))) (STV 1.0 1.0))",
+                "(: materialized_is_a_fact (IsA researcher r) (STV 1.0 1.0))",
+                "(: risk_factor_analysis_rule (Implication (Premises (Determinant $item severe_covid)) (Conclusions (RelativeRisk $item))) (STV 1.0 1.0))",
+                "(: auc_calculation_rule (Implication (Premises (AreaUnderCurve $auc)) (Conclusions (PredictiveValue $auc))) (STV 1.0 1.0))",
+                "(: severity_comorbidity_rule (Implication (Premises (OlderAge $patient) (Comorbidities $patient $comorbidities)) (Conclusions (SevereCovid $patient))) (STV 1.0 1.0))",
+                "(: patient_outcome_rule (Implication (Premises (SevereCovid $patient)) (Conclusions (Outcome $patient fatal))) (STV 1.0 1.0))",
+                "(: materialized_area_under_curve_fact (AreaUnderCurve auc) (STV 1.0 1.0))",
+                "(: d_dimer_risk (Determinant d_dimer severe_covid) (STV 1.0 1.0))",
+                "(: crp_risk (Determinant crp severe_covid) (STV 1.0 1.0))",
+                "(: ldh_risk (Determinant ldh severe_covid) (STV 1.0 1.0))",
+                "(: sgpt_risk (Determinant sgpt severe_covid) (STV 1.0 1.0))",
+                "(: neutrophil_risk (Determinant neutrophil severe_covid) (STV 1.0 1.0))",
+                "(: lymphocyte_count_risk (Determinant lymphocyte_count severe_covid) (STV 1.0 1.0))",
+                "(: lmr_risk (Determinant lmr severe_covid) (STV 1.0 1.0))",
+                "(: severity_predictive_rule (Implication (Premises (And (Determinant d_dimer severe_covid) (Determinant crp severe_covid) (Determinant ldh severe_covid) (Determinant sgpt severe_covid) (Determinant neutrophil severe_covid) (Determinant lymphocyte_count severe_covid) (Determinant lmr severe_covid))) (Conclusions (PredictSeverity severe_covid))) (STV 1.0 1.0))",
+                "(: cutoff_value (Implication (Premises (And (GreaterThan age 54.5) (GreaterThan d_dimer 0.91) (GreaterThan crp 82.4) (GreaterThan neutrophil 78.5) (GreaterThan ldh 600) (GreaterThan sgpt 35.5))) (Conclusions (CutOffValues true))) (STV 1.0 1.0))",
+                "(: parameter_endorsement (Implication (Premises (And (HasBiomarker d_dimer) (HasBiomarker crp) (HasBiomarker ldh) (HasBiomarker sgpt) (HasBiomarker neutrophil) (HasBiomarker lymphocyte_count) (HasBiomarker lmr))) (Conclusions (PredictSeverity true))) (STV 1.0 1.0))",
+                "(: materialized_determinant_fact (Determinant d_dimer severe_covid) (STV 1.0 1.0))",
+                "(: materialized_determinant_fact (Determinant crp severe_covid) (STV 1.0 1.0))",
+                "(: materialized_determinant_fact (Determinant ldh severe_covid) (STV 1.0 1.0))",
+                "(: materialized_determinant_fact (Determinant sgpt severe_covid) (STV 1.0 1.0))",
+                "(: materialized_determinant_fact (Determinant neutrophil severe_covid) (STV 1.0 1.0))",
+                "(: materialized_determinant_fact (Determinant lymphocyte_count severe_covid) (STV 1.0 1.0))",
+                "(: materialized_determinant_fact (Determinant lmr severe_covid) (STV 1.0 1.0))",
+                "(: materialized_greater_than_fact (GreaterThan age 54_5) (STV 1.0 1.0))",
+                "(: materialized_greater_than_fact (GreaterThan d_dimer 0_91) (STV 1.0 1.0))",
+                "(: materialized_greater_than_fact (GreaterThan crp 82_4) (STV 1.0 1.0))",
+                "(: materialized_greater_than_fact (GreaterThan neutrophil 78_5) (STV 1.0 1.0))",
+                "(: materialized_greater_than_fact (GreaterThan ldh 600) (STV 1.0 1.0))",
+                "(: materialized_greater_than_fact (GreaterThan sgpt 35_5) (STV 1.0 1.0))",
+                "(: materialized_has_biomarker_fact (HasBiomarker d_dimer) (STV 1.0 1.0))",
+                "(: materialized_has_biomarker_fact (HasBiomarker crp) (STV 1.0 1.0))",
+                "(: materialized_has_biomarker_fact (HasBiomarker ldh) (STV 1.0 1.0))",
+                "(: materialized_has_biomarker_fact (HasBiomarker sgpt) (STV 1.0 1.0))",
+                "(: materialized_has_biomarker_fact (HasBiomarker neutrophil) (STV 1.0 1.0))",
+                "(: materialized_has_biomarker_fact (HasBiomarker lymphocyte_count) (STV 1.0 1.0))",
+                "(: materialized_has_biomarker_fact (HasBiomarker lmr) (STV 1.0 1.0))",
+                "(: d_dimer_biomarker (HasBiomarker d_dimer) (STV 1.0 1.0))",
+                "(: crp_biomarker (HasBiomarker crp) (STV 1.0 1.0))",
+                "(: ldh_biomarker (HasBiomarker ldh) (STV 1.0 1.0))",
+                "(: neutrophil_biomarker (HasBiomarker neutrophil) (STV 1.0 1.0))",
+                "(: disease_severity_rule (Implication (Premises (HasBiomarker $marker) (Determinant $marker severe_covid)) (Conclusions (PredictSeverity true))) (STV 1.0 1.0))"
+              ],
+              "error": null,
+              "chunk_count": 14,
+              "batch_count": 4,
+              "batch_sizes": [
+                4,
+                4,
+                4,
+                2
+              ],
+              "parser_calls": 4,
+              "rejected_count": 0,
+              "rejected_samples": [],
+              "coreference": {
+                "backend": "lingmess",
+                "model": "biu-nlp/lingmess-coref",
+                "status": "resolved",
+                "changed": true,
+                "replacement_count": 2,
+                "duration_seconds": 4.294574,
+                "score_available": true,
+                "error": null,
+                "diagnostics": [],
+                "resolved_text": "Background: The global threat of COVID-19 has created the need for researchers to investigate the disease's progression, especially through the use of biomarkers to inform interventions. This study aims to assess the correlations of laboratory parameters to determine the severity of COVID-19 infection. Methods: This study was conducted among 191 COVID-19 patients in Sumeru Hospital, Lalitpur, Nepal. According to 191 COVID-19 patients' clinical outcomes, these patients were divided into severe and nonsevere groups. Inflammatory markers such as LDH, D-dimer, CRP, ferritin, complete blood cell count, liver function tests, and renal function tests were performed. Binary logistic regression analysis determined relative risk factors associated with severe COVID-19. The area under the curve (AUC) was calculated with ROC curves to assess the potential predictive value of risk factors. Results: Out of 191 patients, 38 (19.8%) subjects died due to COVID-19 complications, while 156 (81.7%) survived and were discharged from hospital. The COVID-19 severity was found in patients with older age and comorbidities such as CKD, HTN, DM, COPD, and pneumonia. Parameters such as d-dimer, CRP, LDH, SGPT, neutrophil, lymphocyte count, and LMR were significant independent risk factors for the severity of the disease. The AUC was highest for d-dimer (AUC = 0.874) with a sensitivity of 82.2% and specificity of 81.2%. Similarly, the cut-off values for other factors were age >54.5 years, D-dimer >0.91 ng/ml, CRP >82.4 mg/dl, neutrophil >78.5%, LDH >600 U/L, and SGPT >35.5 U/L, respectively. Conclusion: Endorsement of biochemical and hematological parameters with biochemical and hematological parameters' cut-off values also aids in predicting COVID-19 severity. The biomarkers such as D-dimer, CRP levels, LDH, ALT, and neutrophil count could be used to predict disease severity. So, timely analysis of these markers might allow early prediction of disease progression."
+              }
+            }
+          ],
+          "query": {
+            "query": "Which biomarkers predict COVID-19 severity?",
+            "pln_query": "(: $prf (HasBiomarker $marker) $tv)",
+            "original_query": "(: $prf (HasBiomarker $marker) $tv)",
+            "executed_query": "(: $prf (HasBiomarker $marker) $tv)",
+            "fallback_used": false,
+            "query_status": "well_aligned",
+            "proof": "['(: materialized_has_biomarker_fact (HasBiomarker sgpt) (STV 1.0 1.0))', '(: materialized_has_biomarker_fact (HasBiomarker lymphocyte_count) (STV 1.0 1.0))', '(: materialized_has_biomarker_fact (HasBiomarker lmr) (STV 1.0 1.0))', '(: (merge/revision materialized_has_biomarker_fact d_dimer_biomarker) (HasBiomarker d_dimer) (STV 1.0 0.999950002499875))', '(: (merge/revision materialized_has_biomarker_fact crp_biomarker) (HasBiomarker crp) (STV 1.0 0.999950002499875))', '(: (merge/revision materialized_has_biomarker_fact ldh_biomarker) (HasBiomarker ldh) (STV 1.0 0.999950002499875))', '(: (merge/revision materialized_has_biomarker_fact neutrophil_biomarker) (HasBiomarker neutrophil) (STV 1.0 0.999950002499875))']",
+            "sources": [
+              "The biomarkers such as D-dimer, CRP levels, LDH, ALT, and neutrophil count could be used to predict disease severity. So, timely analysis of these markers might allow early prediction of disease progression."
+            ],
+            "answer": "",
+            "proof_provenance": [
+              {
+                "atom_names": [
+                  "materialized_has_biomarker_fact"
+                ],
+                "ambiguous_atom_names": [
+                  "materialized_has_biomarker_fact"
+                ],
+                "sources": [
+                  {
+                    "atom_name": "materialized_has_biomarker_fact",
+                    "kind": "document",
+                    "case_id": "A10",
+                    "document_index": 0
+                  }
+                ],
+                "current_case_grounded": true,
+                "foreign_case_ids": [],
+                "foreign_only": false,
+                "query_support_only": false,
+                "unknown": false
+              },
+              {
+                "atom_names": [
+                  "materialized_has_biomarker_fact"
+                ],
+                "ambiguous_atom_names": [
+                  "materialized_has_biomarker_fact"
+                ],
+                "sources": [
+                  {
+                    "atom_name": "materialized_has_biomarker_fact",
+                    "kind": "document",
+                    "case_id": "A10",
+                    "document_index": 0
+                  }
+                ],
+                "current_case_grounded": true,
+                "foreign_case_ids": [],
+                "foreign_only": false,
+                "query_support_only": false,
+                "unknown": false
+              },
+              {
+                "atom_names": [
+                  "materialized_has_biomarker_fact"
+                ],
+                "ambiguous_atom_names": [
+                  "materialized_has_biomarker_fact"
+                ],
+                "sources": [
+                  {
+                    "atom_name": "materialized_has_biomarker_fact",
+                    "kind": "document",
+                    "case_id": "A10",
+                    "document_index": 0
+                  }
+                ],
+                "current_case_grounded": true,
+                "foreign_case_ids": [],
+                "foreign_only": false,
+                "query_support_only": false,
+                "unknown": false
+              },
+              {
+                "atom_names": [
+                  "d_dimer_biomarker",
+                  "materialized_has_biomarker_fact"
+                ],
+                "ambiguous_atom_names": [
+                  "materialized_has_biomarker_fact"
+                ],
+                "sources": [
+                  {
+                    "atom_name": "d_dimer_biomarker",
+                    "kind": "document",
+                    "case_id": "A10",
+                    "document_index": 0
+                  },
+                  {
+                    "atom_name": "materialized_has_biomarker_fact",
+                    "kind": "document",
+                    "case_id": "A10",
+                    "document_index": 0
+                  }
+                ],
+                "current_case_grounded": true,
+                "foreign_case_ids": [],
+                "foreign_only": false,
+                "query_support_only": false,
+                "unknown": false
+              },
+              {
+                "atom_names": [
+                  "crp_biomarker",
+                  "materialized_has_biomarker_fact"
+                ],
+                "ambiguous_atom_names": [
+                  "materialized_has_biomarker_fact"
+                ],
+                "sources": [
+                  {
+                    "atom_name": "crp_biomarker",
+                    "kind": "document",
+                    "case_id": "A10",
+                    "document_index": 0
+                  },
+                  {
+                    "atom_name": "materialized_has_biomarker_fact",
+                    "kind": "document",
+                    "case_id": "A10",
+                    "document_index": 0
+                  }
+                ],
+                "current_case_grounded": true,
+                "foreign_case_ids": [],
+                "foreign_only": false,
+                "query_support_only": false,
+                "unknown": false
+              },
+              {
+                "atom_names": [
+                  "ldh_biomarker",
+                  "materialized_has_biomarker_fact"
+                ],
+                "ambiguous_atom_names": [
+                  "materialized_has_biomarker_fact"
+                ],
+                "sources": [
+                  {
+                    "atom_name": "ldh_biomarker",
+                    "kind": "document",
+                    "case_id": "A10",
+                    "document_index": 0
+                  },
+                  {
+                    "atom_name": "materialized_has_biomarker_fact",
+                    "kind": "document",
+                    "case_id": "A10",
+                    "document_index": 0
+                  }
+                ],
+                "current_case_grounded": true,
+                "foreign_case_ids": [],
+                "foreign_only": false,
+                "query_support_only": false,
+                "unknown": false
+              },
+              {
+                "atom_names": [
+                  "materialized_has_biomarker_fact",
+                  "neutrophil_biomarker"
+                ],
+                "ambiguous_atom_names": [
+                  "materialized_has_biomarker_fact"
+                ],
+                "sources": [
+                  {
+                    "atom_name": "materialized_has_biomarker_fact",
+                    "kind": "document",
+                    "case_id": "A10",
+                    "document_index": 0
+                  },
+                  {
+                    "atom_name": "neutrophil_biomarker",
+                    "kind": "document",
+                    "case_id": "A10",
+                    "document_index": 0
+                  }
+                ],
+                "current_case_grounded": true,
+                "foreign_case_ids": [],
+                "foreign_only": false,
+                "query_support_only": false,
+                "unknown": false
+              }
+            ],
+            "query_support_atoms": [
+              "(: severity_determinant_rule (Implication (Premises (HasBiomarker $marker) (Determinant $marker severe_covid)) (Conclusions (PredictSeverity true))) (STV 1.0 1.0))"
+            ],
+            "candidate_count": 1,
+            "candidate_count_tried": 1,
+            "executed_candidate_index": 0,
+            "retry_used": false,
+            "context_retrieval_seconds": 0.0268,
+            "parse_query_seconds": 0.0117,
+            "reasoning_seconds": 0.4225,
+            "source_lookup_seconds": 0.3313,
+            "answer_generation_seconds": 0.0
+          }
+        },
+        "proof_found": true,
+        "correct": null
+      },
+      {
+        "case_id": "A11",
+        "case_hash": "dab8ddd81ea20d8a52be32a136a91654aefa52de5b1a79ca2124852360342f2f",
+        "case": {
+          "case_id": "A11",
+          "name": "A11_serological_biomarkers_inflammation_covid_severity",
+          "source_type": "abstract",
+          "category": "indicator_proxy_language",
+          "input_text": "Background: Patients with severe coronavirus disease 2019 (COVID-19) develop acute respiratory distress and multi-system organ failure and are associated with poor prognosis and high mortality. Thus, there is an urgent need to identify early diagnostic and prognostic biomarkers to determine the risk of developing serious illness. Methods: We retrospectively analyzed 114 patients with COVID-19 at the Jinyintan Hospital, Wuhan based on their clinical and laboratory data. Patients were categorized into severe and mild to moderate disease groups. We analyzed the potential of serological inflammation indicators in predicting the severity of COVID-19 in patients using univariate and multivariate logistic regression, receiver operating characteristic curves, and nomogram analysis. The Spearman method was used to understand the correlation between the serological biomarkers and duration of hospital stay. Results: Patients with severe disease had reduced neutrophils and lymphocytes; severe coagulation dysfunction; altered content of biochemical factors (such as urea, lactate dehydrogenase); elevated high sensitivity C-reactive protein levels, neutrophil-lymphocyte, platelet-lymphocyte, and derived neutrophil-lymphocyte ratios, high sensitivity C-reactive protein-prealbumin ratio (HsCPAR), systemic immune-inflammation index, and high sensitivity C-reactive protein-albumin ratio (HsCAR); and low lymphocyte-monocyte ratio, prognostic nutritional index (PNI), and albumin-to-fibrinogen ratio. PNI, HsCAR, and HsCPAR correlated with the risk of severe disease. The nomogram combining the three parameters showed good discrimination with a C-index of 0.873 and reliable calibration. Moreover, HsCAR and HsCPAR correlated with duration of hospital stay. Conclusion: Taken together, PNI, HsCAR, and HsCPAR may serve as accurate biomarkers for the prediction of disease severity in patients with COVID-19 upon admission/hospitalization.",
+          "user_query": "Can serological inflammation indicators predict COVID-19 severity?",
+          "expected_focus": {
+            "predicate_family": "biomarker_indicator",
+            "main_entities": [
+              "serological inflammation indicators",
+              "COVID-19 severity"
+            ],
+            "polarity": "positive",
+            "reasoning_type": "indicator"
+          },
+          "notes": "Similar target to A10 with different surface wording.",
+          "source_url": "https://pubmed.ncbi.nlm.nih.gov/33045571/",
+          "pmid": "33045571",
+          "requires_manual_copy": true,
+          "manual_copy_reason": "Verbatim abstract redistribution rights were not verified. PubMed/NLM does not claim copyright over abstracts, but publishers/authors may; manually copy the abstract into input_text for internal benchmark use if permitted.",
+          "copy_instructions": "Open the source_url, copy the article abstract only, and paste it into input_text as one string. Do not include title, authors, journal metadata, keywords, or copyright text.",
+          "question": "Can serological inflammation indicators predict COVID-19 severity?",
+          "texts": [
+            "Background: Patients with severe coronavirus disease 2019 (COVID-19) develop acute respiratory distress and multi-system organ failure and are associated with poor prognosis and high mortality. Thus, there is an urgent need to identify early diagnostic and prognostic biomarkers to determine the risk of developing serious illness. Methods: We retrospectively analyzed 114 patients with COVID-19 at the Jinyintan Hospital, Wuhan based on their clinical and laboratory data. Patients were categorized into severe and mild to moderate disease groups. We analyzed the potential of serological inflammation indicators in predicting the severity of COVID-19 in patients using univariate and multivariate logistic regression, receiver operating characteristic curves, and nomogram analysis. The Spearman method was used to understand the correlation between the serological biomarkers and duration of hospital stay. Results: Patients with severe disease had reduced neutrophils and lymphocytes; severe coagulation dysfunction; altered content of biochemical factors (such as urea, lactate dehydrogenase); elevated high sensitivity C-reactive protein levels, neutrophil-lymphocyte, platelet-lymphocyte, and derived neutrophil-lymphocyte ratios, high sensitivity C-reactive protein-prealbumin ratio (HsCPAR), systemic immune-inflammation index, and high sensitivity C-reactive protein-albumin ratio (HsCAR); and low lymphocyte-monocyte ratio, prognostic nutritional index (PNI), and albumin-to-fibrinogen ratio. PNI, HsCAR, and HsCPAR correlated with the risk of severe disease. The nomogram combining the three parameters showed good discrimination with a C-index of 0.873 and reliable calibration. Moreover, HsCAR and HsCPAR correlated with duration of hospital stay. Conclusion: Taken together, PNI, HsCAR, and HsCPAR may serve as accurate biomarkers for the prediction of disease severity in patients with COVID-19 upon admission/hospitalization."
+          ],
+          "expected_proof": null
+        },
+        "collection": "bench_canonical_pln_A11_serological_biomarkers_inflammation_covid_severity_6de65f2a",
+        "atomspace_path": "data/atomspace/bench_canonical_pln_A11_serological_biomarkers_inflammation_covid_severity_6de65f2a.metta",
+        "timing": {
+          "parser_init_seconds": 0.0087,
+          "parse_only_seconds": 0.0183,
+          "ingest_seconds": 4.341,
+          "query_seconds": 0.4629,
+          "total_seconds": 4.8309
+        },
+        "parse_only": {
+          "statements": [
+            [
+              "(: covid_patient (IsA patients covid) (STV 1.0 1.0))",
+              "(: severe_covid_rule (Implication (Premises (Covid $p) (Severe $p)) (Conclusions (HasBiomarkers $p pni hs_car hs_cpar))) (STV 1.0 1.0))",
+              "(: pni_rule (Implication (Premises (HasBiomarkers $p pni)) (Conclusions (RiskSevere $p))) (STV 1.0 1.0))",
+              "(: hscar_rule (Implication (Premises (HasBiomarkers $p hs_car)) (Conclusions (RiskSevere $p))) (STV 1.0 1.0))",
+              "(: hscpar_rule (Implication (Premises (HasBiomarkers $p hs_cpar)) (Conclusions (RiskSevere $p))) (STV 1.0 1.0))"
+            ]
+          ],
+          "statement_counts": [
+            5
+          ],
+          "query_statements": [],
+          "query_statements_count": 0,
+          "queries": [
+            "(: $prf (Predict (SerologicalIndicators indicator) (Covid severity)) $tv)"
+          ],
+          "query_count": 1
+        },
+        "end_to_end": {
+          "ingest": [
+            {
+              "text": "Background: Patients with severe coronavirus disease 2019 (COVID-19) develop acute respiratory distress and multi-system organ failure and are associated with poor prognosis and high mortality. Thus, there is an urgent need to identify early diagnostic and prognostic biomarkers to determine the risk of developing serious illness. Methods: We retrospectively analyzed 114 patients with COVID-19 at the Jinyintan Hospital, Wuhan based on their clinical and laboratory data. Patients were categorized into severe and mild to moderate disease groups. We analyzed the potential of serological inflammation indicators in predicting the severity of COVID-19 in patients using univariate and multivariate logistic regression, receiver operating characteristic curves, and nomogram analysis. The Spearman method was used to understand the correlation between the serological biomarkers and duration of hospital stay. Results: Patients with severe disease had reduced neutrophils and lymphocytes; severe coagulation dysfunction; altered content of biochemical factors (such as urea, lactate dehydrogenase); elevated high sensitivity C-reactive protein levels, neutrophil-lymphocyte, platelet-lymphocyte, and derived neutrophil-lymphocyte ratios, high sensitivity C-reactive protein-prealbumin ratio (HsCPAR), systemic immune-inflammation index, and high sensitivity C-reactive protein-albumin ratio (HsCAR); and low lymphocyte-monocyte ratio, prognostic nutritional index (PNI), and albumin-to-fibrinogen ratio. PNI, HsCAR, and HsCPAR correlated with the risk of severe disease. The nomogram combining the three parameters showed good discrimination with a C-index of 0.873 and reliable calibration. Moreover, HsCAR and HsCPAR correlated with duration of hospital stay. Conclusion: Taken together, PNI, HsCAR, and HsCPAR may serve as accurate biomarkers for the prediction of disease severity in patients with COVID-19 upon admission/hospitalization.",
+              "status": "success",
+              "atoms": [
+                "(: covid_patient (IsA patients covid) (STV 1.0 1.0))",
+                "(: severe_covid_rule (Implication (Premises (Develop $p severe coronavirus disease 2019)) (Conclusions (Severe $p))) (STV 1.0 1.0))",
+                "(: urgent_need_rule (Implication (Premises (Severe $p)) (Conclusions (NeedDiagnosticBiomarkers $p))) (STV 1.0 1.0))",
+                "(: analysis_method (Implication (Premises (Analyzed 114 $p at hospital)) (Conclusions (RetrospectiveMethod $p))) (STV 1.0 1.0))",
+                "(: analyzed_indicator_rule (Implication (Premises (Analyzed $p potential_serological_inflammation_indicator)) (Conclusions (UsedForPredictingSeverity $p covid))) (STV 1.0 1.0))",
+                "(: correlation_rule (Implication (Premises (Analyzed $p potential_serological_inflammation_indicator) (SpearmanMethod $p duration_hospital_stay)) (Conclusions (CorrelatedWith $p duration_hospital_stay))) (STV 1.0 1.0))",
+                "(: severe_covid_result_rule (Implication (Premises (Severe $p)) (Conclusions (HasBiomarkers $p))) (STV 1.0 1.0))",
+                "(: pni_correlated_rule (Implication (Premises (Correlated pni risk_severe_disease) (Correlated hscar risk_severe_disease) (Correlated hscpar risk_severe_disease)) (Conclusions (BiomarkersForSeverity pni hscar hscpar))) (STV 1.0 1.0))",
+                "(: nomogram_performance_rule (Implication (Premises (CombiningNomogram pni hscar hscpar) (GoodDiscrimination nomogram 0.873)) (Conclusions (DiscriminationWithCIndex nomogram 0.873))) (STV 1.0 1.0))",
+                "(: duration_correlation_rule (Implication (Premises (Correlated hscar duration_hospital_stay) (Correlated hscpar duration_hospital_stay)) (Conclusions (CorrelatedWith hscar hscpar duration_hospital_stay))) (STV 1.0 1.0))",
+                "(: biomarker_prediction_rule (Implication (Premises (BiomarkersForSeverity pni hscar hscpar)) (Conclusions (AccurateBiomarkers pni hscar hscpar))) (STV 1.0 1.0))",
+                "(: materialized_correlated_fact (Correlated pni risk_severe_disease) (STV 1.0 1.0))",
+                "(: materialized_correlated_fact (Correlated hscar risk_severe_disease) (STV 1.0 1.0))",
+                "(: materialized_correlated_fact (Correlated hscpar risk_severe_disease) (STV 1.0 1.0))",
+                "(: materialized_combining_nomogram_fact (CombiningNomogram pni hscar hscpar) (STV 1.0 1.0))",
+                "(: materialized_good_discrimination_fact (GoodDiscrimination nomogram 0_873) (STV 1.0 1.0))",
+                "(: materialized_correlated_fact (Correlated hscar duration_hospital_stay) (STV 1.0 1.0))",
+                "(: materialized_correlated_fact (Correlated hscpar duration_hospital_stay) (STV 1.0 1.0))",
+                "(: materialized_biomarker_for_severity_fact (BiomarkersForSeverity pni hscar hscpar) (STV 1.0 1.0))"
+              ],
+              "error": null,
+              "chunk_count": 12,
+              "batch_count": 3,
+              "batch_sizes": [
+                4,
+                4,
+                4
+              ],
+              "parser_calls": 3,
+              "rejected_count": 0,
+              "rejected_samples": [],
+              "coreference": {
+                "backend": "lingmess",
+                "model": "biu-nlp/lingmess-coref",
+                "status": "unchanged",
+                "changed": false,
+                "replacement_count": 0,
+                "duration_seconds": 3.965156,
+                "score_available": true,
+                "error": null,
+                "diagnostics": [
+                  "cluster_1:unsafe_possessive_antecedent:internal_punctuation:438:443"
+                ],
+                "resolved_text": "Background: Patients with severe coronavirus disease 2019 (COVID-19) develop acute respiratory distress and multi-system organ failure and are associated with poor prognosis and high mortality. Thus, there is an urgent need to identify early diagnostic and prognostic biomarkers to determine the risk of developing serious illness. Methods: We retrospectively analyzed 114 patients with COVID-19 at the Jinyintan Hospital, Wuhan based on their clinical and laboratory data. Patients were categorized into severe and mild to moderate disease groups. We analyzed the potential of serological inflammation indicators in predicting the severity of COVID-19 in patients using univariate and multivariate logistic regression, receiver operating characteristic curves, and nomogram analysis. The Spearman method was used to understand the correlation between the serological biomarkers and duration of hospital stay. Results: Patients with severe disease had reduced neutrophils and lymphocytes; severe coagulation dysfunction; altered content of biochemical factors (such as urea, lactate dehydrogenase); elevated high sensitivity C-reactive protein levels, neutrophil-lymphocyte, platelet-lymphocyte, and derived neutrophil-lymphocyte ratios, high sensitivity C-reactive protein-prealbumin ratio (HsCPAR), systemic immune-inflammation index, and high sensitivity C-reactive protein-albumin ratio (HsCAR); and low lymphocyte-monocyte ratio, prognostic nutritional index (PNI), and albumin-to-fibrinogen ratio. PNI, HsCAR, and HsCPAR correlated with the risk of severe disease. The nomogram combining the three parameters showed good discrimination with a C-index of 0.873 and reliable calibration. Moreover, HsCAR and HsCPAR correlated with duration of hospital stay. Conclusion: Taken together, PNI, HsCAR, and HsCPAR may serve as accurate biomarkers for the prediction of disease severity in patients with COVID-19 upon admission/hospitalization."
+              }
+            }
+          ],
+          "query": {
+            "query": "Can serological inflammation indicators predict COVID-19 severity?",
+            "pln_query": "(: $prf (UsedForPredictingSeverity $p covid) $tv)",
+            "original_query": "(: $prf (UsedForPredictingSeverity $p covid) $tv)",
+            "executed_query": "(: $prf (UsedForPredictingSeverity $p covid) $tv)",
+            "fallback_used": false,
+            "query_status": "weakly_aligned",
+            "proof": "[]",
+            "sources": [],
+            "answer": "No proof was found. The generated query is only weakly aligned with the current knowledge base, so the failure may come from query shape mismatch or missing witness facts.",
+            "proof_provenance": [],
+            "query_support_atoms": [
+              "(: serological_indicator_rule (Implication (Premises (Analyzed $p potential_serological_inflammation_indicator)) (Conclusions (UsedForPredictingSeverity $p covid))) (STV 1.0 1.0))",
+              "(: severe_covid_result_rule (Implication (Premises (Severe $p)) (Conclusions (HasBiomarkers $p))) (STV 1.0 1.0))"
+            ],
+            "candidate_count": 1,
+            "candidate_count_tried": 1,
+            "executed_candidate_index": 0,
+            "retry_used": false,
+            "context_retrieval_seconds": 0.0305,
+            "parse_query_seconds": 0.0124,
+            "reasoning_seconds": 0.4141,
+            "source_lookup_seconds": 0.0,
+            "answer_generation_seconds": 0.0
+          }
+        },
+        "proof_found": false,
+        "correct": null
+      }
+    ]
+  },
+  "summary": {
+    "canonical_pln": {
+      "cases": 7,
+      "correct": 0,
+      "correct_known": 0,
+      "proof_found": 1,
+      "no_query": 0,
+      "weakly_aligned": 2,
+      "fallback_used": 1,
+      "execution_errors": 0,
+      "parser_errors": 0,
+      "ingest_failures": 0,
+      "coreference": {
+        "processed": 7,
+        "successful_invocations": 7,
+        "changed": 4,
+        "replacements": 7,
+        "failures": 0,
+        "total_latency_seconds": 37.259399,
+        "avg_latency_seconds": 5.322771,
+        "median_latency_seconds": 4.294574
+      },
+      "latency_samples": 7,
+      "avg_latency_seconds": 7.8802,
+      "median_latency_seconds": 5.6024
+    }
+  },
+  "active_parsers": [
+    "canonical_pln"
+  ]
+}

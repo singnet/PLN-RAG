@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "pair_id": "3179716d56b9",
+  "left": {
+    "run_id": "d6af5068",
+    "coref": {
+      "enabled": false,
+      "backend": "none",
+      "model": null,
+      "device": "cpu",
+      "fail_open": true
+    }
+  },
+  "right": {
+    "run_id": "ce24ef95",
+    "coref": {
+      "enabled": true,
+      "backend": "fcoref",
+      "model": null,
+      "device": "cpu",
+      "fail_open": true
+    }
+  },
+  "matched_cases": 2,
+  "proof_transitions": {
+    "false_to_true": 0,
+    "true_to_false": 0,
+    "unchanged_true": 2,
+    "unchanged_false": 0
+  },
+  "query_changes": 1,
+  "coreference_changed_cases": 0,
+  "query_changes_without_rewrite": 1,
+  "causal_interpretation_valid": false,
+  "warnings": [
+    "query_changed_without_coreference_rewrite"
+  ],
+  "timing_deltas_seconds": {
+    "parse_only_seconds": {
+      "samples": 2,
+      "mean_delta": -0.21655,
+      "median_delta": -0.21655
+    },
+    "ingest_seconds": {
+      "samples": 2,
+      "mean_delta": 4.22005,
+      "median_delta": 4.22005
+    },
+    "query_seconds": {
+      "samples": 2,
+      "mean_delta": -0.4876,
+      "median_delta": -0.4876
+    },
+    "total_seconds": {
+      "samples": 2,
+      "mean_delta": 3.50235,
+      "median_delta": 3.50235
+    },
+    "coreference_seconds": {
+      "samples": 2,
+      "mean_delta": 4.361719,
+      "median_delta": 4.361719
+    }
+  },
+  "cases": [
+    {
+      "parser": "canonical_pln",
+      "case_id": "E01",
+      "case_hash": "3b4e5b245024104edf0592e3d6ced2c2154127192856044507c1bd2f55e087be",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": false,
+      "query_changed_fields": [],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (Brighter venus) $tv)",
+        "executed_query": "(: $prf (Brighter venus) $tv)",
+        "pln_query": "(: $prf (Brighter venus) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (Brighter venus) $tv)",
+        "executed_query": "(: $prf (Brighter venus) $tv)",
+        "pln_query": "(: $prf (Brighter venus) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": 0.3377,
+        "ingest_seconds": 5.8944,
+        "query_seconds": -1.3921,
+        "total_seconds": 4.8126,
+        "coreference_seconds": 5.953518
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "E03",
+      "case_hash": "1e91b2b30e1f5da759112fbe36a712715199bbe3a254e1ca7f8cef95eff4782d",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (Brighter sun) $tv)",
+        "executed_query": "(: $prf (Brighter sun) $tv)",
+        "pln_query": "(: $prf (Brighter sun) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (AppearsBrighter sun) $tv)",
+        "executed_query": "(: $prf (AppearsBrighter sun) $tv)",
+        "pln_query": "(: $prf (AppearsBrighter sun) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.7708,
+        "ingest_seconds": 2.5457,
+        "query_seconds": 0.4169,
+        "total_seconds": 2.1921,
+        "coreference_seconds": 2.769919
+      }
+    }
+  ]
+}

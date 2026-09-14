@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "pair_id": "e8517efceacf",
+  "settings": {
+    "mode": "cumulative",
+    "suite": "combined",
+    "suite_file": "data/benchmarks/stress25_v1.json",
+    "parsers": [
+      "canonical_pln"
+    ],
+    "quick": false,
+    "case_ids": [],
+    "limit": 0
+  },
+  "runs": [
+    {
+      "backend": "none",
+      "returncode": 0,
+      "command": [
+        "/usr/bin/python3",
+        "/app/benchmark_parsers.py",
+        "--mode",
+        "cumulative",
+        "--parsers",
+        "canonical_pln",
+        "--coreference-backend",
+        "none",
+        "--pair-id",
+        "e8517efceacf",
+        "--output-dir",
+        "data/benchmarks",
+        "--suite-file",
+        "data/benchmarks/stress25_v1.json",
+        "--progress"
+      ],
+      "output": "data/benchmarks/parser_benchmark_stress25_v1_cumulative_25f2fc92.json"
+    },
+    {
+      "backend": "lingmess",
+      "returncode": 0,
+      "command": [
+        "/usr/bin/python3",
+        "/app/benchmark_parsers.py",
+        "--mode",
+        "cumulative",
+        "--parsers",
+        "canonical_pln",
+        "--coreference-backend",
+        "lingmess",
+        "--pair-id",
+        "e8517efceacf",
+        "--output-dir",
+        "data/benchmarks",
+        "--suite-file",
+        "data/benchmarks/stress25_v1.json",
+        "--progress"
+      ],
+      "output": "data/benchmarks/parser_benchmark_stress25_v1_cumulative_804e0de5.json"
+    }
+  ]
+}

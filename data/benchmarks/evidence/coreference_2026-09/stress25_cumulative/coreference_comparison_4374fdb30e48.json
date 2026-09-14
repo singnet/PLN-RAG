@@ -1,0 +1,886 @@
+{
+  "schema_version": 1,
+  "pair_id": "4374fdb30e48",
+  "left": {
+    "run_id": "c4752c6a",
+    "coref": {
+      "enabled": false,
+      "backend": "none",
+      "model": null,
+      "device": "cpu",
+      "fail_open": true
+    }
+  },
+  "right": {
+    "run_id": "c850c72f",
+    "coref": {
+      "enabled": true,
+      "backend": "fcoref",
+      "model": null,
+      "device": "cpu",
+      "fail_open": true
+    }
+  },
+  "matched_cases": 25,
+  "proof_transitions": {
+    "false_to_true": 2,
+    "true_to_false": 6,
+    "unchanged_true": 14,
+    "unchanged_false": 3
+  },
+  "query_changes": 24,
+  "coreference_changed_cases": 7,
+  "query_changes_without_rewrite": 18,
+  "causal_interpretation_valid": true,
+  "warnings": [],
+  "timing_deltas_seconds": {
+    "parse_only_seconds": {
+      "samples": 25,
+      "mean_delta": -0.727748,
+      "median_delta": -0.5136
+    },
+    "ingest_seconds": {
+      "samples": 25,
+      "mean_delta": 0.778036,
+      "median_delta": 0.5736
+    },
+    "query_seconds": {
+      "samples": 25,
+      "mean_delta": 0.153332,
+      "median_delta": 0.2479
+    },
+    "total_seconds": {
+      "samples": 25,
+      "mean_delta": 0.204276,
+      "median_delta": 0.394
+    },
+    "coreference_seconds": {
+      "samples": 25,
+      "mean_delta": 0.723317,
+      "median_delta": 0.458514
+    }
+  },
+  "cases": [
+    {
+      "parser": "canonical_pln",
+      "case_id": "A01",
+      "case_hash": "36df82ea16dca857bc02375a873bfba21118c8ce184fd9e464651695157a2621",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": true,
+      "coreference_replacements": 1,
+      "query_before": {
+        "original_query": "(: $prf (Improve glycemic_control) $tv)",
+        "executed_query": "(: $prf (Improve glycemic_control) $tv)",
+        "pln_query": "(: $prf (Improve glycemic_control) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (Achieve optimal_glycemic_control) $tv)",
+        "executed_query": "(: $prf (Achieve optimal_glycemic_control) $tv)",
+        "pln_query": "(: $prf (Achieve optimal_glycemic_control) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.8352,
+        "ingest_seconds": 4.5334,
+        "query_seconds": -4.5682,
+        "total_seconds": -0.8534,
+        "coreference_seconds": 7.037104
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A02",
+      "case_hash": "cfdf137798ae80221dd664d4fc0fd87c558316b2e035543d4ae15f801b815696",
+      "proof_before": false,
+      "proof_after": true,
+      "proof_transition": "false_to_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (NoSignificantDifference the_iot_based_approach_did_not_reduce_hba1c_in_patient_with_type_2_diabete) $tv)",
+        "executed_query": "(: $prf (NoSignificantDifference the_iot_based_approach_did_not_reduce_hba1c_in_patient_with_type_2_diabete) $tv)",
+        "pln_query": "(: $prf (NoSignificantDifference the_iot_based_approach_did_not_reduce_hba1c_in_patient_with_type_2_diabete) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (HbA1c_value_less_equal_6_5_percent) $tv)",
+        "executed_query": "(: $prf (HbA1c_value_less_equal_6_5_percent) $tv)",
+        "pln_query": "(: $prf (HbA1c_value_less_equal_6_5_percent) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -3.2913,
+        "ingest_seconds": -1.3697,
+        "query_seconds": 0.2479,
+        "total_seconds": -4.413,
+        "coreference_seconds": 0.562115
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A03",
+      "case_hash": "9152adb9cbadf08a5bdd735c8554c8fceee419fedb89eb4623c9486e1b62a948",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (OutputA cas9_aav6) $tv)",
+        "executed_query": "(: $prf (OutputA cas9_aav6) $tv)",
+        "pln_query": "(: $prf (OutputA cas9_aav6) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (FunctionalCorrection in vivo erythropoiesis) $tv)",
+        "executed_query": "(: $prf (FunctionalCorrection in vivo erythropoiesis) $tv)",
+        "pln_query": "(: $prf (FunctionalCorrection in vivo erythropoiesis) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.0319,
+        "ingest_seconds": 0.5736,
+        "query_seconds": 0.381,
+        "total_seconds": 0.9225,
+        "coreference_seconds": 0.505081
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A04",
+      "case_hash": "3e3d40fbf5ddd0ab998f212fdf0759a3d899c8ce1a92ab51798320560acafc28",
+      "proof_before": true,
+      "proof_after": false,
+      "proof_transition": "true_to_false",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": true,
+      "coreference_replacements": 1,
+      "query_before": {
+        "original_query": "(: $prf (Comparison semaglutide $other) $tv)",
+        "executed_query": "(: $prf (Comparison semaglutide $other) $tv)",
+        "pln_query": "(: $prf (Comparison semaglutide $other) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (ComparisonResult semaglutide other_glp1_receptor_agonist) $tv)",
+        "executed_query": "(: $prf (ComparisonResult semaglutide other_glp1_receptor_agonist) $tv)",
+        "pln_query": "(: $prf (ComparisonResult semaglutide other_glp1_receptor_agonist) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -1.6762,
+        "ingest_seconds": 2.1245,
+        "query_seconds": -0.6304,
+        "total_seconds": -0.1822,
+        "coreference_seconds": 0.491561
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A05",
+      "case_hash": "96e2174d3b304492c451bd70612515ff320560e88980b6df7df24808a8e1013b",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (Comparison $treatment1 $treatment2) $tv)",
+        "executed_query": "(: $prf (Comparison $treatment1 $treatment2) $tv)",
+        "pln_query": "(: $prf (Comparison $treatment1 $treatment2) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (ComparisonResult semaglutide other_glp1_receptor_agonist) $tv)",
+        "executed_query": "(: $prf (CompareEfficacy tirzepatide liraglutide semaglutide) $tv)",
+        "pln_query": "(: $prf (CompareEfficacy tirzepatide liraglutide semaglutide) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": 1.9173,
+        "ingest_seconds": 0.0569,
+        "query_seconds": 0.9733,
+        "total_seconds": 2.9475,
+        "coreference_seconds": 0.526822
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A06",
+      "case_hash": "b16af4fd7cee8aa7b4c5a1d4dcead6b8e34d0b3c1ee4d4d4f11316195498a868",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": true,
+      "coreference_replacements": 4,
+      "query_before": {
+        "original_query": "(: $prf (Comparison serafilcon_a $other_material) $tv)",
+        "executed_query": "(: $prf (Comparison serafilcon_a $other_material) $tv)",
+        "pln_query": "(: $prf (Comparison serafilcon_a $other_material) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (ComparisonResult serafilcon_a $other_material) $tv)",
+        "executed_query": "(: $prf (ComparisonResult serafilcon_a $other_material) $tv)",
+        "pln_query": "(: $prf (ComparisonResult serafilcon_a $other_material) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": 0.0309,
+        "ingest_seconds": 1.6169,
+        "query_seconds": 0.0374,
+        "total_seconds": 1.6852,
+        "coreference_seconds": 0.636771
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A07",
+      "case_hash": "377bef9db9691a04e165e36b7cf34bb6abe0c3741de6aea188cc14fe6f7e6042",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (UnclearRole gut_microbiome colorectal_cancer) $tv)",
+        "executed_query": "(: $prf (UnclearRole gut_microbiome colorectal_cancer) $tv)",
+        "pln_query": "(: $prf (UnclearRole gut_microbiome colorectal_cancer) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (CausalRelationship gut_microbiome crc) $tv)",
+        "executed_query": "(: $prf (CausalRelationship gut_microbiome crc) $tv)",
+        "pln_query": "(: $prf (CausalRelationship gut_microbiome crc) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -5.4683,
+        "ingest_seconds": -0.0243,
+        "query_seconds": -0.0204,
+        "total_seconds": -5.513,
+        "coreference_seconds": 0.46922
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A08",
+      "case_hash": "e4a5baa000d6e9a4426de989f027cbf62d976a2635ead75c0fde227953207549",
+      "proof_before": true,
+      "proof_after": false,
+      "proof_transition": "true_to_false",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": true,
+      "coreference_replacements": 2,
+      "query_before": {
+        "original_query": "(: $prf (Affects microbiota inflammation) $tv)",
+        "executed_query": "(: $prf (Affects microbiota inflammation) $tv)",
+        "pln_query": "(: $prf (Affects microbiota inflammation) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (ImpactsInflammation gut_microbiome inflammation) $tv)",
+        "executed_query": "(: $prf (ImpactsInflammation gut_microbiome inflammation) $tv)",
+        "pln_query": "(: $prf (ImpactsInflammation gut_microbiome inflammation) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -1.0879,
+        "ingest_seconds": 0.4506,
+        "query_seconds": 1.5611,
+        "total_seconds": 0.9238,
+        "coreference_seconds": 0.420652
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A09",
+      "case_hash": "ab22cdf6f096dfa26c9f03e8c2c69d36a31caae999de361875b6b2eb69eddb90",
+      "proof_before": false,
+      "proof_after": true,
+      "proof_transition": "false_to_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": true,
+      "coreference_replacements": 4,
+      "query_before": {
+        "original_query": "(: $prf (Improves sodium perovskite_solar_cell) $tv)",
+        "executed_query": "(: $prf (Improves sodium perovskite_solar_cell) $tv)",
+        "pln_query": "(: $prf (Improves sodium perovskite_solar_cell) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (EnhancesHeterointerfaceBonding heparin_sodium) $tv)",
+        "executed_query": "(: $prf (EnhancesHeterointerfaceBonding heparin_sodium) $tv)",
+        "pln_query": "(: $prf (EnhancesHeterointerfaceBonding heparin_sodium) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.2576,
+        "ingest_seconds": 7.1939,
+        "query_seconds": 0.9874,
+        "total_seconds": 7.9237,
+        "coreference_seconds": 0.460075
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A10",
+      "case_hash": "f1884934b9209c684723d4ff95b225ef3bc8ba8f87231f16d004125848e8a9fc",
+      "proof_before": true,
+      "proof_after": false,
+      "proof_transition": "true_to_false",
+      "query_changed": false,
+      "query_changed_fields": [],
+      "coreference_changed": true,
+      "coreference_replacements": 2,
+      "query_before": {
+        "original_query": "(: $prf (PredictSeverity $biomarker) $tv)",
+        "executed_query": "(: $prf (PredictSeverity $biomarker) $tv)",
+        "pln_query": "(: $prf (PredictSeverity $biomarker) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (PredictSeverity $biomarker) $tv)",
+        "executed_query": "(: $prf (PredictSeverity $biomarker) $tv)",
+        "pln_query": "(: $prf (PredictSeverity $biomarker) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.3956,
+        "ingest_seconds": 1.1143,
+        "query_seconds": 1.3444,
+        "total_seconds": 2.063,
+        "coreference_seconds": 0.496826
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A11",
+      "case_hash": "dab8ddd81ea20d8a52be32a136a91654aefa52de5b1a79ca2124852360342f2f",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": true,
+      "coreference_replacements": 1,
+      "query_before": {
+        "original_query": "(: $prf (PredictSeverity covid) $tv)",
+        "executed_query": "(: $prf (PredictSeverity covid) $tv)",
+        "pln_query": "(: $prf (PredictSeverity covid) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (Severity patient_191) $tv)",
+        "executed_query": "(: $prf (Severity patient_191) $tv)",
+        "pln_query": "(: $prf (Severity patient_191) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.2679,
+        "ingest_seconds": 0.8529,
+        "query_seconds": 1.2464,
+        "total_seconds": 1.8313,
+        "coreference_seconds": 0.474943
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A12",
+      "case_hash": "215f6e10e268434c299b10680559aa0848db9ffb2bd7a1087c115fcd2d2dbca4",
+      "proof_before": true,
+      "proof_after": false,
+      "proof_transition": "true_to_false",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (IndicatesHydrophilicityHydrophobicity $surface) $tv)",
+        "executed_query": "(: $prf (IndicatesHydrophilicityHydrophobicity $surface) $tv)",
+        "pln_query": "(: $prf (IndicatesHydrophilicityHydrophobicity $surface) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (IndicatesHydrophilicityHydrophobicity $angle) $tv)",
+        "executed_query": "(: $prf (IndicatesHydrophilicityHydrophobicity $angle) $tv)",
+        "pln_query": "(: $prf (IndicatesHydrophilicityHydrophobicity $angle) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": 2.3574,
+        "ingest_seconds": -1.5114,
+        "query_seconds": 0.8227,
+        "total_seconds": 1.6686,
+        "coreference_seconds": 0.463458
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A13",
+      "case_hash": "eec10912ec51ce609657184ebea874aace2a9c27eafe5b0f5cc7c5c130b9892c",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (DifficultToCompare historical_stability_data) $tv)",
+        "executed_query": "(: $prf (DifficultToCompare historical_stability_data) $tv)",
+        "pln_query": "(: $prf (DifficultToCompare historical_stability_data) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (DifficultComparingStability $device) $tv)",
+        "executed_query": "(: $prf (DifficultComparingStability $device) $tv)",
+        "pln_query": "(: $prf (DifficultComparingStability $device) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": 0.4545,
+        "ingest_seconds": -0.5073,
+        "query_seconds": -0.5862,
+        "total_seconds": -0.6391,
+        "coreference_seconds": 0.43027
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A14",
+      "case_hash": "21eca691ced7edfc044ba380c4d29e96138cab91ce3d473939a8d3d48fc34fb7",
+      "proof_before": true,
+      "proof_after": false,
+      "proof_transition": "true_to_false",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (HigherStability $efficiency) $tv)",
+        "executed_query": "(: $prf (HigherStability $efficiency) $tv)",
+        "pln_query": "(: $prf (HigherStability $efficiency) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (CorrelatedWith efficiency stability) $tv)",
+        "executed_query": "(: $prf (CorrelatedWith efficiency stability) $tv)",
+        "pln_query": "(: $prf (CorrelatedWith efficiency stability) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -2.4196,
+        "ingest_seconds": 0.6535,
+        "query_seconds": 0.1595,
+        "total_seconds": -1.6066,
+        "coreference_seconds": 0.480391
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A15",
+      "case_hash": "f92074830b917a27825e1d9ba676b873a7d355d1911f7a2ae728e793b611ffe1",
+      "proof_before": true,
+      "proof_after": false,
+      "proof_transition": "true_to_false",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (OutputA $approach) $tv)",
+        "executed_query": "(: $prf (OutputA $approach) $tv)",
+        "pln_query": "(: $prf (OutputA $approach) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (Implication (RelK $methodological_approach $microbiome_research) (ShowEffectOnHospitalStay $methodological_approach)) $tv)",
+        "executed_query": "(: $prf (Implication (RelK $methodological_approach $microbiome_research) (ShowEffectOnHospitalStay $methodological_approach)) $tv)",
+        "pln_query": "(: $prf (Implication (RelK $methodological_approach $microbiome_research) (ShowEffectOnHospitalStay $methodological_approach)) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -1.1982,
+        "ingest_seconds": 0.4024,
+        "query_seconds": 0.6511,
+        "total_seconds": -0.1446,
+        "coreference_seconds": 0.429738
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "E01",
+      "case_hash": "3b4e5b245024104edf0592e3d6ced2c2154127192856044507c1bd2f55e087be",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (Brighter venus) $tv)",
+        "executed_query": "(: $prf (Brighter venus) $tv)",
+        "pln_query": "(: $prf (Brighter venus) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (AppearsBrighter venus) $tv)",
+        "executed_query": "(: $prf (AppearsBrighter venus) $tv)",
+        "pln_query": "(: $prf (AppearsBrighter venus) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.6652,
+        "ingest_seconds": 0.8508,
+        "query_seconds": -0.1081,
+        "total_seconds": 0.0775,
+        "coreference_seconds": 0.418019
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "E02",
+      "case_hash": "2352ff21abac657e1398e1abd2698454aae3853cf86c6e5d423b8c27bf090df2",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (GreatestDaylight $month) $tv)",
+        "executed_query": "(: $prf (GreatestDaylight $month) $tv)",
+        "pln_query": "(: $prf (GreatestDaylight $month) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (GreatestDaylight june) $tv)",
+        "executed_query": "(: $prf (GreatestDaylight june) $tv)",
+        "pln_query": "(: $prf (GreatestDaylight june) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.5136,
+        "ingest_seconds": 1.1971,
+        "query_seconds": 1.3292,
+        "total_seconds": 2.0127,
+        "coreference_seconds": 0.405385
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "E03",
+      "case_hash": "1e91b2b30e1f5da759112fbe36a712715199bbe3a254e1ca7f8cef95eff4782d",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (Brighter sun) $tv)",
+        "executed_query": "(: $prf (Brighter sun) $tv)",
+        "pln_query": "(: $prf (Brighter sun) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (CloserToEarth sun $star) $tv)",
+        "executed_query": "(: $prf (CloserToEarth sun $star) $tv)",
+        "pln_query": "(: $prf (CloserToEarth sun $star) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.8353,
+        "ingest_seconds": -0.2751,
+        "query_seconds": 2.1021,
+        "total_seconds": 0.9918,
+        "coreference_seconds": 0.391857
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "S01",
+      "case_hash": "71a2ec18d35853a18e3bc2e67a226936a7071dd8554c48038b06ae1191942738",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (ImprovePerformance sodium_heparin perovskite_solar_cell) $tv)",
+        "executed_query": "(: $prf (ImprovePerformance sodium_heparin perovskite_solar_cell) $tv)",
+        "pln_query": "(: $prf (ImprovePerformance sodium_heparin perovskite_solar_cell) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (Improves performance perovskite_solar_cell) $tv)",
+        "executed_query": "(: $prf (Improves performance perovskite_solar_cell) $tv)",
+        "pln_query": "(: $prf (Improves performance perovskite_solar_cell) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.5081,
+        "ingest_seconds": 1.1971,
+        "query_seconds": 0.3638,
+        "total_seconds": 1.0526,
+        "coreference_seconds": 0.458514
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "S02",
+      "case_hash": "8ecd95a8f43af8a9af6885ab32d4d03a20d38ed9dc31a6521102fb40338d7523",
+      "proof_before": false,
+      "proof_after": false,
+      "proof_transition": "unchanged_false",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (HasBiomarker $marker severe_covid) $tv)",
+        "executed_query": "(: $prf (HasBiomarker $marker severe_covid) $tv)",
+        "pln_query": "(: $prf (HasBiomarker $marker severe_covid) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (Associated $marker severe_covid_19) $tv)",
+        "executed_query": "(: $prf (Associated $marker severe_covid_19) $tv)",
+        "pln_query": "(: $prf (Associated $marker severe_covid_19) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -2.6168,
+        "ingest_seconds": -0.6457,
+        "query_seconds": -0.1937,
+        "total_seconds": -3.4561,
+        "coreference_seconds": 0.417969
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "S03",
+      "case_hash": "844d268027542b0525fe4ae447152f7184a652a3f4227fabc925c697b336619f",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (ComparativeReview semaglutide other_glp1_receptor_agonist) $tv)",
+        "executed_query": "(: $prf (ComparativeReview semaglutide other_glp1_receptor_agonist) $tv)",
+        "pln_query": "(: $prf (ComparativeReview semaglutide other_glp1_receptor_agonist) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (ComparativeCardiovascularOutcomes semaglutide) $tv)",
+        "executed_query": "(: $prf (ComparativeCardiovascularOutcomes semaglutide) $tv)",
+        "pln_query": "(: $prf (ComparativeCardiovascularOutcomes semaglutide) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": 0.001,
+        "ingest_seconds": -0.4,
+        "query_seconds": 0.793,
+        "total_seconds": 0.394,
+        "coreference_seconds": 0.437505
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "S04",
+      "case_hash": "df5658a798a46b69ba4dd45477dfeb5f151ae44aa0cc386c47a689842427dea9",
+      "proof_before": false,
+      "proof_after": false,
+      "proof_transition": "unchanged_false",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (SurfaceWettability contact_angle) $tv)",
+        "executed_query": "(: $prf (MoreHydrophobic contact_angle) $tv)",
+        "pln_query": "(: $prf (MoreHydrophobic contact_angle) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (Indicates $x wetting_behavior) $tv)",
+        "executed_query": "(: $prf (Indicates $x wetting_behavior) $tv)",
+        "pln_query": "(: $prf (Indicates $x wetting_behavior) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.8385,
+        "ingest_seconds": 1.1077,
+        "query_seconds": -2.6134,
+        "total_seconds": -2.3441,
+        "coreference_seconds": 0.412725
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "S05",
+      "case_hash": "9c63ddb1a618b93a9967e45e25d669d15725233c63a50f261015104cc4f41c35",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (Associates gut_microbiome colorectal_cancer) $tv)",
+        "executed_query": "(: $prf (Associates gut_microbiome colorectal_cancer) $tv)",
+        "pln_query": "(: $prf (Associates gut_microbiome colorectal_cancer) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $proof (Associates gut_microbiome colorectal_cancer) $tv)",
+        "executed_query": "(: $proof (Associates gut_microbiome colorectal_cancer) $tv)",
+        "pln_query": "(: $proof (Associates gut_microbiome colorectal_cancer) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": 0.499,
+        "ingest_seconds": -1.2807,
+        "query_seconds": -0.3463,
+        "total_seconds": -1.128,
+        "coreference_seconds": 0.424413
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "S06",
+      "case_hash": "26566a5d1d01ae98fc559f09fabc0f3c6139600a2758f9b8aeeabb71e57b84b3",
+      "proof_before": true,
+      "proof_after": true,
+      "proof_transition": "unchanged_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (ImprovesGlycemicControl diabete_logbook) $tv)",
+        "executed_query": "(: $prf (ImprovesGlycemicControl diabete_logbook) $tv)",
+        "pln_query": "(: $prf (ImprovesGlycemicControl diabete_logbook) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (ImprovesDiabetesManagement logbook) $tv)",
+        "executed_query": "(: $prf (ImprovesDiabetesManagement logbook) $tv)",
+        "pln_query": "(: $prf (ImprovesDiabetesManagement logbook) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -0.869,
+        "ingest_seconds": 0.2144,
+        "query_seconds": -0.0916,
+        "total_seconds": -0.7461,
+        "coreference_seconds": 0.411737
+      }
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "S07",
+      "case_hash": "b8198fe6524664257c75706bd3dec95e7fb6cdc3d5d756fb46d7e630ed4e99d0",
+      "proof_before": false,
+      "proof_after": false,
+      "proof_transition": "unchanged_false",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (ImprovesStability $item) $tv)",
+        "executed_query": "(: $prf (ImprovesStability $item) $tv)",
+        "pln_query": "(: $prf (ImprovesStability $item) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (BetterStability higher_efficiency) $tv)",
+        "executed_query": "(: $prf (BetterStability higher_efficiency) $tv)",
+        "pln_query": "(: $prf (BetterStability higher_efficiency) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": 0.3224,
+        "ingest_seconds": 1.3251,
+        "query_seconds": -0.0087,
+        "total_seconds": 1.6389,
+        "coreference_seconds": 0.41977
+      }
+    }
+  ]
+}

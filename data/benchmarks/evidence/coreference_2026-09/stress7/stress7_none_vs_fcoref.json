@@ -1,0 +1,841 @@
+{
+  "schema_version": 1,
+  "pair_id": "stress7-structural-v1",
+  "left": {
+    "run_id": "ae5fb7d3",
+    "coref": {
+      "enabled": false,
+      "backend": "none",
+      "model": null,
+      "device": "cpu",
+      "fail_open": true
+    }
+  },
+  "right": {
+    "run_id": "3bcc8505",
+    "coref": {
+      "enabled": true,
+      "backend": "fcoref",
+      "model": null,
+      "device": "cpu",
+      "fail_open": true
+    }
+  },
+  "matched_cases": 7,
+  "proof_transitions": {
+    "false_to_true": 1,
+    "true_to_false": 3,
+    "unchanged_true": 0,
+    "unchanged_false": 3
+  },
+  "quality_transitions": {
+    "fail_to_pass": 0,
+    "pass_to_fail": 0,
+    "unchanged_pass": 0,
+    "unchanged_fail": 7
+  },
+  "query_changes": 4,
+  "coreference_changed_cases": 4,
+  "query_changes_without_rewrite": 0,
+  "causal_interpretation_valid": true,
+  "warnings": [],
+  "provider_inclusive_timing_valid": false,
+  "timing_warnings": [
+    "capture_timing_mixes_live_and_replayed_lm_calls"
+  ],
+  "timing_deltas_seconds": {
+    "parse_only_seconds": {
+      "samples": 7,
+      "mean_delta": -4.083657,
+      "median_delta": -3.7702
+    },
+    "ingest_seconds": {
+      "samples": 7,
+      "mean_delta": -0.814186,
+      "median_delta": -0.2248
+    },
+    "query_seconds": {
+      "samples": 7,
+      "mean_delta": -1.200657,
+      "median_delta": -1.7589
+    },
+    "total_seconds": {
+      "samples": 7,
+      "mean_delta": -6.093086,
+      "median_delta": -6.0756
+    },
+    "coreference_seconds": {
+      "samples": 7,
+      "mean_delta": 2.927303,
+      "median_delta": 2.575287
+    }
+  },
+  "cases": [
+    {
+      "parser": "canonical_pln",
+      "case_id": "A01",
+      "case_hash": "36df82ea16dca857bc02375a873bfba21118c8ce184fd9e464651695157a2621",
+      "proof_before": false,
+      "proof_after": false,
+      "proof_transition": "unchanged_false",
+      "query_changed": false,
+      "query_changed_fields": [],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (ImprovedGlycemicControl diabete) $tv)",
+        "executed_query": "(: $prf (ImprovedGlycemicControl diabete) $tv)",
+        "pln_query": "(: $prf (ImprovedGlycemicControl diabete) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (ImprovedGlycemicControl diabete) $tv)",
+        "executed_query": "(: $prf (ImprovedGlycemicControl diabete) $tv)",
+        "pln_query": "(: $prf (ImprovedGlycemicControl diabete) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -4.5716,
+        "ingest_seconds": -3.5867,
+        "query_seconds": -1.7589,
+        "total_seconds": -9.9469,
+        "coreference_seconds": 5.84117
+      },
+      "quality_before": {
+        "case_id": "A01",
+        "case_hash": "36df82ea16dca857bc02375a873bfba21118c8ce184fd9e464651695157a2621",
+        "passed": false,
+        "proof_found": false,
+        "current_case_grounded": false,
+        "grounded_proof_count": 0,
+        "score": 0.0,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.0,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 2,
+          "semantic": 1
+        },
+        "matched_entity_groups": [],
+        "missing_entity_groups": [
+          "digital_logbook",
+          "glycemic_control"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "improved_control"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "proof_not_found",
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "provenance_not_current_case_grounded",
+          "score_below_threshold"
+        ]
+      },
+      "quality_after": {
+        "case_id": "A01",
+        "case_hash": "36df82ea16dca857bc02375a873bfba21118c8ce184fd9e464651695157a2621",
+        "passed": false,
+        "proof_found": false,
+        "current_case_grounded": false,
+        "grounded_proof_count": 0,
+        "score": 0.0,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.0,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 2,
+          "semantic": 1
+        },
+        "matched_entity_groups": [],
+        "missing_entity_groups": [
+          "digital_logbook",
+          "glycemic_control"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "improved_control"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "proof_not_found",
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "provenance_not_current_case_grounded",
+          "score_below_threshold"
+        ]
+      },
+      "quality_transition": "unchanged_fail"
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A04",
+      "case_hash": "3e3d40fbf5ddd0ab998f212fdf0759a3d899c8ce1a92ab51798320560acafc28",
+      "proof_before": true,
+      "proof_after": false,
+      "proof_transition": "true_to_false",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": true,
+      "coreference_replacements": 1,
+      "query_before": {
+        "original_query": "(: $prf (Acknowledged semaglutide $outcome) $tv)",
+        "executed_query": "(: $prf (Acknowledged semaglutide $outcome) $tv)",
+        "pln_query": "(: $prf (Acknowledged semaglutide $outcome) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (Compare semaglutide other_glp1_receptor_agonist) $tv)",
+        "executed_query": "(: $prf (Compare semaglutide other_glp1_receptor_agonist) $tv)",
+        "pln_query": "(: $prf (Compare semaglutide other_glp1_receptor_agonist) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -3.4239,
+        "ingest_seconds": -0.2248,
+        "query_seconds": -2.4394,
+        "total_seconds": -6.0756,
+        "coreference_seconds": 2.217765
+      },
+      "quality_before": {
+        "case_id": "A04",
+        "case_hash": "3e3d40fbf5ddd0ab998f212fdf0759a3d899c8ce1a92ab51798320560acafc28",
+        "passed": false,
+        "proof_found": true,
+        "current_case_grounded": true,
+        "grounded_proof_count": 1,
+        "score": 0.25,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.5,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 2,
+          "semantic": 2
+        },
+        "matched_entity_groups": [
+          {
+            "id": "semaglutide",
+            "alias": "semaglutide"
+          }
+        ],
+        "missing_entity_groups": [
+          "glp1_comparators"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "hba1c_reduction",
+          "weight_reduction"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "score_below_threshold"
+        ]
+      },
+      "quality_after": {
+        "case_id": "A04",
+        "case_hash": "3e3d40fbf5ddd0ab998f212fdf0759a3d899c8ce1a92ab51798320560acafc28",
+        "passed": false,
+        "proof_found": false,
+        "current_case_grounded": false,
+        "grounded_proof_count": 0,
+        "score": 0.0,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.0,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 2,
+          "semantic": 2
+        },
+        "matched_entity_groups": [],
+        "missing_entity_groups": [
+          "semaglutide",
+          "glp1_comparators"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "hba1c_reduction",
+          "weight_reduction"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "proof_not_found",
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "provenance_not_current_case_grounded",
+          "score_below_threshold"
+        ]
+      },
+      "quality_transition": "unchanged_fail"
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A06",
+      "case_hash": "b16af4fd7cee8aa7b4c5a1d4dcead6b8e34d0b3c1ee4d4d4f11316195498a868",
+      "proof_before": false,
+      "proof_after": false,
+      "proof_transition": "unchanged_false",
+      "query_changed": false,
+      "query_changed_fields": [],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (Compare serafilcon_a $other_material wettability) $tv)",
+        "executed_query": "(: $prf (Compare serafilcon_a $other_material friction) $tv)",
+        "pln_query": "(: $prf (Compare serafilcon_a $other_material friction) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (Compare serafilcon_a $other_material wettability) $tv)",
+        "executed_query": "(: $prf (Compare serafilcon_a $other_material friction) $tv)",
+        "pln_query": "(: $prf (Compare serafilcon_a $other_material friction) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -3.7702,
+        "ingest_seconds": -7.2921,
+        "query_seconds": -2.2992,
+        "total_seconds": -13.3476,
+        "coreference_seconds": 2.629068
+      },
+      "quality_before": {
+        "case_id": "A06",
+        "case_hash": "b16af4fd7cee8aa7b4c5a1d4dcead6b8e34d0b3c1ee4d4d4f11316195498a868",
+        "passed": false,
+        "proof_found": false,
+        "current_case_grounded": false,
+        "grounded_proof_count": 0,
+        "score": 0.0,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.0,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 4,
+          "semantic": 2
+        },
+        "matched_entity_groups": [],
+        "missing_entity_groups": [
+          "serafilcon_a",
+          "silicone_hydrogel_comparators",
+          "wettability",
+          "friction"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "serafilcon_contact_angle_increase",
+          "serafilcon_friction_stable"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "proof_not_found",
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "provenance_not_current_case_grounded",
+          "score_below_threshold"
+        ]
+      },
+      "quality_after": {
+        "case_id": "A06",
+        "case_hash": "b16af4fd7cee8aa7b4c5a1d4dcead6b8e34d0b3c1ee4d4d4f11316195498a868",
+        "passed": false,
+        "proof_found": false,
+        "current_case_grounded": false,
+        "grounded_proof_count": 0,
+        "score": 0.0,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.0,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 4,
+          "semantic": 2
+        },
+        "matched_entity_groups": [],
+        "missing_entity_groups": [
+          "serafilcon_a",
+          "silicone_hydrogel_comparators",
+          "wettability",
+          "friction"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "serafilcon_contact_angle_increase",
+          "serafilcon_friction_stable"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "proof_not_found",
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "provenance_not_current_case_grounded",
+          "score_below_threshold"
+        ]
+      },
+      "quality_transition": "unchanged_fail"
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A08",
+      "case_hash": "e4a5baa000d6e9a4426de989f027cbf62d976a2635ead75c0fde227953207549",
+      "proof_before": true,
+      "proof_after": false,
+      "proof_transition": "true_to_false",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": true,
+      "coreference_replacements": 2,
+      "query_before": {
+        "original_query": "(: $proof (EffectsOnInflammation bioactive_molecule) $tv)",
+        "executed_query": "(: $proof (EffectsOnInflammation bioactive_molecule) $tv)",
+        "pln_query": "(: $proof (EffectsOnInflammation bioactive_molecule) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (InflammationImpactInIntestine $molecule) $tv)",
+        "executed_query": "(: $prf (InflammationImpactInIntestine $molecule) $tv)",
+        "pln_query": "(: $prf (InflammationImpactInIntestine $molecule) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -3.3585,
+        "ingest_seconds": 2.8238,
+        "query_seconds": 0.4627,
+        "total_seconds": -0.0564,
+        "coreference_seconds": 2.09207
+      },
+      "quality_before": {
+        "case_id": "A08",
+        "case_hash": "e4a5baa000d6e9a4426de989f027cbf62d976a2635ead75c0fde227953207549",
+        "passed": false,
+        "proof_found": true,
+        "current_case_grounded": true,
+        "grounded_proof_count": 1,
+        "score": 0.666667,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.333333,
+          "semantic": 1.0
+        },
+        "minimum_groups": {
+          "entity": 3,
+          "semantic": 1
+        },
+        "matched_entity_groups": [
+          {
+            "id": "inflammation",
+            "alias": "inflammation"
+          }
+        ],
+        "missing_entity_groups": [
+          "microbiota",
+          "mechanism"
+        ],
+        "matched_semantic_groups": [
+          {
+            "id": "regulates_inflammation",
+            "alias": "effects on inflammation"
+          }
+        ],
+        "missing_semantic_groups": [],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "insufficient_entity_groups",
+          "score_below_threshold"
+        ]
+      },
+      "quality_after": {
+        "case_id": "A08",
+        "case_hash": "e4a5baa000d6e9a4426de989f027cbf62d976a2635ead75c0fde227953207549",
+        "passed": false,
+        "proof_found": false,
+        "current_case_grounded": false,
+        "grounded_proof_count": 0,
+        "score": 0.0,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.0,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 3,
+          "semantic": 1
+        },
+        "matched_entity_groups": [],
+        "missing_entity_groups": [
+          "microbiota",
+          "mechanism",
+          "inflammation"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "regulates_inflammation"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "proof_not_found",
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "provenance_not_current_case_grounded",
+          "score_below_threshold"
+        ]
+      },
+      "quality_transition": "unchanged_fail"
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A09",
+      "case_hash": "ab22cdf6f096dfa26c9f03e8c2c69d36a31caae999de361875b6b2eb69eddb90",
+      "proof_before": true,
+      "proof_after": false,
+      "proof_transition": "true_to_false",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": true,
+      "coreference_replacements": 3,
+      "query_before": {
+        "original_query": "(: $prf (HasFunctionalGroups interface) $tv)",
+        "executed_query": "(: $prf (HasFunctionalGroups interface) $tv)",
+        "pln_query": "(: $prf (HasFunctionalGroups interface) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (EnhancesHeterointerfaceBonding sodium_heparin) $tv)",
+        "executed_query": "(: $prf (EnhancesHeterointerfaceBonding sodium_heparin) $tv)",
+        "pln_query": "(: $prf (EnhancesHeterointerfaceBonding sodium_heparin) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -5.2227,
+        "ingest_seconds": 6.1245,
+        "query_seconds": 0.0735,
+        "total_seconds": 0.9745,
+        "coreference_seconds": 2.529912
+      },
+      "quality_before": {
+        "case_id": "A09",
+        "case_hash": "ab22cdf6f096dfa26c9f03e8c2c69d36a31caae999de361875b6b2eb69eddb90",
+        "passed": false,
+        "proof_found": true,
+        "current_case_grounded": true,
+        "grounded_proof_count": 1,
+        "score": 0.125,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.25,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 4,
+          "semantic": 2
+        },
+        "matched_entity_groups": [
+          {
+            "id": "heparin_sodium",
+            "alias": "heparin sodium"
+          }
+        ],
+        "missing_entity_groups": [
+          "perovskite_solar_cells",
+          "interface",
+          "device_performance"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "interface_mechanism",
+          "performance_improvement"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "score_below_threshold"
+        ]
+      },
+      "quality_after": {
+        "case_id": "A09",
+        "case_hash": "ab22cdf6f096dfa26c9f03e8c2c69d36a31caae999de361875b6b2eb69eddb90",
+        "passed": false,
+        "proof_found": false,
+        "current_case_grounded": false,
+        "grounded_proof_count": 0,
+        "score": 0.0,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.0,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 4,
+          "semantic": 2
+        },
+        "matched_entity_groups": [],
+        "missing_entity_groups": [
+          "heparin_sodium",
+          "perovskite_solar_cells",
+          "interface",
+          "device_performance"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "interface_mechanism",
+          "performance_improvement"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "proof_not_found",
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "provenance_not_current_case_grounded",
+          "score_below_threshold"
+        ]
+      },
+      "quality_transition": "unchanged_fail"
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A10",
+      "case_hash": "f1884934b9209c684723d4ff95b225ef3bc8ba8f87231f16d004125848e8a9fc",
+      "proof_before": false,
+      "proof_after": true,
+      "proof_transition": "false_to_true",
+      "query_changed": true,
+      "query_changed_fields": [
+        "original_query",
+        "executed_query",
+        "pln_query"
+      ],
+      "coreference_changed": true,
+      "coreference_replacements": 2,
+      "query_before": {
+        "original_query": "(: $prf (OutputA $biomarker) $tv)",
+        "executed_query": "(: $prf (OutputA $biomarker) $tv)",
+        "pln_query": "(: $prf (OutputA $biomarker) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (HasBiomarker $marker) $tv)",
+        "executed_query": "(: $prf (HasBiomarker $marker) $tv)",
+        "pln_query": "(: $prf (HasBiomarker $marker) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -4.5056,
+        "ingest_seconds": 4.4754,
+        "query_seconds": -0.2073,
+        "total_seconds": -0.2121,
+        "coreference_seconds": 2.575287
+      },
+      "quality_before": {
+        "case_id": "A10",
+        "case_hash": "f1884934b9209c684723d4ff95b225ef3bc8ba8f87231f16d004125848e8a9fc",
+        "passed": false,
+        "proof_found": false,
+        "current_case_grounded": false,
+        "grounded_proof_count": 0,
+        "score": 0.0,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.0,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 6,
+          "semantic": 1
+        },
+        "matched_entity_groups": [],
+        "missing_entity_groups": [
+          "covid_severity",
+          "d_dimer",
+          "crp",
+          "ldh",
+          "alt_sgpt",
+          "neutrophils"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "predict_severity"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "proof_not_found",
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "provenance_not_current_case_grounded",
+          "score_below_threshold"
+        ]
+      },
+      "quality_after": {
+        "case_id": "A10",
+        "case_hash": "f1884934b9209c684723d4ff95b225ef3bc8ba8f87231f16d004125848e8a9fc",
+        "passed": false,
+        "proof_found": true,
+        "current_case_grounded": true,
+        "grounded_proof_count": 7,
+        "score": 0.416667,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.833333,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 6,
+          "semantic": 1
+        },
+        "matched_entity_groups": [
+          {
+            "id": "d_dimer",
+            "alias": "D-dimer"
+          },
+          {
+            "id": "crp",
+            "alias": "CRP"
+          },
+          {
+            "id": "ldh",
+            "alias": "LDH"
+          },
+          {
+            "id": "alt_sgpt",
+            "alias": "SGPT"
+          },
+          {
+            "id": "neutrophils",
+            "alias": "neutrophil"
+          }
+        ],
+        "missing_entity_groups": [
+          "covid_severity"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "predict_severity"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "score_below_threshold"
+        ]
+      },
+      "quality_transition": "unchanged_fail"
+    },
+    {
+      "parser": "canonical_pln",
+      "case_id": "A11",
+      "case_hash": "dab8ddd81ea20d8a52be32a136a91654aefa52de5b1a79ca2124852360342f2f",
+      "proof_before": false,
+      "proof_after": false,
+      "proof_transition": "unchanged_false",
+      "query_changed": false,
+      "query_changed_fields": [],
+      "coreference_changed": false,
+      "coreference_replacements": 0,
+      "query_before": {
+        "original_query": "(: $prf (UsedForPredictingSeverity $p covid) $tv)",
+        "executed_query": "(: $prf (UsedForPredictingSeverity $p covid) $tv)",
+        "pln_query": "(: $prf (UsedForPredictingSeverity $p covid) $tv)"
+      },
+      "query_after": {
+        "original_query": "(: $prf (UsedForPredictingSeverity $p covid) $tv)",
+        "executed_query": "(: $prf (UsedForPredictingSeverity $p covid) $tv)",
+        "pln_query": "(: $prf (UsedForPredictingSeverity $p covid) $tv)"
+      },
+      "timing_delta_seconds": {
+        "parse_only_seconds": -3.7331,
+        "ingest_seconds": -8.0194,
+        "query_seconds": -2.236,
+        "total_seconds": -13.9875,
+        "coreference_seconds": 2.605848
+      },
+      "quality_before": {
+        "case_id": "A11",
+        "case_hash": "dab8ddd81ea20d8a52be32a136a91654aefa52de5b1a79ca2124852360342f2f",
+        "passed": false,
+        "proof_found": false,
+        "current_case_grounded": false,
+        "grounded_proof_count": 0,
+        "score": 0.0,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.0,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 4,
+          "semantic": 1
+        },
+        "matched_entity_groups": [],
+        "missing_entity_groups": [
+          "covid_severity",
+          "pni",
+          "hscar",
+          "hscpar"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "predict_severity"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "proof_not_found",
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "provenance_not_current_case_grounded",
+          "score_below_threshold"
+        ]
+      },
+      "quality_after": {
+        "case_id": "A11",
+        "case_hash": "dab8ddd81ea20d8a52be32a136a91654aefa52de5b1a79ca2124852360342f2f",
+        "passed": false,
+        "proof_found": false,
+        "current_case_grounded": false,
+        "grounded_proof_count": 0,
+        "score": 0.0,
+        "score_threshold": 0.8,
+        "coverage": {
+          "entity": 0.0,
+          "semantic": 0.0
+        },
+        "minimum_groups": {
+          "entity": 4,
+          "semantic": 1
+        },
+        "matched_entity_groups": [],
+        "missing_entity_groups": [
+          "covid_severity",
+          "pni",
+          "hscar",
+          "hscpar"
+        ],
+        "matched_semantic_groups": [],
+        "missing_semantic_groups": [
+          "predict_severity"
+        ],
+        "matched_forbidden_groups": [],
+        "failure_reasons": [
+          "proof_not_found",
+          "insufficient_entity_groups",
+          "insufficient_semantic_groups",
+          "provenance_not_current_case_grounded",
+          "score_below_threshold"
+        ]
+      },
+      "quality_transition": "unchanged_fail"
+    }
+  ]
+}
