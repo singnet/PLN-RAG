@@ -1,13 +1,16 @@
+from dataclasses import replace
+
 import pytest
 
 from core.senf.extractor import extract_senf
+from core.senf.exemplars import score_exemplars
 from core.senf.identity import (
     DEFAULT_IDENTITY_THRESHOLD,
     IdentityResolver,
     IdentityWeights,
     resolve_identity,
 )
-from core.senf.types import Entity, EntityRef, KindAssertion, KindRef, Role, SENF, SENFFrame, Mention
+from core.senf.types import Context, Entity, EntityRef, KindAssertion, KindRef, Role, SENF, SENFFrame, Mention
 from core.symbol_normalization import canonical_symbol
 
 
@@ -58,12 +61,88 @@ def test_case_b_camera_and_pronoun_remain_separate_mentions_before_identity():
     assert resolve_identity([camera, pronoun]).same_entity("s1:e0", "s2:e0")
 
 
+def test_guide_case_a_lending_roles_support_pronoun_identity():
+    lent = extract_senf(
+        "s1", "Alex lent Sam the Nikon camera.",
+        [
+            "(: lend (Lent alex sam nikon_camera) (STV 1 1))",
+            "(: kind (IsA nikon_camera Camera) (STV 1 1))",
+        ],
+    )
+    returned = extract_senf(
+        "s2", "Sam returned it.",
+        [
+            "(: return (Returned sam it) (STV 1 1))",
+            "(: kind (IsA it Camera) (STV 1 1))",
+        ],
+    )
+    graph = resolve_identity([lent, returned])
+    edge = edge_for(graph, "it", "nikon_camera")
+
+    assert edge is not None
+    assert "semantic_role_continuity" in edge.evidence
+    assert edge.negative_strength == 0.0
+    assert graph.same_entity(
+        next(m.entity_id for m in lent.mentions if m.canonical_symbol == "nikon_camera"),
+        next(m.entity_id for m in returned.mentions if m.canonical_symbol == "it"),
+    )
+
+
+def test_guide_case_b_definite_description_is_evidence_not_hardcoded_equality():
+    first = extract_senf(
+        "s1", "Alex lent Sam a camera.",
+        ["(: a (Lent alex sam camera) (STV 1 1))"],
+    )
+    second = extract_senf(
+        "s2", "Later, the camera was found at Alex's house.",
+        ["(: b (AtLocation camera alex_house) (STV 1 1))"],
+    )
+    graph = resolve_identity([first, second])
+    edge = next(
+        edge for edge in graph.edges
+        if edge.left.canonical_symbol == edge.right.canonical_symbol == "camera"
+    )
+
+    assert {"exact_symbol", "definiteness", "recency"} <= set(edge.evidence)
+    assert "surface_match" not in edge.evidence
+    assert edge.guard.source_unit_ids == ("s1:u0", "s2:u0")
+    assert edge in graph.merged
+
+
+@pytest.mark.parametrize(("later_unit", "expected_recency"), [("doc:u1", True), ("doc:u2", False)])
+def test_recency_uses_ordered_source_units(later_unit, expected_recency):
+    first = extract_senf(
+        "s1", "A camera appeared.",
+        ["(: a (Appeared camera) (STV 1 1))"],
+    )
+    later = extract_senf(
+        "s2", "The camera broke.",
+        ["(: b (Broke camera) (STV 1 1))"],
+    )
+    first.mentions[0] = replace(
+        first.mentions[0], source_unit_id="doc:u0", definiteness="indefinite"
+    )
+    later.mentions[0] = replace(
+        later.mentions[0], source_unit_id=later_unit, definiteness="definite"
+    )
+    first.mentions[0] = replace(first.mentions[0], sentence_id="doc")
+    later.mentions[0] = replace(later.mentions[0], sentence_id="doc")
+
+    graph = resolve_identity([first, later])
+    edge = next(edge for edge in graph.edges if edge.symbols == ("camera", "camera"))
+
+    assert ("recency" in edge.evidence) is expected_recency
+    assert (edge in graph.merged) is expected_recency
+
+
 def test_the_merge_rests_on_three_independent_signals():
     """Pins *why* it merged. A weight tweak must not reduce this to one signal."""
     edge = edge_for(resolve_identity(_camera_and_pronoun()), "camera", "it")
 
     assert edge is not None
-    assert set(edge.evidence) == {"pronoun_antecedent", "role_prominence", "unambiguous"}
+    assert set(edge.evidence) == {
+        "pronoun_antecedent", "role_prominence", "semantic_role_continuity", "unambiguous",
+    }
     assert edge.strength >= DEFAULT_IDENTITY_THRESHOLD
     assert 0.0 < edge.confidence <= 1.0
 
@@ -277,6 +356,54 @@ def test_same_named_entities_keep_positive_and_negative_evidence_without_merging
     assert graph.resolve_entity(right.entity_id) == right.entity_id
 
 
+def test_two_indefinite_cameras_do_not_merge_from_symbol_role_and_recency():
+    first = extract_senf(
+        "s1", "A camera has a red light.",
+        ["(: a (HasProperty camera red_light) (STV 1 1))"],
+    )
+    second = extract_senf(
+        "s2", "A camera has a blue light.",
+        ["(: b (HasProperty camera blue_light) (STV 1 1))"],
+    )
+    first.mentions[0] = replace(
+        first.mentions[0], sentence_id="doc", source_unit_id="doc:u0", definiteness="indefinite"
+    )
+    second.mentions[0] = replace(
+        second.mentions[0], sentence_id="doc", source_unit_id="doc:u1", definiteness="indefinite"
+    )
+
+    graph = resolve_identity([first, second])
+    edge = next(edge for edge in graph.edges if edge.symbols == ("camera", "camera"))
+
+    assert {"exact_symbol", "semantic_role_continuity", "recency"} <= set(edge.evidence)
+    assert edge.strength >= DEFAULT_IDENTITY_THRESHOLD
+    assert edge not in graph.merged
+    assert edge in graph.alternatives
+
+
+def test_guide_case_d_preserves_exemplar_and_contrast_conflict_as_an_alternative():
+    attached = score_exemplars(extract_senf(
+        "s1", "Source A: The lens attached to the camera was cracked.",
+        ["(: a (Attached lens camera) (STV 1 1))"],
+    ))
+    borrowed = score_exemplars(extract_senf(
+        "s2", "Source B: Casey says Sam borrowed the lens separately.",
+        ["(: b (Says casey (Borrowed sam lens)) (STV 1 1))"],
+    ))
+    graph = resolve_identity([attached, borrowed])
+    edge = next(
+        edge for edge in graph.edges
+        if edge.left.canonical_symbol == edge.right.canonical_symbol == "lens"
+    )
+
+    assert "exact_symbol" in edge.evidence
+    assert {"exemplar_conflict", "contrastive_language"} <= set(edge.negative_evidence)
+    assert edge.strength > 0 and edge.negative_strength > 0
+    assert edge in graph.alternatives
+    assert edge not in graph.merged
+    assert edge.guard.speakers == ("casey",)
+
+
 def test_first_person_pronouns_take_no_antecedent():
     """Deictic reference points outside the text; there is nothing to bind."""
     graph = resolve_identity(
@@ -311,6 +438,22 @@ def test_cataphora_is_not_resolved():
         ]
     )
 
+    assert merged_symbols(graph) == []
+
+
+def test_cataphora_in_the_same_source_unit_is_not_resolved():
+    senf = extract_senf(
+        "s1",
+        "Before it broke, the camera arrived.",
+        [
+            "(: a (Broke it) (STV 1 1))",
+            "(: b (Arrived camera) (STV 1 1))",
+        ],
+    )
+
+    graph = resolve_identity([senf])
+
+    assert edge_for(graph, "camera", "it") is None
     assert merged_symbols(graph) == []
 
 
@@ -368,6 +511,95 @@ def test_two_people_sharing_a_first_name_do_not_merge():
     )
 
     assert merged_symbols(graph) == []
+
+
+def test_short_name_cannot_bridge_conflicting_proper_name_components():
+    graph = resolve_identity(
+        [
+            extract_senf(
+                "s1", "Dr Kebede Alemu leads the trial.",
+                ["(: a (IsA kebede_alemu researcher) (STV 1 1))"],
+            ),
+            extract_senf(
+                "s2", "Kebede published results.",
+                ["(: b (IsA kebede researcher) (STV 1 1))"],
+            ),
+            extract_senf(
+                "s3", "Dr Kebede Bekele leads the trial.",
+                ["(: c (IsA kebede_bekele researcher) (STV 1 1))"],
+            ),
+        ]
+    )
+    rejected = [
+        edge for edge in graph.alternatives
+        if "kebede" in edge.symbols and edge.strength >= DEFAULT_IDENTITY_THRESHOLD
+    ]
+
+    assert not graph.same_entity("s1:e0", "s3:e0")
+    assert len(graph.merged) == 1
+    assert rejected, "the other plausible short-name edge remains inspectable"
+    conflict = edge_for(graph, "kebede_alemu", "kebede_bekele")
+    assert conflict is not None
+    assert conflict.negative_strength >= 0.5
+
+
+def _contextual_camera_pair() -> list[SENF]:
+    first = extract_senf(
+        "s1", "A camera appeared.", ["(: a (Appeared camera) (STV 1 1))"]
+    )
+    second = extract_senf(
+        "s2", "The camera appeared.", ["(: b (Appeared camera) (STV 1 1))"]
+    )
+    return [first, second]
+
+
+@pytest.mark.parametrize(
+    ("field_name", "left_value", "right_value"),
+    [
+        ("speaker", "alice", "bob"),
+        ("modality", "actual", "hypothetical"),
+        ("time_ref", "morning", "evening"),
+        ("location_ref", "lab", "field"),
+    ],
+)
+def test_conflicting_identity_context_guards_reject_merge(
+    field_name, left_value, right_value
+):
+    first, second = _contextual_camera_pair()
+    first.frames[0].context = replace(
+        first.frames[0].context, **{field_name: left_value}
+    )
+    second.frames[0].context = replace(
+        second.frames[0].context, **{field_name: right_value}
+    )
+
+    graph = resolve_identity([first, second])
+    edge = next(edge for edge in graph.edges if edge.symbols == ("camera", "camera"))
+
+    assert edge.strength >= DEFAULT_IDENTITY_THRESHOLD
+    assert edge not in graph.merged
+    assert edge in graph.alternatives
+
+
+def test_missing_context_does_not_block_safe_definite_identity():
+    first, second = _contextual_camera_pair()
+    second.frames[0].context = Context(
+        second.frames[0].context.source_unit_id, speaker="alice"
+    )
+
+    graph = resolve_identity([first, second])
+
+    assert merged_symbols(graph) == [("camera", "camera")]
+
+
+def test_matching_context_allows_safe_pronoun_identity():
+    camera, pronoun = _camera_and_pronoun()
+    camera.frames[0].context = replace(camera.frames[0].context, speaker="alice")
+    pronoun.frames[0].context = replace(pronoun.frames[0].context, speaker="alice")
+
+    graph = resolve_identity([camera, pronoun])
+
+    assert merged_symbols(graph) == [("camera", "it")]
 
 
 # --- the merge gate ----------------------------------------------------------
@@ -492,6 +724,16 @@ def test_mentions_are_capped_per_sentence_because_scoring_is_quadratic():
     graph = IdentityResolver(max_mentions_per_sentence=4).resolve(
         [extract_senf("s1", "text", statements)]
     )
+
+    assert len(graph.nodes) == 4
+
+
+def test_mention_cap_is_cumulative_for_duplicate_sentence_records():
+    statements = [f"(: a{i} (Mentions e{i}) (STV 1.0 1.0))" for i in range(4)]
+    first = extract_senf("s1", "text", statements)
+    duplicate = extract_senf("s1", "text", statements)
+
+    graph = IdentityResolver(max_mentions_per_sentence=4).resolve([first, duplicate])
 
     assert len(graph.nodes) == 4
 

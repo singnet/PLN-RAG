@@ -1,7 +1,10 @@
+from types import SimpleNamespace
+
 from core.parser import ParseResult, SemanticParser
 from core.senf.types import SENF_PAYLOAD_KEY, senf_from_payload
 from core.service import PLNRAGService
 from parsers.canonical_pln_parser import CanonicalPLNParser
+from parsers.canonical_langextract_parser import CanonicalLangExtractParser
 from parsers.canonical_senf_pln_parser import CanonicalSENFPLNParser
 
 
@@ -21,12 +24,21 @@ class RecordingReasoner:
     def __init__(self, accepted=None):
         self.accepted = accepted
         self.calls = []
+        self.query_calls = []
 
     def add_statements_report(self, statements):
         self.calls.append(list(statements))
         if self.accepted is None:
             return list(statements), []
         return list(self.accepted), []
+
+    def add_statements(self, statements):
+        self.calls.append(list(statements))
+        return list(statements)
+
+    def query(self, query, transient_statements=None):
+        self.query_calls.append((query, transient_statements))
+        return ["proof"]
 
 
 class FixedParser(SemanticParser):
@@ -115,7 +127,7 @@ def test_only_reasoner_accepted_atoms_reach_metadata_and_commit(fake_vector_stor
     assert fake_vector_store.points[0]["payload"]["accepted"] == [CAMERA]
 
 
-def test_vector_failure_does_not_split_reasoner_and_parser_state():
+def test_vector_failure_does_not_commit_parser_session():
     parser = FixedParser([CAMERA])
     reasoner = RecordingReasoner()
     service = service_for(parser, FailingStore(), reasoner=reasoner)
@@ -124,7 +136,7 @@ def test_vector_failure_does_not_split_reasoner_and_parser_state():
 
     assert result.status == "failed"
     assert reasoner.calls == [[CAMERA]]
-    assert parser.committed == [{"accepted": [CAMERA]}]
+    assert parser.committed == []
 
 
 def test_prepare_failure_skips_commit_but_preserves_canonical_storage(fake_vector_store):
@@ -169,14 +181,18 @@ def test_stored_pln_and_senf_preserve_pronoun_while_query_transport_targets_came
     parser = senf_parser(monkeypatch)
     accepted_hook(parser, "The camera has a wide lens.", [CAMERA])
 
-    _, queries = parser._post_filter_hook(
+    query_statements, queries = parser._post_filter_hook(
         ["Is it expensive?"],
         [PRONOUN],
         ["(: $prf (HasProperty it expensive) $tv)"],
         [],
         True,
     )
-    assert queries == ["(: $prf (HasProperty camera expensive) $tv)"]
+    assert queries == ["(: $prf (HasProperty it expensive) $tv)"]
+    planned = parser._plan_queries(
+        "Is it expensive?", queries, query_statements, []
+    )
+    assert "(: $prf (HasProperty camera expensive) $tv)" in planned
 
     filtered, _ = parser._post_filter_hook(
         ["It is expensive."], [PRONOUN], [], [], False
@@ -203,13 +219,341 @@ def test_consecutive_queries_reuse_the_same_ingested_session(monkeypatch):
     accepted_hook(parser, "The camera has a wide lens.", [CAMERA])
     query = "(: $prf (HasProperty camera wide_lens) $tv)"
 
-    parser._post_filter_hook(
+    statements, queries = parser._post_filter_hook(
         ["Does the camera have a wide lens?"], [], [query], [], True
     )
+    parser._plan_queries(
+        "Does the camera have a wide lens?", queries, statements, []
+    )
     first_sources = {pair.source_frame_id for pair in parser._weave.pairs}
-    parser._post_filter_hook(
+    statements, queries = parser._post_filter_hook(
         ["Does the camera still have a wide lens?"], [], [query], [], True
+    )
+    parser._plan_queries(
+        "Does the camera still have a wide lens?", queries, statements, []
     )
 
     assert parser._weave is not None
     assert {pair.source_frame_id for pair in parser._weave.pairs} == first_sources
+
+
+def query_service(parser, vector_store, reasoner):
+    service = PLNRAGService.__new__(PLNRAGService)
+    service._parser = parser
+    service._reasoner = reasoner
+    service._vector_store = vector_store
+    service._context_top_k = 5
+    service._query_fallback_enabled = True
+    service._enrich_context = lambda context: context
+    service._extract_sources = lambda traces, max_atoms: []
+    service._answer_gen = SimpleNamespace(generate=lambda query, traces: "")
+    return service
+
+
+def query_settings():
+    return SimpleNamespace(
+        query_candidate_max_tries=5,
+        source_lookup_max_atoms=0,
+        answer_generation_enabled=False,
+    )
+
+
+def test_ordinary_query_statements_are_non_authoritative_and_never_persisted(
+    monkeypatch, fake_vector_store
+):
+    transient = "(: helper (Helper camera) (STV 1.0 1.0))"
+    query = "(: $prf (Answer camera) $tv)"
+
+    class QueryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(queries=[query], transient_statements=[transient])
+
+    reasoner = RecordingReasoner()
+    service = query_service(QueryParser([]), fake_vector_store, reasoner)
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("What is the answer?")
+
+    assert response.proof == "['proof']"
+    assert reasoner.calls == []
+    assert reasoner.query_calls == [(query, None)]
+
+
+def test_legacy_query_support_statements_are_non_authoritative(
+    monkeypatch, fake_vector_store
+):
+    support = "(: helper (Helper camera) (STV 1.0 1.0))"
+    query = "(: $prf (Answer camera) $tv)"
+
+    class QueryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(statements=[support], queries=[query])
+
+    reasoner = RecordingReasoner()
+    service = query_service(QueryParser([]), fake_vector_store, reasoner)
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    service._reason("What is the answer?")
+
+    assert reasoner.calls == []
+    assert reasoner.query_calls == [(query, None)]
+
+
+def test_explicitly_trusted_query_adapters_are_executed_but_not_persisted(
+    monkeypatch, fake_vector_store
+):
+    adapter = "(: adapter (Equivalent camera device) (STV 1.0 1.0))"
+    query = "(: $prf (Answer camera) $tv)"
+
+    class QueryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(
+                queries=[query], trusted_transient_statements=[adapter]
+            )
+
+    reasoner = RecordingReasoner()
+    service = query_service(QueryParser([]), fake_vector_store, reasoner)
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    service._reason("What is the answer?")
+
+    assert reasoner.calls == []
+    assert reasoner.query_calls == [(query, [adapter])]
+
+
+def test_malformed_transient_context_fails_closed_then_retries_ordinary_query(
+    monkeypatch, fake_vector_store
+):
+    first_query = "(: $prf (Answer camera) $tv)"
+    retry_query = "(: $prf (Known camera) $tv)"
+
+    class RetryingParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(
+                queries=[first_query],
+                trusted_transient_statements=["(Malformed camera)"],
+            )
+
+        def retry_parse_query(self, text, context, attempted_query):
+            return ParseResult(queries=[retry_query])
+
+    class RetrySucceeds(RecordingReasoner):
+        def query(self, query, transient_statements=None):
+            self.query_calls.append((query, transient_statements))
+            return ["proof"] if query == retry_query else []
+
+    reasoner = RetrySucceeds()
+    service = query_service(RetryingParser([]), fake_vector_store, reasoner)
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("What is known?")
+
+    assert response.retry_used is True
+    assert reasoner.calls == []
+    assert reasoner.query_calls == [(first_query, None), (retry_query, None)]
+
+
+def test_hybrid_primary_and_fallback_query_support_remains_transient(monkeypatch):
+    primary_support = "(: p (Primary camera) (STV 1.0 1.0))"
+    fallback_support = "(: f (Fallback camera) (STV 1.0 1.0))"
+    parser = CanonicalLangExtractParser.__new__(CanonicalLangExtractParser)
+    parser._primary = SimpleNamespace(parse_query=lambda text, context: ParseResult(
+        statements=[primary_support], queries=["primary"],
+    ))
+    parser._fallback = SimpleNamespace(parse_query=lambda text, context: ParseResult(
+        transient_statements=[fallback_support], queries=["fallback"],
+    ))
+    monkeypatch.setattr(
+        "parsers.canonical_langextract_parser.get_settings",
+        lambda: SimpleNamespace(hybrid_query_mode="langextract_first"),
+    )
+
+    result = parser.parse_query("question", [])
+
+    assert result.statements == []
+    assert result.queries == ["primary", "fallback"]
+    assert result.transient_statements == []
+    assert result.candidate_transient_statements == [
+        [primary_support], [fallback_support]
+    ]
+
+
+def test_hybrid_retry_propagates_legacy_and_current_transient_support(monkeypatch):
+    legacy = "(: p (Primary camera) (STV 1.0 1.0))"
+    current = "(: q (Question camera) (STV 1.0 1.0))"
+    parser = CanonicalLangExtractParser.__new__(CanonicalLangExtractParser)
+    parser._primary = SimpleNamespace(parse_query=lambda text, context: ParseResult(
+        statements=[legacy], transient_statements=[current], queries=["primary"],
+    ))
+    monkeypatch.setattr(
+        "parsers.canonical_langextract_parser.get_settings",
+        lambda: SimpleNamespace(hybrid_query_mode="canonical_only"),
+    )
+
+    result = parser.retry_parse_query("question", [], "canonical")
+
+    assert result.statements == []
+    assert result.queries == ["primary"]
+    assert result.transient_statements == []
+    assert result.candidate_transient_statements == [[current, legacy]]
+
+
+def test_hybrid_query_support_cannot_self_prove(monkeypatch, fake_vector_store):
+    query = "(: $prf (Answer camera) $tv)"
+    self_proof = "(: invented (Answer camera) (STV 1.0 1.0))"
+    parser = CanonicalLangExtractParser.__new__(CanonicalLangExtractParser)
+    parser._primary = SimpleNamespace(
+        parse_query=lambda text, context: ParseResult(
+            statements=[self_proof], queries=[query]
+        )
+    )
+    parser._fallback = SimpleNamespace(
+        parse_query=lambda text, context: ParseResult(queries=[])
+    )
+    monkeypatch.setattr(
+        "parsers.canonical_langextract_parser.get_settings",
+        lambda: SimpleNamespace(hybrid_query_mode="langextract_first"),
+    )
+
+    class WouldSelfProve(RecordingReasoner):
+        def query(self, query, transient_statements=None):
+            self.query_calls.append((query, transient_statements))
+            return ["self-proof"] if transient_statements else []
+
+    reasoner = WouldSelfProve()
+    service = query_service(parser, fake_vector_store, reasoner)
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("Is camera an answer?")
+
+    assert response.proof == "[]"
+    assert reasoner.calls == []
+    assert reasoner.query_calls == [(query, None)]
+
+
+def test_candidate_transients_do_not_cross_contaminate(monkeypatch, fake_vector_store):
+    common = "(: common (Common camera) (STV 1.0 1.0))"
+    first = "(: first (First camera) (STV 1.0 1.0))"
+    second = "(: second (Second camera) (STV 1.0 1.0))"
+    queries = ["(: $prf (Answer first) $tv)", "(: $prf (Answer second) $tv)"]
+
+    class QueryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(
+                queries=queries,
+                trusted_transient_statements=[common],
+                candidate_trusted_transient_statements=[[first], [second]],
+            )
+
+    class SecondSucceeds(RecordingReasoner):
+        def query(self, query, transient_statements=None):
+            self.query_calls.append((query, transient_statements))
+            return ["proof"] if query == queries[1] else []
+
+    reasoner = SecondSucceeds()
+    service = query_service(QueryParser([]), fake_vector_store, reasoner)
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    service._reason("What is the answer?")
+
+    assert reasoner.query_calls == [
+        (queries[0], [common, first]),
+        (queries[1], [common, second]),
+    ]
+
+
+def test_malformed_candidate_transient_does_not_suppress_clean_fallback(
+    monkeypatch, fake_vector_store
+):
+    queries = ["(: $prf (Wrong camera) $tv)", "(: $prf (Known camera) $tv)"]
+
+    class QueryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(
+                queries=queries,
+                candidate_trusted_transient_statements=[["(Malformed camera)"], []],
+            )
+
+    class CleanFallbackSucceeds(RecordingReasoner):
+        def query(self, query, transient_statements=None):
+            self.query_calls.append((query, transient_statements))
+            return ["proof"] if query == queries[1] else []
+
+    reasoner = CleanFallbackSucceeds()
+    service = query_service(QueryParser([]), fake_vector_store, reasoner)
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("What is known?")
+
+    assert response.executed_query == queries[1]
+    assert reasoner.query_calls == [(queries[0], None), (queries[1], None)]
+
+
+def test_query_generated_fact_cannot_prove_its_own_candidate(
+    monkeypatch, fake_vector_store
+):
+    query = "(: $prf (Answer camera) $tv)"
+    self_proof = "(: invented (Answer camera) (STV 1.0 1.0))"
+
+    class QueryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(
+                statements=[self_proof],
+                transient_statements=[self_proof],
+                queries=[query],
+                candidate_transient_statements=[[self_proof]],
+            )
+
+    class WouldSelfProve(RecordingReasoner):
+        def query(self, query, transient_statements=None):
+            self.query_calls.append((query, transient_statements))
+            return ["self-proof"] if transient_statements else []
+
+    reasoner = WouldSelfProve()
+    service = query_service(QueryParser([]), fake_vector_store, reasoner)
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("Is camera an answer?")
+
+    assert response.proof == "[]"
+    assert reasoner.calls == []
+    assert reasoner.query_calls == [(query, None)]
+
+
+def test_original_query_provenance_survives_rewritten_candidate_execution(
+    monkeypatch, fake_vector_store
+):
+    canonical = "(: $prf (HasProperty it expensive) $tv)"
+    rewritten = "(: $prf (HasProperty camera expensive) $tv)"
+
+    class QueryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(queries=[rewritten, canonical], original_query=canonical)
+
+    reasoner = RecordingReasoner()
+    service = query_service(QueryParser([]), fake_vector_store, reasoner)
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("Is it expensive?")
+
+    assert response.original_query == canonical
+    assert response.executed_query == rewritten
+    assert response.fallback_used is True
+
+
+def test_canonical_planner_records_candidate_before_subclass_rewrite():
+    canonical = "(: $prf (HasProperty it expensive) $tv)"
+    rewritten = "(: $prf (HasProperty camera expensive) $tv)"
+
+    class RewritingParser(CanonicalPLNParser):
+        def _plan_queries(self, question, queries, statements, context):
+            return [rewritten]
+
+    parser = RewritingParser.__new__(RewritingParser)
+
+    planned, original = parser._plan_with_provenance(
+        "Is it expensive?", [canonical], [], []
+    )
+
+    assert planned == [rewritten]
+    assert original == canonical

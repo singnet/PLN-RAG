@@ -38,28 +38,44 @@ DEFAULT_EXEMPLAR_REGISTRY: Mapping[str, tuple[ExemplarDefinition, ...]] = {
     ),
     "lens": (
         ExemplarDefinition("camera_lens", ("camera", "nikon", "cracked")),
-        ExemplarDefinition("standalone_lens", ("borrowed", "borrow", "separate lens")),
+        ExemplarDefinition("standalone_lens", ("borrowed", "borrow", "separate lens", "separately")),
     ),
 }
 
 
 def _mention_context(senf: SENF, mention: Mention, radius: int = 120) -> str:
-    text = next((frame.source_text for frame in senf.frames if frame.source_text), "")
-    if not text:
+    unit = next(
+        (unit for unit in senf.source_units if unit.source_unit_id == mention.source_unit_id),
+        None,
+    )
+    if unit is None:
         return mention.surface.lower()
+    text = unit.text
     if mention.char_span is None:
         return text.lower()
     start, end = mention.char_span
-    return text[max(0, start - radius) : min(len(text), end + radius)].lower()
+    local_start = start - unit.char_span[0]
+    local_end = end - unit.char_span[0]
+    return text[max(0, local_start - radius) : min(len(text), local_end + radius)].lower()
 
 
-def _mention_kinds(senf: SENF, mention: Mention) -> tuple[str, ...]:
-    """All positive asserted kinds for this mention's entity."""
-    return tuple(sorted({
-        assertion.kind.canonical_symbol
+def _mention_kinds(
+    senf: SENF,
+    mention: Mention,
+    registry: Mapping[str, Sequence[ExemplarDefinition]] = DEFAULT_EXEMPLAR_REGISTRY,
+) -> tuple[str, ...]:
+    """Positive asserted kinds plus bounded lexical registry applicability."""
+    kinds = {
+        canonical_symbol(assertion.kind.canonical_symbol): assertion.kind.canonical_symbol
         for assertion in senf.kind_assertions
         if assertion.entity_id == mention.entity_id and assertion.polarity
-    }))
+    }
+    lexical_candidates = (mention.canonical_symbol, mention.head_lemma)
+    for candidate in lexical_candidates:
+        key = canonical_symbol(candidate)
+        if key in registry:
+            kinds.setdefault(key, candidate)
+    return tuple(sorted(kinds.values()))
 
 
 def score_exemplars(
@@ -70,11 +86,12 @@ def score_exemplars(
     """Attach deterministic exemplar distances to typed mention occurrences."""
     senf.exemplar_scores.clear()
     senf.nearest_exemplars.clear()
+    senf.active_exemplars.clear()
 
     for mention in senf.mentions:
         kinds_and_definitions = [
-            (canonical_symbol(kind), definition)
-            for kind in _mention_kinds(senf, mention)
+            (kind, definition)
+            for kind in _mention_kinds(senf, mention, registry)
             for definition in registry.get(canonical_symbol(kind), ())
         ]
         if not kinds_and_definitions:
@@ -118,7 +135,9 @@ def score_exemplars(
                 for score in scored
                 if score.distance <= minimum + alternative_margin
             ]
-            senf.nearest_exemplars[mention.mention_id] = active[0].exemplar
+            senf.active_exemplars[mention.mention_id] = [score.exemplar for score in active]
+            if len(active) == 1:
+                senf.nearest_exemplars[mention.mention_id] = active[0].exemplar
     return senf
 
 
@@ -128,16 +147,16 @@ def exemplar_distance(
     right_senf: SENF,
     right: Mention,
 ) -> float:
-    left_exemplar = left_senf.nearest_exemplar_for(left)
-    right_exemplar = right_senf.nearest_exemplar_for(right)
-    if not left_exemplar or not right_exemplar:
+    left_exemplars = set(left_senf.active_exemplars_for(left))
+    right_exemplars = set(right_senf.active_exemplars_for(right))
+    if not left_exemplars or not right_exemplars:
         return 0.5
     left_kinds = set(_mention_kinds(left_senf, left))
     right_kinds = set(_mention_kinds(right_senf, right))
     if not left_kinds & right_kinds:
         return 1.0
-    if left_exemplar == right_exemplar:
+    if left_exemplars & right_exemplars:
         return 0.0
-    if left_exemplar.startswith("generic_") or right_exemplar.startswith("generic_"):
+    if any(value.startswith("generic_") for value in left_exemplars | right_exemplars):
         return 0.35
     return 0.8

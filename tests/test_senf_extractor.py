@@ -1,7 +1,15 @@
 import pytest
 
 from core.senf.extractor import SENFExtractor, extract_senf
-from core.senf.types import EntityRef, FrameRef, KindRef, SENF, ValueRef
+from core.senf.types import (
+    EntityRef,
+    FrameRef,
+    KindRef,
+    SENF,
+    ValueRef,
+    senf_from_payload,
+    senf_to_payload,
+)
 
 
 def _symbol(senf: SENF, ref: EntityRef) -> str:
@@ -27,6 +35,30 @@ def test_generic_roles_are_positional_and_safe_overrides_remain():
     isa = extract_senf("s2", "a is a thing", ["(: y (IsA a thing) (STV 1 1))"])
     assert [role.name for role in generic.frames[0].roles] == ["Arg0", "Arg1"]
     assert [role.name for role in isa.frames[0].roles] == ["Instance", "Class"]
+
+
+@pytest.mark.parametrize(
+    ("predicate", "arguments", "roles"),
+    [
+        ("Lent", "alex sam camera", ["Agent", "Recipient", "Theme"]),
+        ("Lends", "alex sam camera", ["Agent", "Recipient", "Theme"]),
+        ("Loaned", "alex sam camera", ["Agent", "Recipient", "Theme"]),
+        ("Returned", "sam camera", ["Agent", "Theme"]),
+        ("Returns", "sam camera", ["Agent", "Theme"]),
+        ("Borrowed", "sam lens monday", ["Agent", "Theme", "Time"]),
+        ("Borrows", "sam lens", ["Agent", "Theme"]),
+        ("Says", "casey claim", ["Speaker", "Content"]),
+        ("Claims", "casey claim", ["Speaker", "Content"]),
+    ],
+)
+def test_bounded_predicate_arity_role_registry(predicate, arguments, roles):
+    senf = extract_senf("s1", arguments, [f"(: a ({predicate} {arguments}) (STV 1 1))"])
+    assert [role.name for role in senf.frames[0].roles] == roles
+
+
+def test_registered_predicate_with_unknown_arity_falls_back_to_arg_roles():
+    senf = extract_senf("s1", "alex camera", ["(: a (Lent alex camera) (STV 1 1))"])
+    assert [role.name for role in senf.frames[0].roles] == ["Arg0", "Arg1"]
 
 
 def test_atom_symbols_are_authoritative_and_never_canonicalized_again():
@@ -108,6 +140,72 @@ def test_rule_context_and_source_atom_are_retained():
     )
 
 
+def test_source_units_definiteness_and_explicit_claim_context_are_typed():
+    text = "Source A: Alex lent Sam a lens. Source B: Casey claims Sam borrowed the lens on Monday."
+    senf = extract_senf(
+        "case-d",
+        text,
+        [
+            "(: a (Lent alex sam lens) (STV 1 1))",
+            "(: b (Claims casey (Borrowed sam lens monday)) (STV 1 1))",
+        ],
+    )
+    assert [(unit.source_unit_id, unit.text) for unit in senf.source_units] == [
+        ("case-d:u0", "Source A: Alex lent Sam a lens."),
+        ("case-d:u1", "Source B: Casey claims Sam borrowed the lens on Monday."),
+    ]
+    lenses = [mention for mention in senf.mentions if mention.canonical_symbol == "lens"]
+    assert [(mention.source_unit_id, mention.definiteness) for mention in lenses] == [
+        ("case-d:u0", "indefinite"), ("case-d:u1", "definite"),
+    ]
+    borrowed = next(frame for frame in senf.frames if frame.predicate_head == "Borrowed")
+    assert borrowed.context.speaker == "casey"
+    assert borrowed.context.modality == borrowed.modality == "claim"
+    assert borrowed.context.time_ref == borrowed.time_ref == "monday"
+    assert any(
+        constraint.kind == "time_ref" and constraint.frame_id == borrowed.frame_id
+        for constraint in senf.constraints
+    )
+
+
+def test_context_is_not_inferred_from_words_but_explicit_modality_is_propagated():
+    lexical = extract_senf(
+        "s1", "Sam may borrow the lens.",
+        ["(: a (Borrowed sam lens) (STV 1 1))"],
+    )
+    explicit = extract_senf(
+        "s1", "Sam may borrow the lens.",
+        ["(: a (May (Borrowed sam lens)) (STV 1 1))"],
+    )
+    assert next(frame for frame in lexical.frames if frame.predicate_head == "Borrowed").modality is None
+    borrowed = next(frame for frame in explicit.frames if frame.predicate_head == "Borrowed")
+    assert borrowed.modality == borrowed.context.modality == "possible"
+
+
+def test_failed_atom_rolls_back_constraints_and_all_graph_nodes(monkeypatch):
+    extractor = SENFExtractor()
+    original = extractor._apply_explicit_context
+
+    def fail_after_context(frame, senf):
+        original(frame, senf)
+        if frame.source_atom_id == "bad":
+            raise RuntimeError("failed after constraints")
+
+    monkeypatch.setattr(extractor, "_apply_explicit_context", fail_after_context)
+    senf = extractor.extract(
+        "s1",
+        "Sam borrowed the lens on Monday. Alex waits.",
+        [
+            "(: bad (Borrowed sam lens monday) (STV 1 1))",
+            "(: good (Waits alex) (STV 1 1))",
+        ],
+    )
+
+    assert [frame.source_atom_id for frame in senf.frames] == ["good"]
+    assert senf.constraints == []
+    assert senf.symbols() == {"alex"}
+
+
 def test_repeated_source_occurrences_get_distinct_role_refs():
     senf = extract_senf(
         "s1",
@@ -118,6 +216,18 @@ def test_repeated_source_occurrences_get_distinct_role_refs():
     assert refs == [EntityRef("s1:e0", "s1:m0"), EntityRef("s1:e1", "s1:m1")]
     assert refs[0].entity_id != refs[1].entity_id
     assert refs[0].mention_id != refs[1].mention_id
+
+
+def test_frame_can_reference_a_mention_from_an_earlier_source_unit():
+    senf = extract_senf(
+        "s1",
+        "Alice arrived. Bob greeted Alice.",
+        ["(: greeting (Greeted bob alice) (STV 1 1))"],
+    )
+
+    assert {mention.source_unit_id for mention in senf.mentions} == {"s1:u0", "s1:u1"}
+    assert senf.frames[0].context.source_unit_id == "s1:u1"
+    assert senf_from_payload(senf_to_payload(senf)) == senf
 
 
 def test_one_source_occurrence_is_reused_stably():

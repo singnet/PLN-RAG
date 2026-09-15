@@ -39,43 +39,91 @@ class SENFSignals:
 
     def bonus(self, query: dict) -> int:
         """Additive adjustment for one candidate. Zero weights give zero."""
+        return sum(self.bonus_breakdown(query).values())
+
+    def bonus_breakdown(self, query: dict) -> dict[str, int]:
+        """Expose candidate-local SENF adjustments without changing their sum."""
+        parts = {
+            "source_grounding": 0,
+            "role_compat": 0,
+            "identity_support": 0,
+            "exemplar_coherence": 0,
+            "conflict": 0,
+            "transport": 0,
+            "distortion": 0,
+        }
         if not self.active:
-            return 0
+            return parts
 
         constants = [arg for arg in query["args"] if not arg.startswith(("$", "?"))]
-        total = 0
 
         if self.source_grounding_weight and constants:
             if all(arg in self.grounded_symbols for arg in constants):
-                total += self.source_grounding_weight
+                parts["source_grounding"] = self.source_grounding_weight
 
         if self.role_compat_weight and self.role_signatures:
             if any((query["head"], arg) in self.role_signatures for arg in constants):
-                total += self.role_compat_weight
+                parts["role_compat"] = self.role_compat_weight
 
         if constants and self.identity_support_weight:
             support = sum(self.identity_support.get(arg, 0.0) for arg in constants) / len(constants)
-            total += round(support * self.identity_support_weight)
+            parts["identity_support"] = round(support * self.identity_support_weight)
 
         if constants and self.exemplar_coherence_weight:
             coherence = sum(
                 self.exemplar_coherence.get(arg, 0.0) for arg in constants
             ) / len(constants)
-            total += round(coherence * self.exemplar_coherence_weight)
+            parts["exemplar_coherence"] = round(
+                coherence * self.exemplar_coherence_weight
+            )
 
         if constants and self.conflict_weight:
             conflict = sum(self.conflict_penalty.get(arg, 0.0) for arg in constants) / len(constants)
-            total -= round(conflict * self.conflict_weight)
+            parts["conflict"] = -round(conflict * self.conflict_weight)
 
         if self.transport_cost_weight:
-            total -= round(self.transport_cost * self.transport_cost_weight)
+            parts["transport"] = -round(
+                self.transport_cost * self.transport_cost_weight
+            )
 
         # Distortion is a property of the question, not the candidate, so it shifts
         # every candidate equally and cannot reorder them. It is applied anyway so a
         # wholly ungrounded question ranks below the `score > 0` floor and is
         # rejected rather than executed on a guess.
-        total -= round(self.distortion * self.distortion_weight)
-        return total
+        parts["distortion"] = -round(self.distortion * self.distortion_weight)
+        return parts
+
+
+@dataclass(frozen=True)
+class CandidateScore:
+    """Observable components of the existing candidate score."""
+
+    fact: int = 0
+    conclusion: int = 0
+    grounding: int = 0
+    exact_fact: int = 0
+    senf: int = 0
+    senf_components: Mapping[str, int] = field(default_factory=dict)
+    rejected: Optional[str] = None
+
+    @property
+    def total(self) -> Optional[int]:
+        if self.rejected is not None:
+            return None
+        value = self.fact + self.conclusion + self.grounding + self.exact_fact + self.senf
+        return value if value > 0 else None
+
+    def as_dict(self) -> dict:
+        return {
+            "fact": self.fact,
+            "conclusion": self.conclusion,
+            "grounding": self.grounding,
+            "exact_fact": self.exact_fact,
+            "senf": self.senf,
+            "senf_components": dict(self.senf_components),
+            "total": self.total,
+            "rejected": self.rejected,
+        }
 
 
 def same_shape(left: dict, right: dict) -> bool:
@@ -165,24 +213,34 @@ def score_query_candidate(
     senf: Optional[SENFSignals] = None,
 ) -> Optional[int]:
     """Rank a query candidate. Returns None to reject it outright."""
+    return score_query_candidate_breakdown(
+        query, facts, conclusions, is_yes_no, senf=senf
+    ).total
+
+
+def score_query_candidate_breakdown(
+    query: dict,
+    facts: list[dict],
+    conclusions: list[dict],
+    is_yes_no: bool,
+    senf: Optional[SENFSignals] = None,
+) -> CandidateScore:
+    """Return the score components without changing the baseline score API."""
     matching_facts = [sig for sig in facts if same_shape(query, sig)]
     matching_conclusions = [sig for sig in conclusions if same_shape(query, sig)]
 
     if is_yes_no and query["variables"]:
         if not has_witness_path(query, matching_facts, matching_conclusions):
-            return None
+            return CandidateScore(rejected="no_witness_path")
 
-    score = 0
-    if matching_facts:
-        score += 6
-    if matching_conclusions:
-        score += 4
-    if not query["variables"]:
-        score += 3 if is_yes_no else 1
-    else:
-        score += 3 if not is_yes_no else 0
-    if is_fully_grounded_from_signature(query, matching_facts):
-        score += 2
-    if senf is not None:
-        score += senf.bonus(query)
-    return score if score > 0 else None
+    senf_components = senf.bonus_breakdown(query) if senf is not None else {}
+    return CandidateScore(
+        fact=6 if matching_facts else 0,
+        conclusion=4 if matching_conclusions else 0,
+        grounding=(3 if is_yes_no else 1) if not query["variables"] else (
+            3 if not is_yes_no else 0
+        ),
+        exact_fact=2 if is_fully_grounded_from_signature(query, matching_facts) else 0,
+        senf=sum(senf_components.values()),
+        senf_components=senf_components,
+    )

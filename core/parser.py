@@ -10,6 +10,18 @@ class ParseResult:
     metadata: dict = field(default_factory=dict)
     diagnostics: Optional[dict] = None
     parser_state: Any = None
+    # Appended to preserve positional construction compatibility for parsers.
+    transient_statements: List[str] = field(default_factory=list)
+    # Non-authoritative query-local generations, retained for parser diagnostics.
+    candidate_transient_statements: List[List[str]] = field(default_factory=list)
+    # Ordinary query generations above are non-authoritative. Only adapters from
+    # an explicitly trusted parser path may be executed as proof support.
+    trusted_transient_statements: List[str] = field(default_factory=list)
+    candidate_trusted_transient_statements: List[List[str]] = field(
+        default_factory=list
+    )
+    # First canonical candidate before parser-specific rewrites or reordering.
+    original_query: str = ""
 
 
 class SemanticParser(ABC):
@@ -46,8 +58,14 @@ class SemanticParser(ABC):
         """Optional batch interface. Default implementation parses sequentially."""
         statements: List[str] = []
         queries: List[str] = []
+        transient_statements: List[str] = []
         for text in texts:
             result = self.parse(text, context)
             statements.extend(result.statements)
             queries.extend(result.queries)
-        return ParseResult(statements=statements, queries=queries)
+            transient_statements.extend(result.transient_statements)
+        return ParseResult(
+            statements=statements,
+            queries=queries,
+            transient_statements=transient_statements,
+        )

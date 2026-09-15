@@ -6,6 +6,7 @@ from config import get_settings
 from core import query_scoring
 from core.lm import create_lm
 from core.parser import ParseResult, SemanticParser
+from core.statement_validation import has_valid_implication_shape, is_valid_statement
 from core.symbol_normalization import canonical_symbol, normalize_text, pluralize, singularize
 
 
@@ -151,7 +152,9 @@ class CanonicalPLNParser(SemanticParser):
             )
 
             question_text = " ".join(texts)
-            queries = self._plan_queries(question=question_text, queries=queries, statements=statements, context=context)
+            queries, original_query = self._plan_with_provenance(
+                question_text, queries, [] if is_query else statements, context
+            )
 
             if is_query and len(texts) == 1 and not queries:
                 fallback_result = self._generate([texts[0]], prepared_context)
@@ -176,8 +179,16 @@ class CanonicalPLNParser(SemanticParser):
                 statements, queries = self._post_filter_hook(
                     texts, statements, queries, context, is_query
                 )
-                queries = self._plan_queries(question=texts[0], queries=queries, statements=statements, context=context)
+                queries, original_query = self._plan_with_provenance(
+                    texts[0], queries, [] if is_query else statements, context
+                )
 
+            if is_query:
+                return ParseResult(
+                    queries=queries,
+                    transient_statements=statements,
+                    original_query=original_query,
+                )
             return ParseResult(statements=statements, queries=queries)
         except Exception:
             if self._generation_backend is not None and getattr(
@@ -469,6 +480,8 @@ class CanonicalPLNParser(SemanticParser):
     def _filter_statements(self, statements: List[str]) -> List[str]:
         filtered: List[str] = []
         for statement in statements:
+            if not is_valid_statement(statement)[0]:
+                continue
             if "Implication" in statement and not self._has_valid_implication_shape(
                 statement
             ):
@@ -479,6 +492,24 @@ class CanonicalPLNParser(SemanticParser):
                 continue
             filtered.append(statement)
         return filtered
+
+    def _plan_with_provenance(
+        self,
+        question: str,
+        queries: List[str],
+        statements: List[str],
+        context: List[str],
+    ) -> tuple[List[str], str]:
+        planner = self._plan_queries
+        if getattr(planner, "__func__", None) is CanonicalPLNParser._plan_queries:
+            planned = planner(question, queries, statements, context)
+            return planned, planned[0] if planned else ""
+
+        canonical = CanonicalPLNParser._plan_queries(
+            self, question, queries, statements, context
+        )
+        planned = planner(question, queries, statements, context)
+        return planned, canonical[0] if canonical else ""
 
     def _prune_generic_sortal_premises(self, statement: str) -> str:
         if "Implication" not in statement:
@@ -513,9 +544,7 @@ class CanonicalPLNParser(SemanticParser):
         return statement[: match.start()] + replacement + statement[match.end() :]
 
     def _has_valid_implication_shape(self, statement: str) -> bool:
-        if "Implication" not in statement:
-            return True
-        return "(Premises" in statement and "(Conclusions" in statement
+        return has_valid_implication_shape(statement)
 
     def _normalize_isa_classes(self, text: str) -> str:
         def repl(match: re.Match[str]) -> str:

@@ -1,10 +1,15 @@
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Sequence
 
-from core.senf.types import EntityRef, SENF, Mention
+from core.senf.types import Context, EntityRef, SENF, Mention
 
 logger = logging.getLogger(__name__)
+
+
+def re_tokens(text: str) -> set[str]:
+    return set(re.findall(r"[a-z]+", text.lower()))
 
 DEFAULT_IDENTITY_THRESHOLD = 0.75
 DEFAULT_MAX_MENTIONS_PER_SENTENCE = 32
@@ -46,6 +51,10 @@ class IdentityWeights:
     name_extension: float = 0.55
     kind_match: float = 0.25
     role_compat: float = 0.2
+    semantic_role_continuity: float = 0.25
+    definiteness: float = 0.15
+    recency: float = 0.15
+    exemplar_agreement: float = 0.25
     pronoun_antecedent: float = 0.4
     role_prominence: float = 0.2
     unambiguous: float = 0.35
@@ -56,6 +65,17 @@ class IdentityWeights:
     both_pronouns: float = 0.9
     same_frame_distinct_roles: float = 0.7
     contrastive_language: float = 0.9
+    exemplar_conflict: float = 0.7
+
+
+@dataclass(frozen=True)
+class IdentityGuard:
+    source_unit_ids: tuple[str, ...]
+    sentence_ids: tuple[str, ...]
+    speakers: tuple[str, ...] = ()
+    modalities: tuple[str, ...] = ()
+    time_refs: tuple[str, ...] = ()
+    location_refs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -71,7 +91,7 @@ class IdentityEdge:
     negative_evidence: tuple[str, ...] = ()
     positive_cost: float = 1.0
     negative_cost: float = 1.0
-    guard: str = ""
+    guard: Optional[IdentityGuard] = None
 
     @property
     def symbols(self) -> tuple[str, str]:
@@ -85,6 +105,10 @@ class IdentityEdge:
     def crosses_sentences(self) -> bool:
         return self.left.sentence_id != self.right.sentence_id
 
+    @property
+    def crosses_source_units(self) -> bool:
+        return self.left.source_unit_id != self.right.source_unit_id
+
 
 @dataclass
 class IdentityGraph:
@@ -96,6 +120,7 @@ class IdentityGraph:
     mention_entities: dict[str, str] = field(default_factory=dict)
     entity_symbols: dict[str, str] = field(default_factory=dict)
     merged: tuple[IdentityEdge, ...] = ()
+    alternatives: tuple[IdentityEdge, ...] = ()
 
     def resolve(self, symbol: str) -> str:
         """Legacy presentation-only projection; identity operations must use IDs."""
@@ -198,6 +223,7 @@ def _negative_evidence(
     kinds: dict[str, frozenset[str]],
     distinct_role_pairs: set[frozenset[str]],
     source_texts: dict[str, str],
+    exemplars: dict[str, frozenset[str]],
 ) -> list[str]:
     left_symbol, right_symbol = left.canonical_symbol, right.canonical_symbol
     found: list[str] = []
@@ -225,12 +251,18 @@ def _negative_evidence(
     if frozenset({_mention_key(left), _mention_key(right)}) in distinct_role_pairs:
         found.append("same_frame_distinct_roles")
 
+    left_exemplars = exemplars.get(_mention_key(left), frozenset())
+    right_exemplars = exemplars.get(_mention_key(right), frozenset())
+    if left_exemplars and right_exemplars and left_exemplars.isdisjoint(right_exemplars):
+        found.append("exemplar_conflict")
+
     for mention in (left, right):
         text = source_texts.get(_mention_key(mention), "")
         if mention.char_span and text:
-            start = max(0, mention.char_span[0] - 16)
-            prefix = text[start : mention.char_span[0]].lower()
-            if any(cue in prefix.split()[-3:] for cue in ("another", "different", "other")):
+            start = max(0, mention.char_span[0] - 24)
+            end = min(len(text), mention.char_span[1] + 24)
+            nearby = re_tokens(text[start:end])
+            if any(cue in nearby for cue in ("another", "different", "other", "separately")):
                 found.append("contrastive_language")
                 break
     return found
@@ -241,6 +273,7 @@ def _entity_evidence(
     right: Mention,
     kinds: dict[str, frozenset[str]],
     roles: dict[str, set[tuple[str, str]]],
+    exemplars: dict[str, frozenset[str]],
 ) -> list[str]:
     """Evidence for two non-pronoun mentions denoting the same entity."""
     found: list[str] = []
@@ -249,14 +282,22 @@ def _entity_evidence(
     left_surface, right_surface = _normalized_surface(left), _normalized_surface(right)
     if left_symbol == right_symbol:
         found.append("exact_symbol")
-    if left_surface and left_surface == right_surface:
+    elif left_surface and left_surface == right_surface:
         # Equal surfaces with unequal symbols means canonicalization diverged
         # (a protected proper name against a lemmatized one, typically).
         found.append("surface_match")
 
-    if left.mention_type == "proper" and right.mention_type == "proper":
+    proper_pair = left.mention_type == "proper" and right.mention_type == "proper"
+    sentence_initial_name_pair = (
+        left_symbol == right_symbol
+        and "proper" in (left.mention_type, right.mention_type)
+        and left.surface[:1].isupper()
+        and right.surface[:1].isupper()
+    )
+    if proper_pair or sentence_initial_name_pair:
         # The veto already rejected non-overlapping proper names, so reaching here
-        # means one name contains the other ("Kebede" within "Kebede Alemu").
+        # means one name contains the other ("Kebede" within "Kebede Alemu"), or
+        # the extractor conservatively typed a sentence-initial name as common.
         found.append("proper_compat")
 
     bare, compound = _bare_and_compound(left_symbol, right_symbol)
@@ -291,8 +332,31 @@ def _entity_evidence(
     if left_kind & right_kind:
         found.append("kind_match")
 
-    if roles.get(_mention_key(left), set()) & roles.get(_mention_key(right), set()):
-        found.append("role_compat")
+    left_roles = {
+        role for _, role in roles.get(_mention_key(left), set()) if not role.startswith("Arg")
+    }
+    right_roles = {
+        role for _, role in roles.get(_mention_key(right), set()) if not role.startswith("Arg")
+    }
+    if left_roles & right_roles:
+        found.append("semantic_role_continuity")
+
+    if left.definiteness == "indefinite" and right.definiteness in ("definite", "demonstrative"):
+        found.append("definiteness")
+    if (
+        any(signal in found for signal in (
+            "exact_symbol", "kind_match", "semantic_role_continuity",
+            "definiteness", "exemplar_agreement",
+        ))
+        and left.source_unit_id != right.source_unit_id
+        and _mentions_adjacent(left, right)
+    ):
+        found.append("recency")
+
+    left_exemplars = exemplars.get(_mention_key(left), frozenset())
+    right_exemplars = exemplars.get(_mention_key(right), frozenset())
+    if left_exemplars & right_exemplars:
+        found.append("exemplar_agreement")
 
     return found
 
@@ -301,6 +365,7 @@ def _pronoun_evidence(
     pronoun: Mention,
     candidate: Mention,
     prominent: set[str],
+    roles: dict[str, set[tuple[str, str]]],
 ) -> list[str]:
     """Evidence that `candidate` is the antecedent of `pronoun`.
 
@@ -312,12 +377,27 @@ def _pronoun_evidence(
         return []
     if candidate.mention_type == "pronoun":
         return []
-    if not _adjacent(candidate.sentence_id, pronoun.sentence_id):
+    if (
+        candidate.source_unit_id == pronoun.source_unit_id
+        and candidate.char_span is not None
+        and pronoun.char_span is not None
+        and candidate.char_span[1] > pronoun.char_span[0]
+    ):
+        return []
+    if not _mentions_adjacent(candidate, pronoun):
         return []
 
     found = ["pronoun_antecedent"]
     if _mention_key(candidate) in prominent:
         found.append("role_prominence")
+    pronoun_roles = {
+        role for _, role in roles.get(_mention_key(pronoun), set()) if not role.startswith("Arg")
+    }
+    candidate_roles = {
+        role for _, role in roles.get(_mention_key(candidate), set()) if not role.startswith("Arg")
+    }
+    if pronoun_roles & candidate_roles:
+        found.append("semantic_role_continuity")
     return found
 
 
@@ -337,6 +417,21 @@ def _adjacent(antecedent_sentence: str, pronoun_sentence: str) -> bool:
     return 0 <= right_index - left_index <= 1
 
 
+def _mentions_adjacent(antecedent: Mention, later: Mention) -> bool:
+    if antecedent.sentence_id == later.sentence_id:
+        left_index = _source_unit_index(antecedent.source_unit_id)
+        right_index = _source_unit_index(later.source_unit_id)
+        if left_index is None or right_index is None:
+            return antecedent.source_unit_id == later.source_unit_id
+        return 0 <= right_index - left_index <= 1
+    return _adjacent(antecedent.sentence_id, later.sentence_id)
+
+
+def _source_unit_index(source_unit_id: str) -> Optional[int]:
+    match = re.search(r":u(\d+)$", source_unit_id)
+    return int(match.group(1)) if match else None
+
+
 def _sentence_index(sentence_id: str) -> Optional[int]:
     digits = ""
     for char in reversed(sentence_id):
@@ -349,6 +444,17 @@ def _sentence_index(sentence_id: str) -> Optional[int]:
 def _confidence(evidence: Sequence[str]) -> float:
     """Each independent evidence type halves the remaining doubt."""
     return 1.0 - 0.5 ** len(evidence) if evidence else 0.0
+
+
+def _contexts_conflict(left: Optional[Context], right: Optional[Context]) -> bool:
+    if left is None or right is None:
+        return False
+    for field_name in ("speaker", "modality", "time_ref", "location_ref"):
+        left_value = getattr(left, field_name)
+        right_value = getattr(right, field_name)
+        if left_value is not None and right_value is not None and left_value != right_value:
+            return True
+    return False
 
 
 class IdentityResolver:
@@ -385,6 +491,8 @@ class IdentityResolver:
         prominent = self._prominent_mentions(senfs)
         distinct_role_pairs = self._distinct_role_pairs(senfs)
         source_texts = self._source_texts(senfs)
+        exemplars = self._exemplar_index(senfs)
+        contexts = self._context_index(senfs)
 
         edges = self._score_pairs(
             mentions,
@@ -393,10 +501,12 @@ class IdentityResolver:
             prominent,
             distinct_role_pairs,
             source_texts,
+            exemplars,
+            contexts,
         )
         edges = self._apply_ambiguity(edges)
         edges = self._collapse_to_mention_pairs(edges)
-        merged = tuple(edge for edge in edges if self._should_merge(edge))
+        merged = self._select_merged(mentions, edges, contexts)
         representatives = self._elect(mentions, merged)
 
         for edge in merged:
@@ -420,6 +530,7 @@ class IdentityResolver:
                 for entity in senf.entities
             },
             merged=merged,
+            alternatives=tuple(edge for edge in edges if edge.strength > 0 and edge not in merged),
         )
 
     @staticmethod
@@ -433,8 +544,14 @@ class IdentityResolver:
     def _collect_mentions(self, senfs: Sequence[SENF]) -> list[Mention]:
         """Flatten mentions, capping per sentence since pair scoring is O(n²)."""
         collected: list[Mention] = []
+        counts: dict[str, int] = {}
         for senf in senfs:
-            collected.extend(senf.mentions[: self.max_mentions_per_sentence])
+            remaining = self.max_mentions_per_sentence - counts.get(senf.sentence_id, 0)
+            if remaining <= 0:
+                continue
+            selected = senf.mentions[:remaining]
+            collected.extend(selected)
+            counts[senf.sentence_id] = counts.get(senf.sentence_id, 0) + len(selected)
         return collected
 
     @staticmethod
@@ -495,6 +612,26 @@ class IdentityResolver:
                 out[_mention_key(mention)] = text
         return out
 
+    @staticmethod
+    def _exemplar_index(senfs: Sequence[SENF]) -> dict[str, frozenset[str]]:
+        return {
+            mention_id: frozenset(values)
+            for senf in senfs
+            for mention_id, values in senf.active_exemplars.items()
+        }
+
+    @staticmethod
+    def _context_index(senfs: Sequence[SENF]) -> dict[str, Context]:
+        out: dict[str, Context] = {}
+        for senf in senfs:
+            for frame in senf.frames:
+                if frame.context is None:
+                    continue
+                for role in frame.roles:
+                    if isinstance(role.filler, EntityRef):
+                        out.setdefault(role.filler.mention_id, frame.context)
+        return out
+
     def _score_pairs(
         self,
         mentions: Sequence[Mention],
@@ -503,19 +640,22 @@ class IdentityResolver:
         prominent: set[str],
         distinct_role_pairs: set[frozenset[str]],
         source_texts: dict[str, str],
+        exemplars: dict[str, frozenset[str]],
+        contexts: dict[str, Context],
     ) -> tuple[IdentityEdge, ...]:
         vectors: dict[str, Sequence[float]] = {}
         scored: list[IdentityEdge] = []
 
         for index, left in enumerate(mentions):
             for right in mentions[index + 1 :]:
-                evidence = self._evidence_for(left, right, kinds, roles, prominent)
+                evidence = self._evidence_for(left, right, kinds, roles, prominent, exemplars)
                 negative = _negative_evidence(
                     left,
                     right,
                     kinds,
                     distinct_role_pairs,
                     source_texts,
+                    exemplars,
                 )
                 if not evidence and not negative:
                     continue
@@ -536,6 +676,7 @@ class IdentityResolver:
                         evidence,
                         negative_strength,
                         negative,
+                        contexts,
                     )
                 )
 
@@ -548,14 +689,15 @@ class IdentityResolver:
         kinds: dict[str, frozenset[str]],
         roles: dict[str, set[tuple[str, str]]],
         prominent: set[str],
+        exemplars: dict[str, frozenset[str]],
     ) -> list[str]:
         left_is_pronoun = left.mention_type == "pronoun"
         right_is_pronoun = right.mention_type == "pronoun"
         if left_is_pronoun:
-            return _pronoun_evidence(left, right, prominent)
+            return _pronoun_evidence(left, right, prominent, roles)
         if right_is_pronoun:
-            return _pronoun_evidence(right, left, prominent)
-        return _entity_evidence(left, right, kinds, roles)
+            return _pronoun_evidence(right, left, prominent, roles)
+        return _entity_evidence(left, right, kinds, roles, exemplars)
 
     def _strength(self, evidence: Sequence[str]) -> float:
         return min(1.0, sum(getattr(self.weights, name, 0.0) for name in evidence))
@@ -615,10 +757,27 @@ class IdentityResolver:
         evidence: Sequence[str],
         negative_strength: float = 0.0,
         negative_evidence: Sequence[str] = (),
+        contexts: Optional[dict[str, Context]] = None,
     ) -> IdentityEdge:
         """Orient by mention ID so equal-symbol occurrences remain distinguishable."""
         if _mention_key(right) < _mention_key(left):
             left, right = right, left
+        context_values = [
+            context for mention in (left, right)
+            if (context := (contexts or {}).get(_mention_key(mention))) is not None
+        ]
+        guard = IdentityGuard(
+            source_unit_ids=tuple(dict.fromkeys(
+                context.source_unit_id for context in context_values
+            )) or tuple(dict.fromkeys(
+                value for value in (left.source_unit_id, right.source_unit_id) if value
+            )),
+            sentence_ids=tuple(dict.fromkeys((left.sentence_id, right.sentence_id))),
+            speakers=tuple(dict.fromkeys(context.speaker for context in context_values if context.speaker)),
+            modalities=tuple(dict.fromkeys(context.modality for context in context_values if context.modality)),
+            time_refs=tuple(dict.fromkeys(context.time_ref for context in context_values if context.time_ref)),
+            location_refs=tuple(dict.fromkeys(context.location_ref for context in context_values if context.location_ref)),
+        )
         return IdentityEdge(
             left=left,
             right=right,
@@ -629,7 +788,7 @@ class IdentityResolver:
             negative_evidence=tuple(negative_evidence),
             positive_cost=round(1.0 - strength, 4),
             negative_cost=round(1.0 - negative_strength, 4),
-            guard=f"{left.sentence_id}|{right.sentence_id}",
+            guard=guard,
         )
 
     def _apply_ambiguity(self, edges: tuple[IdentityEdge, ...]) -> tuple[IdentityEdge, ...]:
@@ -694,17 +853,96 @@ class IdentityResolver:
         )
 
     def _should_merge(self, edge: IdentityEdge) -> bool:
+        if self.threshold >= 1.0:
+            return False
         if edge.left.entity_id == edge.right.entity_id:
             return False
         if edge.strength < self.threshold:
             return False
         if edge.negative_strength >= 0.5:
             return False
+        if (
+            edge.left.definiteness == "indefinite"
+            and edge.right.definiteness == "indefinite"
+            and not {"definiteness", "pronoun_antecedent", "exemplar_agreement"}
+            & set(edge.evidence)
+        ):
+            # Repeating an indefinite description introduces another candidate;
+            # symbol, role, and proximity alone do not make it an anaphor.
+            return False
         if edge.crosses_sentences and len(edge.evidence) < 2:
             # One signal is never enough to bind entities the text introduced
             # separately; this is the cheapest guard against a runaway merge.
             return False
+        if edge.crosses_source_units and not (
+            "recency" in edge.evidence
+            or "pronoun_antecedent" in edge.evidence
+            or "proper_compat" in edge.evidence
+        ):
+            return False
         return True
+
+    def _select_merged(
+        self,
+        mentions: Sequence[Mention],
+        edges: Sequence[IdentityEdge],
+        contexts: dict[str, Context],
+    ) -> tuple[IdentityEdge, ...]:
+        """Accept edges without allowing a weak bridge to erase contradictions."""
+        parent = {mention.entity_id: mention.entity_id for mention in mentions}
+
+        def find(entity_id: str) -> str:
+            while parent[entity_id] != entity_id:
+                parent[entity_id] = parent[parent[entity_id]]
+                entity_id = parent[entity_id]
+            return entity_id
+
+        entity_mentions: dict[str, list[Mention]] = {}
+        for mention in mentions:
+            entity_mentions.setdefault(mention.entity_id, []).append(mention)
+
+        negatives = {
+            frozenset(edge.mention_ids)
+            for edge in edges
+            if edge.negative_strength >= 0.5
+        }
+
+        def components_compatible(left_root: str, right_root: str) -> bool:
+            left_mentions = [
+                mention
+                for entity_id, occurrences in entity_mentions.items()
+                if find(entity_id) == left_root
+                for mention in occurrences
+            ]
+            right_mentions = [
+                mention
+                for entity_id, occurrences in entity_mentions.items()
+                if find(entity_id) == right_root
+                for mention in occurrences
+            ]
+            for left in left_mentions:
+                for right in right_mentions:
+                    if frozenset({_mention_key(left), _mention_key(right)}) in negatives:
+                        return False
+                    if _contexts_conflict(
+                        contexts.get(_mention_key(left)), contexts.get(_mention_key(right))
+                    ):
+                        return False
+            return True
+
+        accepted: list[IdentityEdge] = []
+        for edge in edges:
+            if not self._should_merge(edge):
+                continue
+            left_root = find(edge.left.entity_id)
+            right_root = find(edge.right.entity_id)
+            if left_root == right_root:
+                continue
+            if not components_compatible(left_root, right_root):
+                continue
+            parent[right_root] = left_root
+            accepted.append(edge)
+        return tuple(accepted)
 
     @staticmethod
     def _elect(

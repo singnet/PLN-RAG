@@ -23,10 +23,10 @@ def _sample():
     )
 
 
-def test_v3_payload_is_json_safe_and_round_trips_every_field():
+def test_v4_payload_is_json_safe_and_round_trips_every_field():
     original = _sample()
     payload = senf_to_payload(original)
-    assert payload["senf_version"] == 3 == SENF_PAYLOAD_VERSION
+    assert payload["senf_version"] == 4 == SENF_PAYLOAD_VERSION
     assert json.loads(json.dumps(payload)) == payload
     assert senf_from_payload(json.loads(json.dumps(payload))) == original
 
@@ -41,7 +41,7 @@ def test_round_trip_preserves_all_reference_types():
     assert any(isinstance(filler, FrameRef) for filler in fillers)
 
 
-@pytest.mark.parametrize("version", [1, 2, 4, 99, "3", True, None])
+@pytest.mark.parametrize("version", [1, 2, 3, 5, 99, "4", True, None])
 def test_absent_old_future_and_malformed_versions_are_unsupported(version):
     payload = senf_to_payload(_sample())
     payload["senf_version"] = version
@@ -53,7 +53,7 @@ def test_absent_or_non_payload_senf_is_safe(blob):
     assert senf_from_payload(blob) is None
 
 
-def test_malformed_v3_payload_fails_closed():
+def test_malformed_v4_payload_fails_closed():
     payload = senf_to_payload(_sample())
     payload["frames"][0]["roles"][0]["filler"] = {
         "type": "entity_ref",
@@ -130,7 +130,7 @@ def test_frame_ref_cannot_cross_atom_provenance():
         (("frames", 0, "location_ref"), 7),
     ],
 )
-def test_v3_rejects_invalid_ids_sources_and_spans(path, bad_value):
+def test_v4_rejects_invalid_ids_sources_and_spans(path, bad_value):
     payload = senf_to_payload(_sample())
     target = payload
     for key in path[:-1]:
@@ -139,19 +139,19 @@ def test_v3_rejects_invalid_ids_sources_and_spans(path, bad_value):
     assert senf_from_payload(payload) is None
 
 
-def test_v3_rejects_kind_assertion_not_backed_by_matching_isa_frame():
+def test_v4_rejects_kind_assertion_not_backed_by_matching_isa_frame():
     payload = senf_to_payload(_sample())
     payload["kind_assertions"][0]["kind"] = "clinician"
     assert senf_from_payload(payload) is None
 
 
-def test_v3_rejects_isa_frame_without_kind_assertion():
+def test_v4_rejects_isa_frame_without_kind_assertion():
     payload = senf_to_payload(_sample())
     payload["kind_assertions"] = []
     assert senf_from_payload(payload) is None
 
 
-def test_v3_rejects_surface_that_does_not_match_its_span():
+def test_v4_rejects_surface_that_does_not_match_its_span():
     payload = senf_to_payload(_sample())
     mention = next(item for item in payload["mentions"] if item["char_span"])
     mention["surface"] = "forged"
@@ -159,7 +159,7 @@ def test_v3_rejects_surface_that_does_not_match_its_span():
 
 
 @pytest.mark.parametrize("distance", [-0.1, 1.1, float("inf"), float("nan")])
-def test_v3_rejects_unbounded_or_nonfinite_exemplar_distance(distance):
+def test_v4_rejects_unbounded_or_nonfinite_exemplar_distance(distance):
     senf = _sample()
     mention_id = senf.mentions[0].mention_id
     payload = senf_to_payload(senf)
@@ -180,13 +180,13 @@ def test_v3_rejects_unbounded_or_nonfinite_exemplar_distance(distance):
         ("constraints", [7]),
     ],
 )
-def test_v3_rejects_annotation_keys_and_types_that_are_not_mentions(field, value):
+def test_v4_rejects_annotation_keys_and_types_that_are_not_mentions(field, value):
     payload = senf_to_payload(_sample())
     payload[field] = value
     assert senf_from_payload(payload) is None
 
 
-def test_v3_requires_exemplar_reasons_to_be_a_string_list():
+def test_v4_requires_exemplar_reasons_to_be_a_string_list():
     payload = senf_to_payload(_sample())
     mention_id = payload["mentions"][0]["mention_id"]
     payload["exemplar_scores"] = {
@@ -198,10 +198,88 @@ def test_v3_requires_exemplar_reasons_to_be_a_string_list():
     assert senf_from_payload(payload) is None
 
 
-def test_unknown_keys_are_ignored_only_on_otherwise_valid_v3():
+def test_v4_rejects_forged_cross_kind_exemplar():
+    senf = extract_senf(
+        "s1", "The camera is professional.",
+        ["(: kind (IsA camera camera) (STV 1 1))"],
+    )
+    payload = senf_to_payload(senf)
+    mention_id = payload["mentions"][0]["mention_id"]
+    payload["exemplar_scores"] = {mention_id: [{
+        "kind": "game", "exemplar": "chess_game", "distance": 0.2,
+        "reasons": ["professional"],
+    }]}
+
+    assert senf_from_payload(payload) is None
+
+
+def test_v4_allows_registered_lexical_applicability_without_isa():
+    from core.senf.exemplars import score_exemplars
+
+    senf = score_exemplars(extract_senf(
+        "s1", "The Nikon camera arrived.",
+        ["(: arrived (Arrived camera) (STV 1 1))"],
+    ))
+
+    assert senf.kind_assertions == []
+    assert senf.exemplar_scores
+    assert senf_from_payload(senf_to_payload(senf)) == senf
+
+
+def test_unknown_keys_are_ignored_only_on_otherwise_valid_v4():
     payload = senf_to_payload(_sample())
     payload["unknown_future_key"] = {"ignored": True}
     assert senf_from_payload(payload) == _sample()
+
+
+def test_v3_payload_fails_closed_without_migration():
+    payload = senf_to_payload(_sample())
+    payload["senf_version"] = 3
+    assert senf_from_payload(payload) is None
+
+
+@pytest.mark.parametrize(
+    "field", ["source_units", "active_exemplars", "constraints", "exemplar_scores"]
+)
+def test_v4_requires_new_typed_fields(field):
+    payload = senf_to_payload(_sample())
+    del payload[field]
+    assert senf_from_payload(payload) is None
+
+
+def test_v4_rejects_orphan_entities_and_mentions():
+    payload = senf_to_payload(_sample())
+    payload["entities"].append({"entity_id": "s1:orphan", "canonical_symbol": "ghost"})
+    assert senf_from_payload(payload) is None
+
+    payload = senf_to_payload(_sample())
+    mention = dict(payload["mentions"][0])
+    mention.update({
+        "mention_id": "s1:orphan", "char_span": None, "surface": "ghost",
+        "source_unit_id": payload["source_units"][0]["source_unit_id"],
+    })
+    payload["mentions"].append(mention)
+    assert senf_from_payload(payload) is None
+
+
+@pytest.mark.parametrize("mutation", ["missing_context", "wrong_unit", "bad_constraint"])
+def test_v4_rejects_inconsistent_frame_context_and_typed_constraints(mutation):
+    senf = extract_senf(
+        "s1", "Sam borrowed the lens on Monday.",
+        ["(: a (Borrowed sam lens monday) (STV 1 1))"],
+    )
+    payload = senf_to_payload(senf)
+    if mutation == "missing_context":
+        payload["frames"][0]["context"] = None
+    elif mutation == "wrong_unit":
+        payload["source_units"].append({
+            "source_unit_id": "s1:u1", "sentence_id": "s1", "text": "", "char_span": [0, 0],
+        })
+        payload["frames"][0]["context"]["source_unit_id"] = "s1:u1"
+    else:
+        payload["constraints"][0]["value"] = "tuesday"
+
+    assert senf_from_payload(payload) is None
 
 
 def test_store_merges_senf_without_disturbing_nl_and_pln(fake_vector_store):
@@ -217,6 +295,11 @@ def test_store_merges_senf_without_disturbing_nl_and_pln(fake_vector_store):
     assert payload["nl"] == "Kebede eats fish."
     assert payload["pln"] == atoms
     assert senf_from_payload(payload[SENF_PAYLOAD_KEY]) == senf
+    assert fake_vector_store.retrieve_senf_context("fish", 1) == [{
+        SENF_PAYLOAD_KEY: payload[SENF_PAYLOAD_KEY],
+        "nl": "Kebede eats fish.",
+        "pln": atoms,
+    }]
 
 
 def test_store_without_metadata_writes_no_senf_key(fake_vector_store):

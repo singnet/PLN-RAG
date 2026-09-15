@@ -1,12 +1,13 @@
 import logging
 import re
 import uuid
+from dataclasses import dataclass
 from typing import List, Optional
 
 from config import get_settings
 from core import query_scoring
 from core.parser import ParseResult
-from core.senf.bridge import predicate_bridge_atoms
+from core.senf.bridge import executable_bridge_atoms
 from core.senf.exemplars import score_exemplars
 from core.senf.extractor import extract_senf
 from core.senf.identity import resolve_identity
@@ -30,6 +31,17 @@ logger = logging.getLogger(__name__)
 _SENF_SKIP_HEADS = frozenset(
     {"SimilarityLink", "ContextLink", "PredicateBridge", "PredicateSimilarity"}
 )
+
+
+@dataclass(frozen=True)
+class _CandidatePlan:
+    query: str
+    senf: SENF
+    graph: object
+    weave: Optional[WeaveResult]
+    source: Optional[SENF]
+    score: query_scoring.CandidateScore
+    adapters: tuple[str, ...] = ()
 
 
 def _is_semantic_atom(atom: str) -> bool:
@@ -90,6 +102,15 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._exemplar_enabled = cfg.senf_exemplar_enabled
         self._emit_bridge_atoms = cfg.senf_emit_bridge_atoms
         self._weave_top_k = cfg.senf_weave_top_k
+        configured_work = max(1, int(cfg.senf_query_max_candidate_work))
+        execution_limit = int(cfg.query_candidate_max_tries or 0)
+        self._candidate_limit = execution_limit if execution_limit > 0 else configured_work
+        self._max_priors = max(1, int(cfg.senf_query_max_priors))
+        self._max_source_frames = max(1, int(cfg.senf_query_max_source_frames))
+        self._max_mentions = max(1, int(cfg.senf_query_max_mentions))
+        self._candidate_work_limit = max(
+            self._candidate_limit, configured_work
+        )
         self._source_grounding_weight = cfg.senf_source_grounding_weight
         self._role_compat_weight = cfg.senf_role_compat_weight
         self._distortion_weight = cfg.senf_distortion_weight
@@ -109,6 +130,9 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._telemetry: Optional[dict] = None
         self._pending_ingest: Optional[tuple[str, str]] = None
         self._query_source_heads: frozenset[str] = frozenset()
+        self._query_prior: tuple[SENF, ...] = ()
+        self._query_sentence_id = ""
+        self._candidate_plans: tuple[_CandidatePlan, ...] = ()
 
     def senf_telemetry(self) -> Optional[dict]:
         """Counts from the most recent hook call, or None if it never ran.
@@ -124,7 +148,11 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._pending_ingest = None
         result = super()._parse_many_with_mode(texts, context, is_query)
         result.diagnostics = self.senf_telemetry()
-        if not is_query:
+        if is_query and self._candidate_plans:
+            result.candidate_trusted_transient_statements = [
+                list(plan.adapters) for plan in self._candidate_plans
+            ]
+        elif not is_query:
             result.parser_state = self._pending_ingest
         self._pending_ingest = None
         return result
@@ -169,6 +197,9 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             # must not inherit the previous question's grounding.
             self._weave = None
             self._weaves = ()
+            self._query_prior = ()
+            self._query_sentence_id = ""
+            self._candidate_plans = ()
         else:
             self._pending_ingest = None
 
@@ -195,34 +226,23 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                 self._query_source_heads = frozenset(
                     frame.predicate_head for item in prior for frame in item.frames
                 )
+                self._query_prior = tuple(prior)
+                self._query_sentence_id = sentence_id
             if self._exemplar_enabled:
                 for prior_senf in prior:
                     if not prior_senf.exemplar_scores:
                         score_exemplars(prior_senf)
             graph = resolve_identity(prior + [senf], threshold=self._threshold)
-            if is_query:
-                self._weaves = build_weaves(
-                    senf,
-                    prior,
-                    k=self._weave_top_k,
-                    identity_graph=graph,
-                )
-                self._weave = self._weaves[0] if self._weaves else None
             # Only a question owns a weave; on ingest self._weave still holds the
             # previous question's, which is not this call's telemetry.
             reported = self._weave if is_query else None
-            rewritten_queries = self._render_queries(queries, senf, graph) if is_query else queries
-            bridges = []
-            if self._emit_bridge_atoms and is_query and self._weave is not None:
-                bridges.extend(predicate_bridge_atoms(self._weave))
-            query_statements = statements + bridges
-            changed = sum(
-                1
-                for before, after in zip(queries, rewritten_queries)
-                if before != after
-            )
+            # Candidate binding is planned later, after the base parser has derived
+            # all fallbacks. The canonical query remains untouched here.
+            rewritten_queries = queries
+            query_statements = statements
+            changed = 0
             self._telemetry = _telemetry(
-                senf, graph, reported, changed, len(bridges)
+                senf, graph, reported, changed, 0
             )
             return query_statements, rewritten_queries
         except Exception:
@@ -247,77 +267,293 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         statements: List[str],
         context: List[str],
     ) -> List[str]:
-        planned = super()._plan_queries(question, queries, statements, context)
-        if not planned:
-            return planned
+        canonical = CanonicalPLNParser._plan_queries(
+            self, question, queries, [], context
+        )
+        if not canonical:
+            return canonical
 
-        facts, conclusions = self._collect_available_signatures(statements, context)
-        available = {(sig["head"], sig["arity"]) for sig in facts + conclusions}
-        predicate_sources: dict[str, tuple[float, str]] = {}
-        for weave in self._weaves:
-            for mapping in weave.predicate_maps:
-                current = predicate_sources.get(mapping.query_head)
-                if current is None or mapping.cost < current[0]:
-                    predicate_sources[mapping.query_head] = (
-                        mapping.cost,
-                        mapping.source_head,
-                    )
-        source_heads = self._query_source_heads or frozenset(
-            source_head for _, source_head in predicate_sources.values()
+        if not self._query_prior:
+            # With no SENF evidence there is nothing to transport. Preserve the
+            # base parser's candidates and ordering byte-for-byte.
+            return canonical
+
+        facts, conclusions = self._collect_available_signatures([], context)
+        is_yes_no = self._is_yes_no_question(question)
+        canonical_kept = canonical[: self._candidate_limit]
+        variant_slots = self._candidate_limit - len(canonical_kept)
+        generated: list[str] = []
+        contexts: dict[str, tuple[SENF, object, tuple[WeaveResult, ...]]] = {}
+        work = 0
+        for candidate in canonical_kept:
+            if work >= self._candidate_work_limit or len(generated) >= variant_slots:
+                break
+            candidate_context = self._candidate_context(candidate, question)
+            contexts[candidate] = candidate_context
+            work += 1
+            for variant in self._candidate_variants(candidate, *candidate_context):
+                if variant != candidate and variant not in generated:
+                    generated.append(variant)
+                if len(generated) >= variant_slots:
+                    break
+
+        plans: list[_CandidatePlan] = []
+        for candidate in generated:
+            if work >= self._candidate_work_limit:
+                break
+            plans.append(self._build_candidate_plan(
+                candidate, question, facts, conclusions, is_yes_no
+            ))
+            work += 1
+        plans.sort(key=lambda item: (
+            -(item.score.total if item.score.total is not None else -10**9),
+            item.weave.total_cost if item.weave else float("inf"),
+            item.query,
+        ))
+
+        canonical_plans = [
+            self._build_candidate_plan(
+                candidate,
+                question,
+                facts,
+                conclusions,
+                is_yes_no,
+                candidate_context=contexts.get(candidate),
+            )
+            for candidate in canonical_kept
+        ]
+        selected = canonical_plans if self._emit_bridge_atoms else sorted(
+            plans[:variant_slots] + canonical_plans,
+            key=lambda item: (
+                -(item.score.total if item.score.total is not None else -10**9),
+                item.weave.total_cost if item.weave else float("inf"),
+                item.query,
+            ),
+        )
+        deduped: list[_CandidatePlan] = []
+        seen: set[str] = set()
+        for plan in selected:
+            if plan.query not in seen:
+                seen.add(plan.query)
+                deduped.append(plan)
+        self._candidate_plans = tuple(deduped)
+        self._weaves = tuple(plan.weave for plan in deduped if plan.weave is not None)
+        self._weave = self._weaves[0] if self._weaves else None
+
+        adapters = self._dedupe_preserve_order(
+            [adapter for plan in deduped for adapter in plan.adapters]
+        )
+        if self._telemetry is not None:
+            self._telemetry.update({
+                "candidate_count": len(deduped),
+                "candidate_score_breakdown": [
+                    {"query": plan.query, **plan.score.as_dict()} for plan in deduped
+                ],
+                "bridge_atom_count": len(adapters),
+                "query_rewritten_atom_count": sum(
+                    plan.query not in canonical for plan in deduped
+                ),
+                "weave_distortion": round(self._weave.distortion, 4) if self._weave else None,
+                "weave_pair_count": len(self._weave.pairs) if self._weave else 0,
+                "weave_total_cost": round(self._weave.total_cost, 4) if self._weave else None,
+            })
+        return [plan.query for plan in deduped]
+
+    def _candidate_context(
+        self, candidate: str, question: str
+    ) -> tuple[SENF, object, tuple[WeaveResult, ...]]:
+        candidate_senf = extract_senf(
+            self._query_sentence_id or f"{self._session_nonce}:s{self._sentence_counter}",
+            question,
+            [candidate],
+        )
+        if self._exemplar_enabled:
+            score_exemplars(candidate_senf)
+        graph = resolve_identity(
+            list(self._query_prior) + [candidate_senf], threshold=self._threshold
+        )
+        source_weaves = [
+            item
+            for source in self._query_prior
+            for item in build_weaves(
+                candidate_senf,
+                [source],
+                k=self._weave_top_k,
+                identity_graph=graph,
+            )
+        ]
+        weaves = tuple(sorted(source_weaves, key=lambda item: (
+            0 if item.aligned else 1,
+            item.total_cost,
+            item.guard,
+        ))[: self._weave_top_k])
+        return candidate_senf, graph, weaves
+
+    def _candidate_variants(
+        self,
+        candidate: str,
+        query_senf: SENF,
+        graph,
+        weaves: tuple[WeaveResult, ...],
+    ) -> list[str]:
+        # When executable adapters are enabled, keep the canonical target so the
+        # proof consumes the cost-degraded bridge instead of bypassing it through
+        # a direct source-symbol query.
+        if self._emit_bridge_atoms:
+            return []
+        parsed = self._parse_query_signature(candidate)
+        if parsed is None:
+            return []
+        variants: list[str] = []
+        query_mentions = {mention.mention_id: mention for mention in query_senf.mentions}
+        accepted_edges = {frozenset(edge.mention_ids) for edge in graph.merged}
+        for edge in graph.merged:
+            if edge.left.mention_id in query_mentions:
+                query_mention, source_mention = edge.left, edge.right
+            elif edge.right.mention_id in query_mentions:
+                query_mention, source_mention = edge.right, edge.left
+            else:
+                continue
+            if source_mention.mention_id in query_mentions:
+                continue
+            positions = {
+                role.position
+                for frame in query_senf.frames
+                for role in frame.roles
+                if isinstance(role.filler, EntityRef)
+                and role.filler.mention_id == query_mention.mention_id
+            }
+            if positions:
+                changed = dict(parsed)
+                changed["args"] = [
+                    source_mention.canonical_symbol if index in positions else arg
+                    for index, arg in enumerate(parsed["args"])
+                ]
+                rendered = self._signature_to_query(changed)
+                if rendered != candidate:
+                    variants.append(rendered)
+        for weave in weaves:
+            replacement_sets: list[dict[int, str]] = [{}]
+            for mapping in weave.entity_maps:
+                edge = next((
+                    edge for edge in graph.edges
+                    if {mapping.source_mention_id, mapping.target_mention_id}
+                    == set(edge.mention_ids)
+                ), None)
+                if (
+                    edge is None
+                    or frozenset(edge.mention_ids) not in accepted_edges
+                    or mapping.target_mention_id not in query_mentions
+                ):
+                    continue
+                positions = {
+                    role.position
+                    for frame in query_senf.frames
+                    for role in frame.roles
+                    if isinstance(role.filler, EntityRef)
+                    and role.filler.mention_id == mapping.target_mention_id
+                }
+                if positions:
+                    replacement_sets.append({position: mapping.source_symbol for position in positions})
+
+            source_heads = [
+                mapping.source_head for mapping in weave.predicate_maps
+                if mapping.source_head != mapping.query_head
+            ]
+            for replacements in replacement_sets:
+                heads = source_heads + [parsed["head"]]
+                for head in heads:
+                    changed = dict(parsed)
+                    changed["head"] = head
+                    changed["args"] = [
+                        replacements.get(index, arg)
+                        for index, arg in enumerate(parsed["args"])
+                    ]
+                    rendered = self._signature_to_query(changed)
+                    if rendered != candidate:
+                        variants.append(rendered)
+        return self._dedupe_preserve_order(variants)
+
+    def _build_candidate_plan(
+        self,
+        candidate: str,
+        question: str,
+        facts: list[dict],
+        conclusions: list[dict],
+        is_yes_no: bool,
+        candidate_context: Optional[tuple[SENF, object, tuple[WeaveResult, ...]]] = None,
+    ) -> _CandidatePlan:
+        parsed = self._parse_query_signature(candidate)
+        candidate_senf, graph, weaves = candidate_context or self._candidate_context(
+            candidate, question
+        )
+        weave = weaves[0] if weaves else None
+        source = self._source_for_weave(weave)
+        adapters: tuple[str, ...] = ()
+        if self._emit_bridge_atoms:
+            for option in weaves:
+                option_source = self._source_for_weave(option)
+                if option_source is None:
+                    continue
+                generated = tuple(executable_bridge_atoms(
+                    option,
+                    option_source,
+                    candidate_senf,
+                    graph,
+                ))
+                if generated:
+                    weave, source, adapters = option, option_source, generated
+                    break
+        signals = self._senf_signals(weave)
+        score = query_scoring.score_query_candidate_breakdown(
+            parsed, facts, conclusions, is_yes_no, senf=signals
+        ) if parsed else query_scoring.CandidateScore(rejected="invalid_query")
+        return _CandidatePlan(
+            candidate, candidate_senf, graph, weave, source, score, adapters
         )
 
-        constrained: list[str] = []
-        for candidate in planned:
-            parsed = self._parse_query_signature(candidate)
-            if parsed is None:
-                continue
-            if (
-                parsed["head"] in source_heads
-                and (parsed["head"], parsed["arity"]) in available
-            ):
-                constrained.append(candidate)
-                continue
-            mapped = predicate_sources.get(parsed["head"])
-            if (
-                mapped
-                and mapped[1] in source_heads
-                and (mapped[1], parsed["arity"]) in available
-            ):
-                rewritten = dict(parsed)
-                rewritten["head"] = mapped[1]
-                constrained.append(self._signature_to_query(rewritten))
-        return self._dedupe_preserve_order(constrained + planned)
+    def _source_for_weave(self, weave: Optional[WeaveResult]) -> Optional[SENF]:
+        if weave is None or not weave.pairs:
+            return None
+        source_frame_ids = {pair.source_frame_id for pair in weave.pairs}
+        return next((
+            senf for senf in self._query_prior
+            if any(frame.frame_id in source_frame_ids for frame in senf.frames)
+        ), None)
 
-    def _senf_signals(self) -> Optional[query_scoring.SENFSignals]:
-        if self._weave is None:
+    def _senf_signals(
+        self, weave: Optional[WeaveResult] = None
+    ) -> Optional[query_scoring.SENFSignals]:
+        selected = weave if weave is not None else self._weave
+        if selected is None:
             return None
         identity_support: dict[str, float] = {}
         exemplar_coherence: dict[str, float] = {}
         conflict_penalty: dict[str, float] = {}
-        for mapping in self._weave.entity_maps:
+        for mapping in selected.entity_maps:
             identity_support[mapping.target_symbol] = max(
                 identity_support.get(mapping.target_symbol, 0.0),
                 1.0 - mapping.cost,
             )
             exemplar_coherence[mapping.target_symbol] = max(
                 exemplar_coherence.get(mapping.target_symbol, 0.0),
-                1.0 - self._weave.exemplar_cost,
+                1.0 - selected.exemplar_cost,
             )
             conflict_penalty[mapping.target_symbol] = max(
                 conflict_penalty.get(mapping.target_symbol, 0.0),
-                self._weave.conflict_cost,
+                selected.conflict_cost,
             )
         return query_scoring.SENFSignals(
-            grounded_symbols=self._weave.grounded_symbols,
-            role_signatures=self._weave.role_signatures,
-            distortion=self._weave.distortion,
+            grounded_symbols=selected.grounded_symbols,
+            role_signatures=selected.role_signatures,
+            distortion=selected.distortion,
             source_grounding_weight=self._source_grounding_weight,
             role_compat_weight=self._role_compat_weight,
             distortion_weight=self._distortion_weight,
             identity_support=identity_support,
             exemplar_coherence=exemplar_coherence,
             conflict_penalty=conflict_penalty,
-            transport_cost=self._weave.total_cost,
+            transport_cost=selected.total_cost,
             identity_support_weight=self._identity_support_weight,
             exemplar_coherence_weight=self._exemplar_coherence_weight,
             conflict_weight=self._conflict_weight,
@@ -326,10 +562,13 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
 
     def _prior_senfs(self, text: str, is_query: bool = False) -> List[SENF]:
         """Use the current query window plus semantically relevant recalled SENFs."""
-        prior = list(self._session)
-        seen = {senf.senf_id for senf in prior}
-        for blob in self._retrieve_senf_blobs(text):
-            recalled = senf_from_payload(blob)
+        session = list(self._session[-self._max_priors :])
+        recalled_prior: list[SENF] = []
+        seen = {senf.senf_id for senf in session}
+        for record in self._retrieve_senf_records(text):
+            if len(session) + len(recalled_prior) >= self._max_priors:
+                break
+            recalled = self._validated_recalled_senf(record)
             if (
                 recalled
                 and not recalled.is_empty
@@ -337,8 +576,24 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                 and (not is_query or self._senf_overlaps_question(recalled, text))
             ):
                 seen.add(recalled.senf_id)
-                prior.append(recalled)
-        return prior
+                recalled_prior.append(recalled)
+        # Recalled records are older context. Keeping them before the session
+        # lets reverse-order resource bounding preserve recent local evidence.
+        return self._bound_prior_work(recalled_prior + session)
+
+    def _bound_prior_work(self, prior: List[SENF]) -> List[SENF]:
+        bounded: list[SENF] = []
+        frames_left = self._max_source_frames
+        mentions_left = self._max_mentions
+        for senf in reversed(prior[-self._max_priors :]):
+            if frames_left <= 0 or mentions_left <= 0:
+                break
+            if len(senf.frames) <= frames_left and len(senf.mentions) <= mentions_left:
+                bounded.append(senf)
+                frames_left -= len(senf.frames)
+                mentions_left -= len(senf.mentions)
+        bounded.reverse()
+        return bounded
 
     def _senf_overlaps_question(self, senf: SENF, question: str) -> bool:
         question_symbols = set(self._question_symbols(question))
@@ -350,7 +605,46 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         source_symbols = set(self._question_symbols(source_text))
         return bool(question_symbols.intersection(source_symbols))
 
-    def _retrieve_senf_blobs(self, text: str) -> List[dict]:
+    def _validated_recalled_senf(self, record: object) -> Optional[SENF]:
+        if not isinstance(record, dict):
+            return None
+        source_text = record.get("nl")
+        accepted = record.get("pln")
+        if not isinstance(source_text, str) or not isinstance(accepted, list):
+            return None
+        accepted_ids = set()
+        for atom in accepted:
+            if not isinstance(atom, str):
+                return None
+            parts = self._top_level_parts(atom)
+            if len(parts) < 4 or parts[0] != ":" or not parts[1]:
+                return None
+            accepted_ids.add(parts[1])
+        recalled = senf_from_payload(record.get(SENF_PAYLOAD_KEY))
+        if recalled is None or any(
+            frame.source_text != source_text or frame.source_atom_id not in accepted_ids
+            for frame in recalled.frames
+        ):
+            return None
+        expected = extract_senf(recalled.sentence_id, source_text, accepted)
+        if (
+            recalled.entities != expected.entities
+            or recalled.mentions != expected.mentions
+            or recalled.frames != expected.frames
+            or recalled.kind_assertions != expected.kind_assertions
+            or recalled.source_units != expected.source_units
+            or recalled.constraints != expected.constraints
+        ):
+            return None
+        if self._exemplar_enabled:
+            score_exemplars(recalled)
+        else:
+            recalled.exemplar_scores.clear()
+            recalled.nearest_exemplars.clear()
+            recalled.active_exemplars.clear()
+        return recalled
+
+    def _retrieve_senf_records(self, text: str) -> List[dict]:
         if not self._use_vector_context or self._context_top_k <= 0:
             return []
         try:

@@ -153,7 +153,7 @@ class VectorStore:
         return context, vector
 
     def retrieve_senf_context(self, text: str, top_k: int) -> List[dict]:
-        """Return stored SENF blobs from the top-k similar sentences.
+        """Return SENF records with their stored NL/PLN provenance.
 
         Separate from retrieve_context because the two have different consumers
         and different failure tolerance: a missing SENF blob is normal (every
@@ -175,12 +175,17 @@ class VectorStore:
             )
             return []
 
-        blobs: List[dict] = []
+        records: List[dict] = []
         for item in resp.json().get("result", []):
-            blob = item.get("payload", {}).get(SENF_PAYLOAD_KEY)
+            payload = item.get("payload", {})
+            blob = payload.get(SENF_PAYLOAD_KEY)
             if isinstance(blob, dict):
-                blobs.append(blob)
-        return blobs
+                records.append({
+                    SENF_PAYLOAD_KEY: blob,
+                    "nl": payload.get("nl"),
+                    "pln": payload.get("pln"),
+                })
+        return records
 
     def reset(self):
         try:

@@ -4,6 +4,7 @@ import re
 import threading
 from typing import List
 from config import get_settings
+from core.statement_validation import validate_statements
 from core.symbol_normalization import canonical_symbol
 
 from pettachainer.pettachainer import PeTTaChainer
@@ -42,6 +43,9 @@ class Reasoner:
         logger.info("Atomspace loaded.")
 
     def _load_file(self, path: str):
+        self._load_file_into(self._handler, path)
+
+    def _load_file_into(self, handler: PeTTaChainer, path: str):
         if not os.path.exists(path):
             return
         with open(path, "r", encoding="utf-8") as f:
@@ -49,17 +53,18 @@ class Reasoner:
                 atom = line.strip()
                 if atom:
                     try:
-                        self._handler.add_atom(atom)
+                        handler.add_atom(atom)
                     except Exception as exc:
                         logger.warning("Skipping atom %r: %s", atom, exc)
 
     def load_background_file(self, path: str):
         normalized = os.path.abspath(path)
-        if normalized in self._background_files:
-            return
-        logger.info("Loading background atomspace from %s", path)
-        self._load_file(path)
-        self._background_files.add(normalized)
+        with self._lock:
+            if normalized in self._background_files:
+                return
+            logger.info("Loading background atomspace from %s", path)
+            self._load_file(path)
+            self._background_files.add(normalized)
         logger.info("Background atomspace loaded.")
 
     def add_statements(self, statements: List[str]) -> List[str]:
@@ -78,14 +83,11 @@ class Reasoner:
         - rejected: list of {"stmt": <normalized>, "error": <str>}
         """
 
+        valid, rejected = validate_statements(statements)
         added: List[str] = []
-        rejected: List[dict] = []
         with self._lock:
             with open(self._atomspace_path, "a", encoding="utf-8") as f:
-                for stmt in statements:
-                    clean = " ".join(str(stmt).split())
-                    if not clean:
-                        continue
+                for clean in valid:
                     try:
                         self._handler.add_atom(clean)
                         f.write(clean + "\n")
@@ -96,20 +98,59 @@ class Reasoner:
                         rejected.append({"stmt": clean, "error": err})
         return added, rejected
 
-    def query(self, pln_query: str) -> List[str]:
+    def query(
+        self, pln_query: str, transient_statements: List[str] | None = None
+    ) -> List[str]:
         """
         Run a PLN query and return proof traces.
         Try exact fact lookup first for grounded queries, then fall back to
         PeTTaChainer proof search with the configured timeout.
         """
-        exact = self._query_exact_fact(pln_query)
-        if exact:
-            return exact
+        if transient_statements is not None:
+            valid, rejected = validate_statements(transient_statements)
+            if rejected:
+                logger.warning(
+                    "Rejecting transient query context with %d malformed statement(s)",
+                    len(rejected),
+                )
+                return []
+            return self._query_with_transient_statements(pln_query, valid)
+
         try:
-            result = self._handler.query(pln_query, timeout_sec=self._query_timeout)
+            with self._lock:
+                exact = self._query_exact_fact(pln_query)
+                if exact:
+                    return exact
+                result = self._handler.query(
+                    pln_query, timeout_sec=self._query_timeout
+                )
             return result if result else []
         except Exception as exc:
             logger.warning("Query failed for %r: %s", pln_query, exc)
+            return []
+
+    def _query_with_transient_statements(
+        self, pln_query: str, transient_statements: List[str]
+    ) -> List[str]:
+        try:
+            with self._lock:
+                exact = self._query_exact_fact(pln_query)
+                if exact:
+                    return exact
+                handler = PeTTaChainer()
+                self._load_file_into(handler, self._atomspace_path)
+                for path in sorted(self._background_files):
+                    self._load_file_into(handler, path)
+                for statement in transient_statements:
+                    handler.add_atom(statement)
+                result = handler.query(
+                    pln_query, timeout_sec=self._query_timeout
+                )
+            return result if result else []
+        except Exception as exc:
+            logger.warning(
+                "Transient query failed for %r: %s", pln_query, exc
+            )
             return []
 
     def _query_exact_fact(self, pln_query: str) -> List[str]:

@@ -91,6 +91,18 @@ class Settings(BaseSettings):
     senf_exemplar_enabled: bool = True
     senf_emit_bridge_atoms: bool = False
     senf_weave_top_k: int = 3
+    # Global query-planning limits, before the lower-level weave bounds apply.
+    senf_query_max_priors: int = 16
+    senf_query_max_source_frames: int = 128
+    senf_query_max_mentions: int = 256
+    senf_query_max_candidate_work: int = 32
+    # Deterministic weave search resource limits.
+    senf_weave_per_source_k: int = 3
+    senf_weave_beam_width: int = 32
+    senf_weave_max_frames: int = 64
+    senf_weave_max_pair_candidates: int = 256
+    senf_weave_max_exemplar_alternatives: int = 4
+    senf_weave_max_cost: float = 2.0
     # Weave-derived query scoring (C7). Zero reproduces pre-SENF ranking exactly.
     senf_source_grounding_weight: int = 3
     senf_role_compat_weight: int = 2

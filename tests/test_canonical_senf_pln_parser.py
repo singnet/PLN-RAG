@@ -1,6 +1,7 @@
 import pytest
 
 from core.parser import ParseResult
+from core.senf.exemplars import score_exemplars
 from core.senf.extractor import extract_senf
 from core.senf.identity import IdentityGraph
 from core.senf.types import SENF_PAYLOAD_KEY, senf_to_payload
@@ -13,8 +14,8 @@ PRONOUN = "(: b (HasProperty it expensive) (STV 1.0 1.0))"
 
 
 class RecordingStore:
-    def __init__(self, blobs=None, raises=None):
-        self._blobs = blobs or []
+    def __init__(self, records=None, raises=None):
+        self._records = records or []
         self._raises = raises
         self.calls: list[tuple[str, int]] = []
 
@@ -22,7 +23,11 @@ class RecordingStore:
         self.calls.append((text, top_k))
         if self._raises:
             raise self._raises
-        return self._blobs
+        return self._records
+
+
+def retrieval_record(senf, text, atoms):
+    return {SENF_PAYLOAD_KEY: senf_to_payload(senf), "nl": text, "pln": atoms}
 
 
 @pytest.fixture
@@ -78,7 +83,13 @@ class TestIdentityTransport:
             is_query=True,
         )
         assert statements == [PRONOUN]
-        assert queries == ["(: $prf (HasProperty camera expensive) $tv)"]
+        assert queries == ["(: $prf (HasProperty it expensive) $tv)"]
+
+        planned = parser._plan_queries(
+            "Is it expensive?", queries, statements, [CAMERA]
+        )
+        assert "(: $prf (HasProperty it expensive) $tv)" in planned
+        assert "(: $prf (HasProperty camera expensive) $tv)" in planned
 
     def test_ingest_never_emits_identity_bridges(self, parser):
         parser._emit_bridge_atoms = True
@@ -306,15 +317,21 @@ class TestVectorContext:
         monkeypatch.setattr(CanonicalPLNParser, "__init__", lambda self: None)
         prior = extract_senf("s1", "The camera has a wide lens.", [CAMERA])
         made = CanonicalSENFPLNParser()
-        made._vector_store = RecordingStore(blobs=[senf_to_payload(prior)])
-        _, queries = hook(
+        made._vector_store = RecordingStore(records=[retrieval_record(
+            prior, "The camera has a wide lens.", [CAMERA]
+        )])
+        statements, queries = hook(
             made,
             "Is it, the camera, expensive?",
             [PRONOUN],
             ["(: $prf (HasProperty it expensive) $tv)"],
             is_query=True,
         )
-        assert "camera" in queries[0]
+        planned = made._plan_queries(
+            "Is it, the camera, expensive?", queries, statements, [CAMERA]
+        )
+        assert any("camera" in query for query in planned)
+        assert "(: $prf (HasProperty it expensive) $tv)" in planned
 
     def test_parser_metadata_survives_recreation(self, monkeypatch, fake_vector_store):
         monkeypatch.setattr(CanonicalPLNParser, "__init__", lambda self: None)
@@ -330,7 +347,7 @@ class TestVectorContext:
 
         recreated = CanonicalSENFPLNParser()
         recreated._vector_store = fake_vector_store
-        _, queries = hook(
+        statements, queries = hook(
             recreated,
             "Is it, the camera, expensive?",
             [PRONOUN],
@@ -338,7 +355,65 @@ class TestVectorContext:
             is_query=True,
         )
 
-        assert "camera" in queries[0]
+        planned = recreated._plan_queries(
+            "Is it, the camera, expensive?", queries, statements, [CAMERA]
+        )
+        assert any("camera" in query for query in planned)
+
+    @pytest.mark.parametrize("forgery", ["source_text", "source_atom_id"])
+    def test_recalled_senf_must_match_stored_nl_and_accepted_atom_ids(
+        self, parser, forgery
+    ):
+        text = "The camera has a wide lens."
+        prior = extract_senf("s1", text, [CAMERA])
+        payload = senf_to_payload(prior)
+        if forgery == "source_text":
+            payload["frames"][0]["source_text"] = "Forged source."
+            record = {SENF_PAYLOAD_KEY: payload, "nl": text, "pln": [CAMERA]}
+        else:
+            record = {SENF_PAYLOAD_KEY: payload, "nl": text, "pln": [
+                "(: other (HasProperty camera wide_lens) (STV 1 1))"
+            ]}
+
+        assert parser._validated_recalled_senf(record) is None
+
+    def test_recalled_senf_rejects_frame_body_forged_under_an_accepted_id(self, parser):
+        prior = extract_senf("s1", "The camera is at the lab.", [
+            "(: src (AtLocation camera lab) (STV 1 1))"
+        ])
+        forged = extract_senf("s1", "The camera is at the lab.", [
+            "(: src (IsA camera device) (STV 1 1))"
+        ])
+        record = {
+            "nl": "The camera is at the lab.",
+            "pln": ["(: src (AtLocation camera lab) (STV 1 1))"],
+            SENF_PAYLOAD_KEY: senf_to_payload(forged),
+        }
+
+        assert prior.frames[0].source_atom_id == forged.frames[0].source_atom_id
+        assert parser._validated_recalled_senf(record) is None
+
+    def test_recalled_exemplar_annotations_are_recomputed(self, parser):
+        text = "The Nikon camera arrived."
+        atom = "(: arrived (Arrived camera) (STV 1 1))"
+        prior = score_exemplars(extract_senf("s1", text, [atom]))
+        payload = senf_to_payload(prior)
+        mention_id = next(iter(payload["exemplar_scores"]))
+        payload["exemplar_scores"][mention_id][0]["distance"] = 0.99
+        record = {SENF_PAYLOAD_KEY: payload, "nl": text, "pln": [atom]}
+
+        recalled = parser._validated_recalled_senf(record)
+
+        assert recalled is not None
+        assert recalled.exemplar_scores[mention_id][0].distance != 0.99
+
+    def test_session_senfs_do_not_require_persisted_sibling_validation(self, parser):
+        trusted = extract_senf("s1", "The camera arrived.", [
+            "(: arrived (Arrived camera) (STV 1 1))"
+        ])
+        parser._session = [trusted]
+
+        assert parser._prior_senfs("Did the camera arrive?", is_query=True) == [trusted]
 
     def test_retrieval_failure_is_fail_open(self, monkeypatch):
         monkeypatch.setattr(CanonicalPLNParser, "__init__", lambda self: None)
@@ -383,12 +458,15 @@ class TestWeaveScoring:
 
     def test_a_question_builds_a_weave_against_prior_sentences(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])
-        hook(
+        statements, queries = hook(
             parser,
             "Does the camera have a wide lens?",
             [CAMERA],
             ["(: $prf (HasProperty camera wide_lens) $tv)"],
             is_query=True,
+        )
+        parser._plan_queries(
+            "Does the camera have a wide lens?", queries, statements, [CAMERA]
         )
 
         assert parser._weave is not None
@@ -396,7 +474,11 @@ class TestWeaveScoring:
 
     def test_the_weave_does_not_leak_into_the_next_question(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])
-        hook(parser, "Is it expensive?", [PRONOUN], is_query=True)
+        statements, queries = hook(
+            parser, "Is it expensive?", [PRONOUN],
+            ["(: $prf (HasProperty it expensive) $tv)"], is_query=True,
+        )
+        parser._plan_queries("Is it expensive?", queries, statements, [CAMERA])
         first = parser._weave
 
         hook(parser, "Nothing at all.", [], [], is_query=True)
@@ -407,7 +489,13 @@ class TestWeaveScoring:
         from config import get_settings
 
         hook(parser, "The camera has a wide lens.", [CAMERA])
-        hook(parser, "Does the camera have a wide lens?", [CAMERA], is_query=True)
+        statements, queries = hook(
+            parser, "Does the camera have a wide lens?", [CAMERA],
+            ["(: $prf (HasProperty camera wide_lens) $tv)"], is_query=True,
+        )
+        parser._plan_queries(
+            "Does the camera have a wide lens?", queries, statements, [CAMERA]
+        )
         signals = parser._senf_signals()
         cfg = get_settings()
 
@@ -424,6 +512,23 @@ class TestWeaveScoring:
             query, facts, [], True
         ) == query_scoring.score_query_candidate(query, facts, [], True)
 
+    def test_no_senf_evidence_preserves_base_candidate_order_exactly(self, parser):
+        candidates = [
+            "(: $prf (Smart kebede) $tv)",
+            "(: $prf (Tall kebede) $tv)",
+        ]
+        context = [
+            "(: smart (Smart kebede) (STV 1.0 1.0))",
+            "(: tall (Tall kebede) (STV 1.0 1.0))",
+        ]
+        expected = CanonicalPLNParser._plan_queries(
+            parser, "Is Kebede smart?", candidates, [], context
+        )
+
+        assert parser._plan_queries(
+            "Is Kebede smart?", candidates, [], context
+        ) == expected
+
     def test_query_planning_uses_the_supported_predicate_family(self, parser):
         from core.senf.weave import build_weaves
 
@@ -437,8 +542,7 @@ class TestWeaveScoring:
             "Is the camera located in the lab?",
             ["(: $prf (LocatedIn camera lab) $tv)"],
         )
-        parser._weaves = build_weaves(query, [source])
-        parser._weave = parser._weaves[0]
+        parser._query_prior = (source,)
 
         planned = parser._plan_queries(
             "Is the camera located in the lab?",
@@ -463,8 +567,7 @@ class TestWeaveScoring:
         )
         from core.senf.weave import build_weaves
 
-        parser._weaves = build_weaves(query, [source])
-        parser._weave = parser._weaves[0]
+        parser._query_prior = (source,)
         parser._query_source_heads = frozenset({"HasProperty"})
 
         planned = parser._plan_queries(
@@ -483,6 +586,143 @@ class TestWeaveScoring:
         assert planned[0] == "(: $prf (HasProperty camera wide_lens) $tv)"
         assert "(: $prf (ImprovesOutcome tirzepatide) $tv)" in planned[1:]
 
+    def test_candidate_plans_are_bounded_deduped_and_report_scores(self, parser):
+        parser._candidate_limit = 2
+        hook(parser, "The camera is at the lab.", [
+            "(: a (AtLocation camera lab) (STV 1.0 1.0))"
+        ])
+        statements, queries = hook(
+            parser,
+            "Is the camera located in the lab?",
+            [],
+            ["(: $prf (LocatedIn camera lab) $tv)"],
+            is_query=True,
+        )
+
+        planned = parser._plan_queries(
+            "Is the camera located in the lab?", queries, statements,
+            ["(: a (AtLocation camera lab) (STV 1.0 1.0))"],
+        )
+
+        assert len(planned) <= 2
+        assert len(planned) == len(set(planned))
+        assert "(: $prf (LocatedIn camera lab) $tv)" in planned
+        assert "(: $prf (AtLocation camera lab) $tv)" in planned
+        report = parser.senf_telemetry()
+        assert len(report["candidate_score_breakdown"]) == len(planned)
+
+    def test_senf_variants_do_not_displace_second_canonical_fallback(self, parser):
+        parser._candidate_limit = 3
+        hook(parser, "The camera is at the lab.", [
+            "(: a (AtLocation camera lab) (STV 1.0 1.0))"
+        ])
+        canonical = [
+            "(: $prf (LocatedIn it lab) $tv)",
+            "(: $prf (AtLocation camera lab) $tv)",
+        ]
+        statements, queries = hook(
+            parser, "Is it located in the lab?", [], canonical, is_query=True
+        )
+
+        planned = parser._plan_queries(
+            "Is it located in the lab?", queries, statements,
+            ["(: a (AtLocation camera lab) (STV 1.0 1.0))"],
+        )
+
+        assert canonical[0] in planned
+        assert canonical[1] in planned
+        assert planned.index(canonical[1]) < parser._candidate_limit
+
+    def test_bridge_flag_disabled_produces_no_candidate_adapters(self, parser):
+        parser._emit_bridge_atoms = False
+        hook(parser, "The camera is at the lab.", [
+            "(: a (AtLocation camera lab) (STV 1.0 1.0))"
+        ])
+        statements, queries = hook(
+            parser,
+            "Is it located in the lab?",
+            [],
+            ["(: $prf (LocatedIn it lab) $tv)"],
+            is_query=True,
+        )
+
+        parser._plan_queries(
+            "Is it located in the lab?", queries, statements, []
+        )
+
+        assert statements == []
+        assert all(not plan.adapters for plan in parser._candidate_plans)
+        assert parser.senf_telemetry()["bridge_atom_count"] == 0
+
+        parser._emit_bridge_atoms = True
+        parser._plan_queries(
+            "Is it located in the lab?", queries, statements, []
+        )
+        assert any(plan.adapters for plan in parser._candidate_plans)
+        assert parser.senf_telemetry()["bridge_atom_count"] > 0
+
+    def test_global_prior_frame_and_mention_limits(self, parser):
+        parser._max_priors = 2
+        parser._max_source_frames = 2
+        parser._max_mentions = 3
+        prior = [
+            extract_senf(
+                f"s{index}",
+                f"Camera {index} is in lab {index}.",
+                [f"(: a{index} (AtLocation camera_{index} lab_{index}) (STV 1.0 1.0))"],
+            )
+            for index in range(4)
+        ]
+
+        bounded = parser._bound_prior_work(prior)
+
+        assert len(bounded) <= 2
+        assert sum(len(item.frames) for item in bounded) <= 2
+        assert sum(len(item.mentions) for item in bounded) <= 3
+        assert [item.senf_id for item in bounded] == ["senf:s3"]
+        assert bounded[0] is prior[3]
+
+    def test_prior_budget_preserves_recent_session_before_recalled_records(
+        self, parser, monkeypatch
+    ):
+        parser._max_source_frames = 1
+        parser._max_mentions = 2
+        session = extract_senf(
+            "session", "The camera arrived.",
+            ["(: local (Arrived camera) (STV 1 1))"],
+        )
+        recalled = extract_senf(
+            "recalled", "A lens cracked.",
+            ["(: old (Cracked lens) (STV 1 1))"],
+        )
+        parser._session = [session]
+        monkeypatch.setattr(parser, "_retrieve_senf_records", lambda _text: [{}])
+        monkeypatch.setattr(parser, "_validated_recalled_senf", lambda _record: recalled)
+        monkeypatch.setattr(parser, "_senf_overlaps_question", lambda *_args: True)
+
+        assert parser._prior_senfs("Did it arrive?", is_query=True) == [session]
+
+    @pytest.mark.parametrize("cue", ["another", "different"])
+    def test_contrastive_ambiguity_keeps_the_canonical_fallback(self, parser, cue):
+        hook(parser, "A camera arrived.", [
+            "(: a (Arrived camera) (STV 1.0 1.0))"
+        ])
+        statements, queries = hook(
+            parser,
+            f"Did {cue} camera arrive?",
+            [],
+            [f"(: $prf (Arrived {cue}_camera) $tv)"],
+            is_query=True,
+        )
+
+        planned = parser._plan_queries(
+            f"Did {cue} camera arrive?", queries, statements,
+            ["(: a (Arrived camera) (STV 1.0 1.0))"],
+        )
+
+        assert planned[-1] == f"(: $prf (Arrived {cue}_camera) $tv)"
+        assert "(: $prf (Arrived camera) $tv)" not in planned[:-1]
+
 
 class TestTelemetry:
     """Telemetry reports existing hook state without changing parser output."""
@@ -492,12 +732,15 @@ class TestTelemetry:
 
     def test_a_question_reports_frames_and_weave(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])
-        hook(
+        statements, queries = hook(
             parser,
             "Does the camera have a wide lens?",
             [CAMERA],
             ["(: $prf (HasProperty camera wide_lens) $tv)"],
             is_query=True,
+        )
+        parser._plan_queries(
+            "Does the camera have a wide lens?", queries, statements, [CAMERA]
         )
         report = parser.senf_telemetry()
 
@@ -507,17 +750,19 @@ class TestTelemetry:
 
     def test_identity_merges_and_query_rewrites_are_reported_separately(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])
-        hook(
+        statements, queries = hook(
             parser,
             "Is it expensive?",
             [PRONOUN],
             ["(: $prf (HasProperty it expensive) $tv)"],
             is_query=True,
         )
+        parser._plan_queries("Is it expensive?", queries, statements, [CAMERA])
         report = parser.senf_telemetry()
 
         assert report["merge_count"] >= 1
-        assert report["query_rewritten_atom_count"] == 1
+        assert report["query_rewritten_atom_count"] >= 1
+        assert report["query_rewritten_atom_count"] < report["candidate_count"]
 
     def test_ingest_does_not_report_the_previous_questions_weave(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])

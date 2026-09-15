@@ -9,6 +9,7 @@ from config import get_settings
 from core.chunker import Chunker
 from core.parser import SemanticParser
 from core.reasoner import Reasoner
+from core.statement_validation import is_valid_statement, validate_statements
 from core.answer_generator import AnswerGenerator
 from core.conceptnet import ConceptNetManager
 from storage.vector_store import VectorStore
@@ -99,14 +100,14 @@ class PLNRAGService:
                     all_atoms.extend(added)
                     metadata, prepared = self._prepare_parser_ingest(parse_result, added)
                     if added:
-                        if prepared:
-                            self._commit_parser_ingest(parse_result)
                         self._vector_store.store(
                             batch_text,
                             added,
                             vector,
                             metadata=metadata,
                         )
+                        if prepared:
+                            self._commit_parser_ingest(parse_result)
             else:
                 parser_calls = chunk_count
 
@@ -137,14 +138,14 @@ class PLNRAGService:
 
                     # 5. Store in vector DB for future context retrieval
                     if added:
-                        if prepared:
-                            self._commit_parser_ingest(parse_result)
                         self._vector_store.store(
                             chunk,
                             added,
                             vector,
                             metadata=metadata,
                         )
+                        if prepared:
+                            self._commit_parser_ingest(parse_result)
 
             if not all_atoms:
                 if parser_calls == 0:
@@ -199,68 +200,10 @@ class PLNRAGService:
         results interpretable and avoid hiding parser bugs.
         """
 
-        valid: List[str] = []
-        rejected: List[dict] = []
-        for stmt in statements or []:
-            clean = " ".join(str(stmt).split())
-            if not clean:
-                continue
-
-            ok, err = self._is_valid_statement(clean)
-            if ok:
-                valid.append(clean)
-            else:
-                rejected.append({"stmt": clean, "error": err})
-        return valid, rejected
+        return validate_statements(statements)
 
     def _is_valid_statement(self, stmt: str) -> tuple[bool, str]:
-        if not stmt.startswith("(:"):
-            return False, "missing_prefix"
-        if "(STV" not in stmt and "(PointMass" not in stmt and "(ParticleFrom" not in stmt:
-            return False, "missing_weight"
-        if not self._parens_balanced(stmt):
-            return False, "unbalanced_parens"
-
-        # Basic top-level check: (: <name> <body> )
-        m = re.match(r"^\(:\s+([^\s()]+)\s+(.+)\)$", stmt)
-        if not m:
-            return False, "bad_toplevel"
-        name = m.group(1)
-        if name.startswith(("$", "?")):
-            return False, "variable_name"
-
-        # Enforce implication schema to avoid reasoner syntax errors.
-        if "Implication" in stmt and ("(Premises" not in stmt or "(Conclusions" not in stmt):
-            return False, "bad_implication_shape"
-        if self._has_zero_arity_atom(stmt):
-            return False, "zero_arity_atom"
-        return True, ""
-
-    _ZERO_ARITY_EXEMPT = frozenset({"Premises", "Conclusions", "And", "Or", "Not"})
-
-    def _has_zero_arity_atom(self, stmt: str) -> bool:
-        """A predicate applied to no arguments can never unify with a query.
-
-        Observed as `(Conclusions (AssociatedWithSevereDisease))` against the query
-        `(: $prf (AssociatedWithSevereDisease $marker) $tv)`: the rule fires but the
-        conclusion is a different symbol than the one asked for, so the proof is
-        unreachable and the failure surfaces only as a missing proof.
-        """
-        for head in re.findall(r"\(([A-Za-z][A-Za-z0-9_]*)\s*\)", stmt):
-            if head not in self._ZERO_ARITY_EXEMPT:
-                return True
-        return False
-
-    def _parens_balanced(self, text: str) -> bool:
-        depth = 0
-        for ch in text:
-            if ch == "(":
-                depth += 1
-            elif ch == ")":
-                depth -= 1
-                if depth < 0:
-                    return False
-        return depth == 0
+        return is_valid_statement(stmt)
 
     def _enrich_context(self, rag_context: List[str], max_atoms: int = 50) -> List[str]:
         """
@@ -313,7 +256,9 @@ class PLNRAGService:
             parse_result = self._parser.parse(query, context)
         parse_query_seconds = time.perf_counter() - t1
 
-        original_query = parse_result.queries[0] if parse_result.queries else ""
+        original_query = parse_result.original_query or (
+            parse_result.queries[0] if parse_result.queries else ""
+        )
         if not parse_result.queries:
             return ReasonResponse(
                 query=query,
@@ -332,17 +277,6 @@ class PLNRAGService:
                 answer_generation_seconds=0.0,
                 senf=parse_result.diagnostics,
             )
-
-        # 3. Add any supporting statements the parser generated for the query
-        if parse_result.statements:
-            valid, rejected_local = self._validate_statements(parse_result.statements)
-            if rejected_local:
-                for item in rejected_local[:2]:
-                    logger.warning(
-                        "Dropping malformed query-support statement: %s",
-                        item.get("error"),
-                    )
-            self._reasoner.add_statements(valid)
 
         # 4. Run reasoning via PeTTaChainer against ordered candidates
         t2 = time.perf_counter()
@@ -363,7 +297,7 @@ class PLNRAGService:
         for idx, candidate in enumerate(candidates):
             executed_query = candidate
             executed_candidate_index = idx
-            proof_traces = self._reasoner.query(candidate)
+            proof_traces = self._query_candidate(candidate, parse_result, idx)
             if proof_traces:
                 break
 
@@ -387,10 +321,14 @@ class PLNRAGService:
                         else:
                             more = more[:remaining]
                     candidate_count_tried += len(more)
-                    for idx, candidate in enumerate(more, start=(executed_candidate_index or 0) + 1):
+                    retry_start = (executed_candidate_index or 0) + 1
+                    for retry_index, candidate in enumerate(more):
+                        idx = retry_start + retry_index
                         executed_query = candidate
                         executed_candidate_index = idx
-                        proof_traces = self._reasoner.query(candidate)
+                        proof_traces = self._query_candidate(
+                            candidate, retry_result, retry_index
+                        )
                         if proof_traces:
                             break
             except Exception as exc:
@@ -448,6 +386,24 @@ class PLNRAGService:
             answer_generation_seconds=round(answer_generation_seconds, 4),
             senf=parse_result.diagnostics,
         )
+
+    def _query_candidate(self, query: str, result, index: int) -> List[str]:
+        common = result.trusted_transient_statements or []
+        specific = result.candidate_trusted_transient_statements or []
+        raw = common + (specific[index] if index < len(specific) else [])
+        transient, rejected = self._validate_statements(raw)
+        if rejected:
+            for item in rejected[:2]:
+                logger.warning(
+                    "Ignoring malformed transient context for candidate: %s",
+                    item.get("error"),
+                )
+            # Never execute a partial context. The persistent query is still a
+            # valid clean fallback, including for later canonical candidates.
+            return self._reasoner.query(query)
+        if transient:
+            return self._reasoner.query(query, transient_statements=transient)
+        return self._reasoner.query(query)
 
     def _prepare_parser_ingest(
         self, parse_result, added: List[str]

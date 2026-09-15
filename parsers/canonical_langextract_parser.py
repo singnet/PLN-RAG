@@ -55,13 +55,23 @@ class CanonicalLangExtractParser(SemanticParser):
 
         if mode == "canonical_first":
             queries = _dedupe_preserve_order((fallback.queries or []) + (primary.queries or []))
-            statements = _dedupe_preserve_order((fallback.statements or []) + (primary.statements or []))
-            return ParseResult(statements=statements, queries=queries)
+            return ParseResult(
+                queries=queries,
+                candidate_transient_statements=_merged_candidate_support(
+                    queries, (fallback, primary)
+                ),
+                original_query=_original_query(queries, (fallback, primary)),
+            )
 
         # Default: try primary candidates first, then canonical fallback.
         queries = _dedupe_preserve_order((primary.queries or []) + (fallback.queries or []))
-        statements = _dedupe_preserve_order((primary.statements or []) + (fallback.statements or []))
-        return ParseResult(statements=statements, queries=queries)
+        return ParseResult(
+            queries=queries,
+            candidate_transient_statements=_merged_candidate_support(
+                queries, (primary, fallback)
+            ),
+            original_query=_original_query(queries, (primary, fallback)),
+        )
 
     def retry_parse_query(self, text: str, context: List[str], attempted_query: str) -> ParseResult | None:
         """Optional second-stage query generation for fast hybrid mode.
@@ -80,9 +90,13 @@ class CanonicalLangExtractParser(SemanticParser):
             pass
 
         primary = self._primary.parse_query(text, context)
+        queries = _dedupe_preserve_order(primary.queries or [])
         return ParseResult(
-            statements=_dedupe_preserve_order(primary.statements or []),
-            queries=_dedupe_preserve_order(primary.queries or []),
+            queries=queries,
+            candidate_transient_statements=_merged_candidate_support(
+                queries, (primary,)
+            ),
+            original_query=_original_query(queries, (primary,)),
         )
 
 
@@ -95,6 +109,37 @@ def _dedupe_preserve_order(items: List[str]) -> List[str]:
             seen.add(clean)
             out.append(clean)
     return out
+
+
+def _query_support(result: ParseResult) -> List[str]:
+    """Normalize legacy and current query support onto the transient path."""
+    return (result.transient_statements or []) + (result.statements or [])
+
+
+def _original_query(queries: List[str], results: tuple[ParseResult, ...]) -> str:
+    for result in results:
+        if not result.queries:
+            continue
+        first = " ".join(str(result.queries[0]).split())
+        if first in queries:
+            return result.original_query or first
+    return queries[0] if queries else ""
+
+
+def _merged_candidate_support(
+    queries: List[str], results: tuple[ParseResult, ...]
+) -> List[List[str]]:
+    support_by_query: dict[str, List[str]] = {}
+    for result in results:
+        common = _query_support(result)
+        specific = result.candidate_transient_statements or []
+        for index, query in enumerate(result.queries or []):
+            normalized_query = " ".join(str(query).split())
+            if normalized_query in support_by_query:
+                continue
+            candidate = common + (specific[index] if index < len(specific) else [])
+            support_by_query[normalized_query] = _dedupe_preserve_order(candidate)
+    return [support_by_query.get(query, []) for query in queries]
 
 
 def _looks_overliteral(statements: List[str]) -> bool:

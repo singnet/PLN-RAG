@@ -55,7 +55,11 @@ class FakeVectorStore:
         from core.senf import SENF_PAYLOAD_KEY
 
         return [
-            point["payload"][SENF_PAYLOAD_KEY]
+            {
+                SENF_PAYLOAD_KEY: point["payload"][SENF_PAYLOAD_KEY],
+                "nl": point["payload"].get("nl"),
+                "pln": point["payload"].get("pln"),
+            }
             for point in self.points[-top_k:]
             if isinstance(point["payload"].get(SENF_PAYLOAD_KEY), dict)
         ]

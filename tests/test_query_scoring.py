@@ -236,6 +236,59 @@ class TestSENFSignals:
             is None
         )
 
+    def test_breakdown_is_observable_without_changing_the_score_api(self):
+        signals = query_scoring.SENFSignals(
+            grounded_symbols=frozenset({"kebede"}), source_grounding_weight=3
+        )
+        query = q("Smart", "kebede")
+        facts = [sig("Smart", "kebede")]
+
+        breakdown = query_scoring.score_query_candidate_breakdown(
+            query, facts, [], True, senf=signals
+        )
+
+        assert breakdown.as_dict() == {
+            "fact": 6,
+            "conclusion": 0,
+            "grounding": 3,
+            "exact_fact": 2,
+            "senf": 3,
+            "senf_components": {
+                "source_grounding": 3,
+                "role_compat": 0,
+                "identity_support": 0,
+                "exemplar_coherence": 0,
+                "conflict": 0,
+                "transport": 0,
+                "distortion": 0,
+            },
+            "total": 14,
+            "rejected": None,
+        }
+        assert query_scoring.score_query_candidate(
+            query, facts, [], True, senf=signals
+        ) == breakdown.total
+
+    def test_transport_and_distortion_are_candidate_specific(self):
+        cheap = query_scoring.SENFSignals(
+            transport_cost=0.1, distortion=0.0, transport_cost_weight=2,
+            distortion_weight=2,
+        )
+        costly = query_scoring.SENFSignals(
+            transport_cost=0.7, distortion=0.4, transport_cost_weight=2,
+            distortion_weight=2,
+        )
+        candidate = q("Smart", "kebede")
+        facts = [sig("Smart", "kebede")]
+
+        assert query_scoring.score_query_candidate(
+            candidate, facts, [], True, senf=cheap
+        ) > query_scoring.score_query_candidate(
+            candidate, facts, [], True, senf=costly
+        )
+        assert costly.bonus_breakdown(candidate)["transport"] < 0
+        assert costly.bonus_breakdown(candidate)["distortion"] < 0
+
 
 class TestDeriveExtraCandidates:
 
