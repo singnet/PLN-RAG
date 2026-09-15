@@ -130,17 +130,23 @@ class Reasoner:
             return []
 
     def _query_with_transient_statements(
-        self, pln_query: str, transient_statements: List[str]
+        self,
+        pln_query: str,
+        transient_statements: List[str],
+        include_persistent: bool = True,
     ) -> List[str]:
         try:
             with self._lock:
-                exact = self._query_exact_fact(pln_query)
-                if exact:
-                    return exact
+                if include_persistent:
+                    exact = self._query_exact_fact(pln_query)
+                    if exact:
+                        return exact
                 handler = PeTTaChainer()
-                self._load_file_into(handler, self._atomspace_path)
-                for path in sorted(self._background_files):
-                    self._load_file_into(handler, path)
+                if include_persistent:
+                    self._load_file_into(handler, self._atomspace_path)
+                if include_persistent:
+                    for path in sorted(self._background_files):
+                        self._load_file_into(handler, path)
                 for statement in transient_statements:
                     handler.add_atom(statement)
                 result = handler.query(
@@ -152,6 +158,17 @@ class Reasoner:
                 "Transient query failed for %r: %s", pln_query, exc
             )
             return []
+
+    def query_transient_only(
+        self, pln_query: str, transient_statements: List[str]
+    ) -> List[str]:
+        """Query an isolated theory without consulting the persistent atomspace."""
+        valid, rejected = validate_statements(transient_statements)
+        if rejected:
+            return []
+        return self._query_with_transient_statements(
+            pln_query, valid, include_persistent=False
+        )
 
     def _query_exact_fact(self, pln_query: str) -> List[str]:
         target = self._extract_grounded_query_atom(pln_query)

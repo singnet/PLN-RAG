@@ -75,6 +75,18 @@ def test_transient_query_uses_fresh_complete_atomspace_without_leaking(
     assert len(FakeChainer.instances) == 2
 
 
+def test_transient_only_query_excludes_persistent_and_background_atoms(
+    monkeypatch, tmp_path
+):
+    reasoner, _ = fake_reasoner(monkeypatch, tmp_path)
+
+    assert reasoner.query_transient_only(QUERY, [TRANSIENT_RULE]) == []
+    isolated = FakeChainer.instances[-1].atoms
+    assert TRANSIENT_RULE in isolated
+    assert PERSISTENT not in isolated
+    assert BACKGROUND not in isolated
+
+
 @pytest.mark.parametrize(
     "transient",
     [
