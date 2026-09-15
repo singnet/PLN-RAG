@@ -592,6 +592,55 @@ def test_missing_context_does_not_block_safe_definite_identity():
     assert merged_symbols(graph) == [("camera", "camera")]
 
 
+@pytest.mark.parametrize(("persistence", "merged"), [("flexible", False), ("rigid", True)])
+def test_identity_across_sibling_worlds_obeys_persistence_policy(
+    persistence, merged
+):
+    declarations = [
+        "(: rain (BranchContext rain actual_root counterfactual 0.5) (STV 1 1))",
+        "(: dry (BranchContext dry actual_root counterfactual 0.5) (STV 1 1))",
+    ]
+    left = extract_senf(
+        "s1", "In rain, Kebede works.", declarations + [
+            f"(: policy (EntityPersistence kebede {persistence} realized rain none) (STV 1 1))",
+            "(: work (InContext rain none (Works kebede)) (STV 1 1))",
+        ],
+    )
+    right = extract_senf(
+        "s2", "In dry, Kebede works.", declarations + [
+            f"(: policy (EntityPersistence kebede {persistence} realized dry none) (STV 1 1))",
+            "(: work (InContext dry none (Works kebede)) (STV 1 1))",
+        ],
+    )
+
+    graph = resolve_identity([left, right])
+
+    assert graph.same_entity(left.entities[0].entity_id, right.entities[0].entity_id) is merged
+
+
+def test_temporal_identity_does_not_merge_across_disjoint_validity_intervals():
+    shared = [
+        "(: early (ValidityInterval early 2026-01-01 2026-01-31) (STV 1 1))",
+        "(: late (ValidityInterval late 2026-03-01 2026-03-31) (STV 1 1))",
+    ]
+    left = extract_senf(
+        "s1", "The camera existed in January.", shared + [
+            "(: policy (EntityPersistence camera temporal realized actual_root early) (STV 1 1))",
+            "(: fact (InContext actual_root early (Exists camera)) (STV 1 1))",
+        ],
+    )
+    right = extract_senf(
+        "s2", "The camera existed in March.", shared + [
+            "(: policy (EntityPersistence camera temporal realized actual_root late) (STV 1 1))",
+            "(: fact (InContext actual_root late (Exists camera)) (STV 1 1))",
+        ],
+    )
+
+    graph = resolve_identity([left, right])
+
+    assert not graph.same_entity(left.entities[0].entity_id, right.entities[0].entity_id)
+
+
 def test_matching_context_allows_safe_pronoun_identity():
     camera, pronoun = _camera_and_pronoun()
     camera.frames[0].context = replace(camera.frames[0].context, speaker="alice")

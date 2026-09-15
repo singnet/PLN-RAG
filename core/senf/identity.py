@@ -3,7 +3,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Sequence
 
-from core.senf.types import Context, EntityRef, SENF, Mention
+from core.senf.temporal import BranchingContextTree, interval_relation
+from core.senf.types import Context, EntityPersistence, EntityRef, SENF, Mention
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,8 @@ class IdentityGuard:
     modalities: tuple[str, ...] = ()
     time_refs: tuple[str, ...] = ()
     location_refs: tuple[str, ...] = ()
+    branch_ids: tuple[str, ...] = ()
+    validity_interval_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -482,6 +485,17 @@ class IdentityResolver:
         self.ambiguity_margin = ambiguity_margin
 
     def resolve(self, senfs: Sequence[SENF]) -> IdentityGraph:
+        self._branch_tree = BranchingContextTree.from_senfs(senfs)
+        self._intervals = {
+            interval.interval_id: interval
+            for senf in senfs
+            for interval in senf.validity_intervals
+        }
+        self._persistence = {
+            item.entity_id: item
+            for senf in senfs
+            for item in senf.entity_persistence
+        }
         mentions = self._collect_mentions(senfs)
         if len(mentions) < 2:
             return self._graph(mentions)
@@ -777,6 +791,12 @@ class IdentityResolver:
             modalities=tuple(dict.fromkeys(context.modality for context in context_values if context.modality)),
             time_refs=tuple(dict.fromkeys(context.time_ref for context in context_values if context.time_ref)),
             location_refs=tuple(dict.fromkeys(context.location_ref for context in context_values if context.location_ref)),
+            branch_ids=tuple(dict.fromkeys(context.branch_id for context in context_values)),
+            validity_interval_ids=tuple(dict.fromkeys(
+                context.validity_interval_id
+                for context in context_values
+                if context.validity_interval_id
+            )),
         )
         return IdentityEdge(
             left=left,
@@ -924,8 +944,9 @@ class IdentityResolver:
                 for right in right_mentions:
                     if frozenset({_mention_key(left), _mention_key(right)}) in negatives:
                         return False
-                    if _contexts_conflict(
-                        contexts.get(_mention_key(left)), contexts.get(_mention_key(right))
+                    if self._contexts_conflict(
+                        left, right,
+                        contexts.get(_mention_key(left)), contexts.get(_mention_key(right)),
                     ):
                         return False
             return True
@@ -943,6 +964,46 @@ class IdentityResolver:
             parent[right_root] = left_root
             accepted.append(edge)
         return tuple(accepted)
+
+    def _contexts_conflict(
+        self,
+        left_mention: Mention,
+        right_mention: Mention,
+        left: Optional[Context],
+        right: Optional[Context],
+    ) -> bool:
+        if _contexts_conflict(left, right):
+            return True
+        if left is None or right is None:
+            return False
+        if left.branch_id != right.branch_id:
+            left_policy = self._persistence.get(left_mention.entity_id)
+            right_policy = self._persistence.get(right_mention.entity_id)
+            policies = {
+                item.persistence_type
+                for item in (left_policy, right_policy)
+                if item is not None
+            }
+            same_lineage = self._branch_tree.is_ancestor(
+                left.branch_id, right.branch_id
+            ) or self._branch_tree.is_ancestor(right.branch_id, left.branch_id)
+            if "contingent" in policies:
+                return True
+            if not same_lineage and policies != {"rigid"}:
+                return True
+        relation = interval_relation(
+            self._intervals.get(left.validity_interval_id or ""),
+            self._intervals.get(right.validity_interval_id or ""),
+        )
+        policies = {
+            item.persistence_type
+            for item in (
+                self._persistence.get(left_mention.entity_id),
+                self._persistence.get(right_mention.entity_id),
+            )
+            if item is not None
+        }
+        return "temporal" in policies and relation in ("before", "after")
 
     @staticmethod
     def _elect(
