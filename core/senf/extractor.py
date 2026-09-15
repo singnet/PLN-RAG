@@ -1,13 +1,17 @@
 import logging
+import math
 import re
 from dataclasses import replace
 from typing import Optional
 
 from core.senf.types import (
+    ACTUAL_BRANCH_ID,
+    BranchContext,
     ClauseRole,
     Constraint,
     Context,
     Entity,
+    EntityPersistence,
     EntityRef,
     FrameRef,
     KindAssertion,
@@ -18,6 +22,7 @@ from core.senf.types import (
     SENF,
     SENFFrame,
     SourceUnit,
+    ValidityInterval,
     ValueRef,
 )
 
@@ -62,6 +67,10 @@ _PRONOUNS = frozenset({
 _NEGATION_HEADS = frozenset({"Not", "NOT", "Negation"})
 _STRUCTURAL_HEADS = frozenset({
     "Implication", "Premises", "Conclusions", "And", "Or", "Conjunction", "Equivalence",
+})
+_CONTEXT_HEADS = frozenset({"InContext"})
+_DECLARATION_HEADS = frozenset({
+    "BranchContext", "ValidityInterval", "EntityPersistence",
 })
 _TRUTH_HEADS = frozenset({"STV", "CTV", "PointMass", "ParticleFrom"})
 _NUMERIC_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
@@ -148,10 +157,34 @@ class SENFExtractor:
         senf = SENF(
             senf_id=f"senf:{sentence_id}", sentence_id=sentence_id,
             source_units=_segment_source_units(sentence_id, text),
+            source_atoms=[" ".join(str(atom).split()) for atom in statements or []],
         )
         occurrences: dict[str, list[tuple[Entity, Mention]]] = {}
         occurrence_cursors: dict[str, int] = {}
-        for statement in statements or []:
+        persistence_specs: list[tuple[str, str, str, str, Optional[str]]] = []
+        declarations: set[int] = set()
+        declaration_failed = False
+        for index, statement in enumerate(statements or []):
+            split = _split_statement(statement)
+            if not split:
+                continue
+            try:
+                if self._is_declaration(split[1]):
+                    declarations.add(index)
+                    self._apply_declaration(split[1], senf, persistence_specs)
+            except (TypeError, ValueError) as exc:
+                declarations.add(index)
+                declaration_failed = True
+                logger.debug("SENF extraction skipped declaration %r: %s", statement, exc)
+        if declaration_failed:
+            senf.frames.clear()
+            senf.entities.clear()
+            senf.mentions.clear()
+            senf.kind_assertions.clear()
+            senf.constraints.clear()
+            senf.entity_persistence.clear()
+            return senf
+        for index, statement in enumerate(statements or []):
             lengths = (
                 len(senf.entities), len(senf.mentions), len(senf.frames),
                 len(senf.kind_assertions), len(senf.constraints),
@@ -160,11 +193,11 @@ class SENFExtractor:
             saved_cursors = dict(occurrence_cursors)
             try:
                 split = _split_statement(statement)
-                if split:
+                if split and index not in declarations:
                     atom_id, body = split
                     self._walk(
                         body, sentence_id, text, atom_id, "fact", True,
-                        senf, occurrences, occurrence_cursors,
+                        senf, occurrences, occurrence_cursors, None,
                     )
             except Exception as exc:
                 del senf.entities[lengths[0]:]
@@ -191,7 +224,95 @@ class SENFExtractor:
         senf.entities[:] = [
             entity for entity in senf.entities if entity.entity_id in referenced_entities
         ]
+        for symbol, persistence_type, status, branch_id, interval_id in persistence_specs:
+            matches = [
+                entity for entity in senf.entities if entity.canonical_symbol == symbol
+            ]
+            for entity in matches:
+                senf.entity_persistence.append(EntityPersistence(
+                    entity.entity_id, persistence_type, status, branch_id, interval_id,
+                ))
         return senf
+
+    @staticmethod
+    def _declaration_parts(expr: str) -> Optional[tuple[str, list[str]]]:
+        inner = _strip_outer_parens(expr)
+        tokens = _split_top_level(inner) if inner is not None else []
+        if not tokens or tokens[0] not in _DECLARATION_HEADS:
+            return None
+        if any(token.startswith("(") for token in tokens[1:]):
+            raise ValueError("nested Stage 7 declaration")
+        return tokens[0], tokens[1:]
+
+    @classmethod
+    def _is_declaration(cls, expr: str) -> bool:
+        return cls._declaration_parts(expr) is not None
+
+    @classmethod
+    def _apply_declaration(
+        cls,
+        expr: str,
+        senf: SENF,
+        persistence_specs: list[tuple[str, str, str, str, Optional[str]]],
+    ) -> None:
+        parsed = cls._declaration_parts(expr)
+        if parsed is None:
+            return
+        head, args = parsed
+        if head == "BranchContext":
+            if len(args) != 4:
+                raise ValueError("BranchContext requires four arguments")
+            branch_id, parent_id, branch_type, raw_probability = args
+            if branch_type not in ("actual", "counterfactual", "projected"):
+                raise ValueError("invalid branch type")
+            branch = BranchContext(
+                branch_id,
+                None if parent_id == "none" else parent_id,
+                branch_type,
+                float(raw_probability),
+            )
+            if (
+                not math.isfinite(branch.probability)
+                or not 0.0 <= branch.probability <= 1.0
+            ):
+                raise ValueError("invalid branch probability")
+            existing = next(
+                (item for item in senf.branches if item.branch_id == branch_id), None
+            )
+            if existing is not None and existing != branch:
+                raise ValueError("conflicting branch declaration")
+            if existing is None:
+                senf.branches.append(branch)
+            return
+        if head == "ValidityInterval":
+            if len(args) not in (3, 5):
+                raise ValueError("ValidityInterval requires three or five arguments")
+            interval_id, start, end = args[:3]
+            inclusive = args[3:] or ["true", "true"]
+            if any(value not in ("true", "false") for value in inclusive):
+                raise ValueError("invalid interval inclusivity")
+            interval = ValidityInterval(
+                interval_id,
+                None if start == "unbounded" else start,
+                None if end == "unbounded" else end,
+                inclusive[0] == "true",
+                inclusive[1] == "true",
+            )
+            if any(item.interval_id == interval_id for item in senf.validity_intervals):
+                raise ValueError("duplicate interval declaration")
+            senf.validity_intervals.append(interval)
+            return
+        if len(args) != 5:
+            raise ValueError("EntityPersistence requires five arguments")
+        symbol, persistence_type, status, branch_id, interval_id = args
+        if persistence_type not in ("rigid", "flexible", "contingent", "temporal"):
+            raise ValueError("invalid persistence type")
+        if status not in ("realized", "ghost", "unfulfilled"):
+            raise ValueError("invalid entity status")
+        persistence_specs.append((
+            symbol, persistence_type, status, branch_id,
+            None if interval_id == "none" else interval_id,
+        ))
 
     def _walk(
         self,
@@ -204,6 +325,7 @@ class SENFExtractor:
         senf: SENF,
         occurrences: dict[str, list[tuple[Entity, Mention]]],
         occurrence_cursors: dict[str, int],
+        inherited_context: Optional[Context],
     ) -> Optional[FrameRef]:
         inner = _strip_outer_parens(expr)
         tokens = _split_top_level(inner) if inner is not None else []
@@ -217,7 +339,7 @@ class SENFExtractor:
             for arg in args:
                 result = self._walk(
                     arg, sentence_id, text, atom_id, clause_role, not polarity,
-                    senf, occurrences, occurrence_cursors,
+                    senf, occurrences, occurrence_cursors, inherited_context,
                 ) or result
             return result
         if head in _STRUCTURAL_HEADS:
@@ -232,9 +354,22 @@ class SENFExtractor:
                     child_role = "conclusion"
                 result = self._walk(
                     arg, sentence_id, text, atom_id, child_role, polarity,
-                    senf, occurrences, occurrence_cursors,
+                    senf, occurrences, occurrence_cursors, inherited_context,
                 ) or result
             return result
+        if head in _CONTEXT_HEADS:
+            if len(args) != 3 or args[0].startswith("(") or args[1].startswith("("):
+                raise ValueError("InContext requires branch, interval, and content")
+            branch_id, interval_id, content = args
+            context = replace(
+                inherited_context or Context(""),
+                branch_id=branch_id,
+                validity_interval_id=None if interval_id == "none" else interval_id,
+            )
+            return self._walk(
+                content, sentence_id, text, atom_id, clause_role, polarity,
+                senf, occurrences, occurrence_cursors, context,
+            )
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", head):
             return None
 
@@ -243,7 +378,7 @@ class SENFExtractor:
             if arg.startswith("("):
                 filler = self._walk(
                     arg, sentence_id, text, atom_id, clause_role, True,
-                    senf, occurrences, occurrence_cursors,
+                    senf, occurrences, occurrence_cursors, inherited_context,
                 )
                 if filler is None:
                     filler = ValueRef(arg, "expression")
@@ -270,7 +405,8 @@ class SENFExtractor:
             source_text=text,
             source_atom_id=atom_id,
             clause_role=clause_role,
-            context=Context(source_unit_id),
+            context=replace(inherited_context, source_unit_id=source_unit_id)
+            if inherited_context else Context(source_unit_id),
         )
         senf.frames.append(frame)
         self._apply_explicit_context(frame, senf)

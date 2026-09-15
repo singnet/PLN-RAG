@@ -111,6 +111,12 @@ class Settings(BaseSettings):
     senf_exemplar_coherence_weight: int = 2
     senf_conflict_weight: int = 3
     senf_transport_cost_weight: int = 2
+    # Stage 7 remains separately opt-in inside the experimental SENF parser.
+    senf_counterfactual_enabled: bool = False
+    senf_branch_max_nodes: int = 64
+    senf_branch_max_depth: int = 16
+    senf_branch_max_theory_statements: int = 128
+    senf_temporal_decay_rate: float = 0.01
 
     model_config = ConfigDict(
         env_file=".env",

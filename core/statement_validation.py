@@ -43,7 +43,7 @@ def is_valid_statement(statement: str) -> tuple[bool, str]:
         return False, "zero_arity_atom"
     if not _valid_truth_value(truth_value):
         return False, "bad_truth_value"
-    if _contains_wrapper(body) and not _valid_implication(body):
+    if _contains_wrapper(body) and not _valid_structural_body(body):
         return False, "bad_implication_shape"
     return True, ""
 
@@ -88,6 +88,19 @@ def _parse_expression(text: str):
     if end != len(tokens):
         raise ValueError("bad_toplevel")
     return expression
+
+
+def parse_expression(text: str):
+    """Parse one MeTTa expression for trusted structural consumers."""
+    return _parse_expression(text)
+
+
+def render_expression(value) -> str:
+    if isinstance(value, str):
+        return value
+    if not _is_list(value):
+        raise ValueError("expression must be a string or list")
+    return "(" + " ".join(render_expression(item) for item in value) + ")"
 
 
 def _tokenize(text: str) -> list[str]:
@@ -139,7 +152,7 @@ def _valid_truth_value(value) -> bool:
 def _contains_wrapper(value) -> bool:
     if not _is_list(value) or not value:
         return False
-    if value[0] in {"Implication", "Premises", "Conclusions"}:
+    if value[0] in {"Implication", "Premises", "Conclusions", "InContext"}:
         return True
     return any(_contains_wrapper(item) for item in value[1:] if _is_list(item))
 
@@ -158,3 +171,22 @@ def _valid_implication(body) -> bool:
         and conclusions[0] == "Conclusions"
         and all(_valid_atom(atom) for atom in conclusions[1:])
     )
+
+
+def _valid_structural_body(body) -> bool:
+    if not _is_list(body) or not body:
+        return False
+    if body[0] == "Implication":
+        return _valid_implication(body)
+    if body[0] in {"Premises", "Conclusions"}:
+        return False
+    if body[0] == "InContext":
+        return (
+            len(body) == 4
+            and isinstance(body[1], str)
+            and bool(body[1])
+            and isinstance(body[2], str)
+            and bool(body[2])
+            and _valid_structural_body(body[3])
+        )
+    return _valid_atom(body)

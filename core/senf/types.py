@@ -1,4 +1,4 @@
-"""SENF (Semantic Entity-Network Frame) v4 data structures."""
+"""SENF (Semantic Entity-Network Frame) v5 data structures."""
 
 from dataclasses import dataclass, field
 import math
@@ -7,6 +7,10 @@ from typing import Literal as TypingLiteral, Optional, Union
 MentionType = TypingLiteral["proper", "common", "pronoun", "nominal"]
 ClauseRole = TypingLiteral["fact", "premise", "conclusion"]
 Definiteness = TypingLiteral["definite", "indefinite", "demonstrative", "pronoun", "unknown"]
+BranchType = TypingLiteral["actual", "counterfactual", "projected"]
+PersistenceType = TypingLiteral["rigid", "flexible", "contingent", "temporal"]
+EntityStatus = TypingLiteral["realized", "ghost", "unfulfilled"]
+ACTUAL_BRANCH_ID = "actual_root"
 
 
 @dataclass(frozen=True)
@@ -24,6 +28,34 @@ class Context:
     modality: Optional[str] = None
     time_ref: Optional[str] = None
     location_ref: Optional[str] = None
+    branch_id: str = ACTUAL_BRANCH_ID
+    validity_interval_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class BranchContext:
+    branch_id: str
+    parent_id: Optional[str]
+    branch_type: BranchType
+    probability: float
+
+
+@dataclass(frozen=True)
+class ValidityInterval:
+    interval_id: str
+    start: Optional[str]
+    end: Optional[str]
+    start_inclusive: bool = True
+    end_inclusive: bool = True
+
+
+@dataclass(frozen=True)
+class EntityPersistence:
+    entity_id: str
+    persistence_type: PersistenceType
+    status: EntityStatus = "realized"
+    branch_id: str = ACTUAL_BRANCH_ID
+    validity_interval_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -134,6 +166,12 @@ class SENF:
     active_exemplars: dict[str, list[str]] = field(default_factory=dict)
     source_units: list[SourceUnit] = field(default_factory=list)
     constraints: list[Constraint] = field(default_factory=list)
+    branches: list[BranchContext] = field(default_factory=lambda: [
+        BranchContext(ACTUAL_BRANCH_ID, None, "actual", 1.0)
+    ])
+    validity_intervals: list[ValidityInterval] = field(default_factory=list)
+    entity_persistence: list[EntityPersistence] = field(default_factory=list)
+    source_atoms: list[str] = field(default_factory=list)
 
     @property
     def is_empty(self) -> bool:
@@ -165,7 +203,7 @@ class SENF:
         return tuple(self.active_exemplars.get(mention.mention_id, ()))
 
 
-SENF_PAYLOAD_VERSION = 4
+SENF_PAYLOAD_VERSION = 5
 SENF_PAYLOAD_KEY = "senf"
 
 
@@ -205,7 +243,7 @@ def _filler_from_payload(blob: object) -> Filler:
 
 
 def senf_to_payload(senf: SENF) -> dict:
-    """Serialize a SENF v4 into a JSON-safe payload."""
+    """Serialize a SENF v5 into a JSON-safe payload."""
     return {
         "senf_version": SENF_PAYLOAD_VERSION,
         "senf_id": senf.senf_id,
@@ -255,6 +293,8 @@ def senf_to_payload(senf: SENF) -> dict:
                     "modality": frame.context.modality,
                     "time_ref": frame.context.time_ref,
                     "location_ref": frame.context.location_ref,
+                    "branch_id": frame.context.branch_id,
+                    "validity_interval_id": frame.context.validity_interval_id,
                 } if frame.context else None,
             }
             for frame in senf.frames
@@ -300,11 +340,41 @@ def senf_to_payload(senf: SENF) -> dict:
             }
             for constraint in senf.constraints
         ],
+        "branches": [
+            {
+                "branch_id": branch.branch_id,
+                "parent_id": branch.parent_id,
+                "branch_type": branch.branch_type,
+                "probability": branch.probability,
+            }
+            for branch in senf.branches
+        ],
+        "validity_intervals": [
+            {
+                "interval_id": interval.interval_id,
+                "start": interval.start,
+                "end": interval.end,
+                "start_inclusive": interval.start_inclusive,
+                "end_inclusive": interval.end_inclusive,
+            }
+            for interval in senf.validity_intervals
+        ],
+        "entity_persistence": [
+            {
+                "entity_id": item.entity_id,
+                "persistence_type": item.persistence_type,
+                "status": item.status,
+                "branch_id": item.branch_id,
+                "validity_interval_id": item.validity_interval_id,
+            }
+            for item in senf.entity_persistence
+        ],
+        "source_atoms": list(senf.source_atoms),
     }
 
 
 def senf_from_payload(blob: object) -> Optional[SENF]:
-    """Read only v4; v3, future, and malformed payloads fail closed."""
+    """Read only v5; older, future, and malformed payloads fail closed."""
     if not isinstance(blob, dict) or type(blob.get("senf_version")) is not int:
         return None
     if blob["senf_version"] != SENF_PAYLOAD_VERSION:
@@ -317,6 +387,8 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
         for key in (
             "entities", "mentions", "frames", "kind_assertions", "source_units",
             "exemplar_scores", "nearest_exemplars", "active_exemplars", "constraints",
+            "branches", "validity_intervals", "entity_persistence",
+            "source_atoms",
         ):
             expected = dict if key in ("exemplar_scores", "nearest_exemplars", "active_exemplars") else list
             if not isinstance(blob.get(key), expected):
@@ -331,6 +403,52 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
         if len(entity_ids) != len(entities) or any(not value for value in entity_ids) or any(not entity.canonical_symbol for entity in entities):
             raise ValueError("invalid entity")
         entity_symbols = {entity.entity_id: entity.canonical_symbol for entity in entities}
+
+        branches = []
+        for item in blob["branches"]:
+            if not isinstance(item, dict):
+                raise ValueError("malformed branch")
+            probability = item.get("probability")
+            if (
+                not isinstance(item.get("branch_id"), str)
+                or not item["branch_id"]
+                or item.get("parent_id") is not None
+                and (not isinstance(item["parent_id"], str) or not item["parent_id"])
+                or item.get("branch_type") not in ("actual", "counterfactual", "projected")
+                or type(probability) not in (int, float)
+                or not math.isfinite(probability)
+                or not 0.0 <= probability <= 1.0
+            ):
+                raise ValueError("malformed branch")
+            branches.append(BranchContext(
+                item["branch_id"], item.get("parent_id"), item["branch_type"],
+                float(probability),
+            ))
+        branch_ids = {item.branch_id for item in branches}
+        if len(branch_ids) != len(branches):
+            raise ValueError("duplicate branch")
+
+        intervals = []
+        for item in blob["validity_intervals"]:
+            if (
+                not isinstance(item, dict)
+                or not isinstance(item.get("interval_id"), str)
+                or not item["interval_id"]
+                or item.get("start") is not None
+                and (not isinstance(item["start"], str) or not item["start"])
+                or item.get("end") is not None
+                and (not isinstance(item["end"], str) or not item["end"])
+                or type(item.get("start_inclusive")) is not bool
+                or type(item.get("end_inclusive")) is not bool
+            ):
+                raise ValueError("malformed validity interval")
+            intervals.append(ValidityInterval(
+                item["interval_id"], item.get("start"), item.get("end"),
+                item["start_inclusive"], item["end_inclusive"],
+            ))
+        interval_ids = {item.interval_id for item in intervals}
+        if len(interval_ids) != len(intervals):
+            raise ValueError("duplicate validity interval")
 
         source_units = []
         for item in blob["source_units"]:
@@ -416,7 +534,7 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
             raw_context = item.get("context")
             if not isinstance(raw_context, dict) or raw_context.get("source_unit_id") not in source_unit_ids:
                 raise ValueError("invalid context")
-            for key in ("speaker", "modality", "time_ref", "location_ref"):
+            for key in ("speaker", "modality", "time_ref", "location_ref", "validity_interval_id"):
                 if raw_context.get(key) is not None and (
                     not isinstance(raw_context[key], str) or not raw_context[key]
                 ):
@@ -424,8 +542,16 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
             context = Context(
                 raw_context["source_unit_id"], raw_context.get("speaker"),
                 raw_context.get("modality"), raw_context.get("time_ref"),
-                raw_context.get("location_ref"),
+                raw_context.get("location_ref"), raw_context.get("branch_id", ""),
+                raw_context.get("validity_interval_id"),
             )
+            if context.branch_id not in branch_ids:
+                raise ValueError("frame references missing branch")
+            if (
+                context.validity_interval_id is not None
+                and context.validity_interval_id not in interval_ids
+            ):
+                raise ValueError("frame references missing validity interval")
             if (
                 context.modality != item.get("modality")
                 or context.time_ref != item.get("time_ref")
@@ -668,12 +794,52 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
         }
         if constraint_keys != expected_constraints:
             raise ValueError("constraints do not match frame metadata")
-        return SENF(
+        persistence = []
+        for item in blob["entity_persistence"]:
+            if (
+                not isinstance(item, dict)
+                or item.get("entity_id") not in entity_ids
+                or item.get("persistence_type") not in ("rigid", "flexible", "contingent", "temporal")
+                or item.get("status") not in ("realized", "ghost", "unfulfilled")
+                or item.get("branch_id") not in branch_ids
+                or item.get("validity_interval_id") is not None
+                and item["validity_interval_id"] not in interval_ids
+            ):
+                raise ValueError("malformed entity persistence")
+            persistence.append(EntityPersistence(
+                item["entity_id"], item["persistence_type"], item["status"],
+                item["branch_id"], item.get("validity_interval_id"),
+            ))
+        if len({(item.entity_id, item.branch_id) for item in persistence}) != len(persistence):
+            raise ValueError("duplicate entity persistence")
+        source_atoms = blob["source_atoms"]
+        if any(not isinstance(atom, str) or not atom for atom in source_atoms):
+            raise ValueError("malformed source atoms")
+        from core.statement_validation import parse_expression, validate_statements
+
+        valid_atoms, rejected_atoms = validate_statements(source_atoms)
+        if rejected_atoms or valid_atoms != source_atoms:
+            raise ValueError("invalid source atoms")
+        accepted_atom_ids = {
+            parts[1]
+            for atom in source_atoms
+            if len(parts := parse_expression(atom)) == 4
+        }
+        if any(frame.source_atom_id not in accepted_atom_ids for frame in frames):
+            raise ValueError("frame source is not retained")
+        parsed = SENF(
             senf_id=blob["senf_id"], sentence_id=blob["sentence_id"], frames=frames,
             entities=entities, mentions=mentions, kind_assertions=assertions,
             exemplar_scores=scores, nearest_exemplars=dict(nearest),
             active_exemplars={key: list(values) for key, values in active.items()},
             source_units=source_units, constraints=parsed_constraints,
+            branches=branches, validity_intervals=intervals,
+            entity_persistence=persistence,
+            source_atoms=list(source_atoms),
         )
+        from core.senf.temporal import validate_temporal_model
+
+        validate_temporal_model(parsed)
+        return parsed
     except (KeyError, TypeError, ValueError):
         return None
