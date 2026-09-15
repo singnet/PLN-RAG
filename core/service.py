@@ -293,10 +293,13 @@ class PLNRAGService:
         candidate_count_tried = len(candidates)
 
         executed_candidate_index: int | None = None
+        executed_temporal_index: int | None = None
+        executed_diagnostics = parse_result.diagnostics
         retry_used = False
         for idx, candidate in enumerate(candidates):
             executed_query = candidate
             executed_candidate_index = idx
+            executed_temporal_index = idx
             proof_traces = self._query_candidate(candidate, parse_result, idx)
             if proof_traces:
                 break
@@ -326,6 +329,8 @@ class PLNRAGService:
                         idx = retry_start + retry_index
                         executed_query = candidate
                         executed_candidate_index = idx
+                        executed_temporal_index = retry_index
+                        executed_diagnostics = retry_result.diagnostics
                         proof_traces = self._query_candidate(
                             candidate, retry_result, retry_index
                         )
@@ -335,6 +340,17 @@ class PLNRAGService:
                 logger.warning("retry_parse_query failed: %s", exc)
 
         reasoning_seconds = time.perf_counter() - t2
+
+        senf_diagnostics = dict(executed_diagnostics or {})
+        temporal_plans = senf_diagnostics.get("candidate_temporal_plans")
+        if (
+            isinstance(temporal_plans, list)
+            and executed_temporal_index is not None
+            and executed_temporal_index < len(temporal_plans)
+        ):
+            senf_diagnostics["executed_temporal_plan"] = temporal_plans[
+                executed_temporal_index
+            ]
 
         proof = str(proof_traces)
         fallback_used = bool(executed_query and original_query and executed_query != original_query)
@@ -384,7 +400,7 @@ class PLNRAGService:
             reasoning_seconds=round(reasoning_seconds, 4),
             source_lookup_seconds=round(source_lookup_seconds, 4),
             answer_generation_seconds=round(answer_generation_seconds, 4),
-            senf=parse_result.diagnostics,
+            senf=senf_diagnostics or parse_result.diagnostics,
         )
 
     def _query_candidate(self, query: str, result, index: int) -> List[str]:
@@ -392,6 +408,12 @@ class PLNRAGService:
         specific = result.candidate_trusted_transient_statements or []
         raw = common + (specific[index] if index < len(specific) else [])
         transient, rejected = self._validate_statements(raw)
+        plans = (result.diagnostics or {}).get("candidate_temporal_plans", [])
+        plan = plans[index] if isinstance(plans, list) and index < len(plans) else {}
+        contextual = isinstance(plan, dict) and (
+            plan.get("branch_id", "actual_root") != "actual_root"
+            or plan.get("validity_interval_id") is not None
+        )
         if rejected:
             for item in rejected[:2]:
                 logger.warning(
@@ -400,7 +422,10 @@ class PLNRAGService:
                 )
             # Never execute a partial context. The persistent query is still a
             # valid clean fallback, including for later canonical candidates.
-            return self._reasoner.query(query)
+            return [] if contextual else self._reasoner.query(query)
+        if contextual:
+            isolated_query = getattr(self._reasoner, "query_transient_only", None)
+            return isolated_query(query, transient) if callable(isolated_query) else []
         if transient:
             return self._reasoner.query(query, transient_statements=transient)
         return self._reasoner.query(query)

@@ -1,7 +1,7 @@
 import logging
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import List, Optional
 
 from config import get_settings
@@ -12,6 +12,8 @@ from core.senf.exemplars import score_exemplars
 from core.senf.extractor import extract_senf
 from core.senf.identity import resolve_identity
 from core.senf.types import (
+    ACTUAL_BRANCH_ID,
+    Context,
     EntityRef,
     FrameRef,
     KindRef,
@@ -21,6 +23,13 @@ from core.senf.types import (
     ValueRef,
     senf_from_payload,
     senf_to_payload,
+)
+from core.senf.temporal import (
+    BranchingContextTree,
+    TransportDecision,
+    compile_branch_theory,
+    unwrap_contextual_query,
+    wrap_contextual_statement,
 )
 from core.senf.weave import WeaveResult, build_weaves
 from parsers.canonical_pln_parser import CanonicalPLNParser
@@ -42,6 +51,8 @@ class _CandidatePlan:
     source: Optional[SENF]
     score: query_scoring.CandidateScore
     adapters: tuple[str, ...] = ()
+    query_context: Optional[Context] = None
+    temporal_decisions: tuple[TransportDecision, ...] = ()
 
 
 def _is_semantic_atom(atom: str) -> bool:
@@ -118,6 +129,13 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._exemplar_coherence_weight = cfg.senf_exemplar_coherence_weight
         self._conflict_weight = cfg.senf_conflict_weight
         self._transport_cost_weight = cfg.senf_transport_cost_weight
+        self._counterfactual_enabled = cfg.senf_counterfactual_enabled
+        self._branch_max_nodes = max(1, int(cfg.senf_branch_max_nodes))
+        self._branch_max_depth = max(1, int(cfg.senf_branch_max_depth))
+        self._branch_max_theory_statements = max(
+            1, int(cfg.senf_branch_max_theory_statements)
+        )
+        self._temporal_decay_rate = max(0.0, float(cfg.senf_temporal_decay_rate))
         self._vector_store = None
         self.reset()
 
@@ -133,6 +151,8 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._query_prior: tuple[SENF, ...] = ()
         self._query_sentence_id = ""
         self._candidate_plans: tuple[_CandidatePlan, ...] = ()
+        self._query_context = Context("query:u0")
+        self._query_contexts: dict[str, Context] = {}
 
     def senf_telemetry(self) -> Optional[dict]:
         """Counts from the most recent hook call, or None if it never ran.
@@ -173,8 +193,16 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         if senf.is_empty:
             parse_result.metadata = {}
             return None
+        payload = senf_to_payload(senf)
+        if senf_from_payload(payload) is None:
+            parse_result.metadata = {}
+            parse_result.parser_state = senf
+            return parse_result.metadata
         parse_result.parser_state = senf
-        parse_result.metadata = {SENF_PAYLOAD_KEY: senf_to_payload(senf)}
+        parse_result.metadata = {
+            SENF_PAYLOAD_KEY: payload,
+            "senf_branch_ids": [branch.branch_id for branch in senf.branches],
+        }
         return parse_result.metadata
 
     def commit_ingest(self, parse_result: ParseResult) -> None:
@@ -200,6 +228,8 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             self._query_prior = ()
             self._query_sentence_id = ""
             self._candidate_plans = ()
+            self._query_context = Context("query:u0")
+            self._query_contexts = {}
         else:
             self._pending_ingest = None
 
@@ -220,6 +250,25 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             if senf.is_empty:
                 self._telemetry = _telemetry(senf)
                 return statements, queries
+
+            if is_query and self._counterfactual_enabled:
+                explicit_contexts = {
+                    frame.context
+                    for frame in senf.frames
+                    if frame.context is not None
+                    and (
+                        frame.context.branch_id != ACTUAL_BRANCH_ID
+                        or frame.context.validity_interval_id is not None
+                    )
+                }
+                if len(explicit_contexts) > 1:
+                    self._telemetry = {
+                        **_telemetry(senf),
+                        "stage7_rejection": "query spans multiple contexts",
+                    }
+                    return statements, []
+                if explicit_contexts:
+                    self._query_context = next(iter(explicit_contexts))
 
             prior = self._prior_senfs(text, is_query=is_query)
             if is_query:
@@ -267,9 +316,43 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         statements: List[str],
         context: List[str],
     ) -> List[str]:
-        canonical = CanonicalPLNParser._plan_queries(
-            self, question, queries, [], context
+        contextual = [unwrap_contextual_query(query) for query in queries]
+        stage7_query = self._counterfactual_enabled and any(
+            item.context.branch_id != ACTUAL_BRANCH_ID
+            or item.context.validity_interval_id is not None
+            for item in contextual
         )
+        planner_queries = [item.query for item in contextual] if stage7_query else queries
+        canonical = CanonicalPLNParser._plan_queries(
+            self, question, planner_queries, [], context
+        )
+        if stage7_query:
+            admitted = set(planner_queries)
+            canonical = [query for query in canonical if query in admitted]
+            canonical = canonical or self._dedupe_preserve_order(planner_queries)
+            self._query_contexts = {
+                item.query: item.context for item in contextual
+            }
+            self._query_context = next(
+                item.context for item in contextual
+                if item.context.branch_id != ACTUAL_BRANCH_ID
+                or item.context.validity_interval_id is not None
+            )
+            branch_ids = {
+                branch.branch_id for senf in self._query_prior for branch in senf.branches
+            }
+            interval_ids = {
+                interval.interval_id
+                for senf in self._query_prior
+                for interval in senf.validity_intervals
+            }
+            if any(
+                item.context.branch_id not in branch_ids
+                or item.context.validity_interval_id is not None
+                and item.context.validity_interval_id not in interval_ids
+                for item in contextual
+            ):
+                return []
         if not canonical:
             return canonical
 
@@ -294,6 +377,9 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             for variant in self._candidate_variants(candidate, *candidate_context):
                 if variant != candidate and variant not in generated:
                     generated.append(variant)
+                    self._query_contexts[variant] = self._query_contexts.get(
+                        candidate, self._query_context
+                    )
                 if len(generated) >= variant_slots:
                     break
 
@@ -349,7 +435,32 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                 "candidate_score_breakdown": [
                     {"query": plan.query, **plan.score.as_dict()} for plan in deduped
                 ],
-                "bridge_atom_count": len(adapters),
+                "bridge_atom_count": sum(
+                    "senf_adapter" in adapter for adapter in adapters
+                ),
+                "counterfactual_theory_statement_count": sum(
+                    adapter.startswith("(: stage7_") for adapter in adapters
+                ),
+                "branch_count": len({
+                    branch.branch_id
+                    for senf in self._query_prior
+                    for branch in senf.branches
+                }),
+                "candidate_temporal_plans": [
+                    {
+                        "query": plan.query,
+                        "branch_id": (
+                            plan.query_context.branch_id
+                            if plan.query_context else ACTUAL_BRANCH_ID
+                        ),
+                        "validity_interval_id": (
+                            plan.query_context.validity_interval_id
+                            if plan.query_context else None
+                        ),
+                        "decisions": [asdict(item) for item in plan.temporal_decisions],
+                    }
+                    for plan in deduped
+                ],
                 "query_rewritten_atom_count": sum(
                     plan.query not in canonical for plan in deduped
                 ),
@@ -362,11 +473,30 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
     def _candidate_context(
         self, candidate: str, question: str
     ) -> tuple[SENF, object, tuple[WeaveResult, ...]]:
+        query_context = self._query_contexts.get(candidate, self._query_context)
+        candidate_atom = wrap_contextual_statement(candidate, query_context)
         candidate_senf = extract_senf(
             self._query_sentence_id or f"{self._session_nonce}:s{self._sentence_counter}",
             question,
-            [candidate],
+            [candidate_atom],
         )
+        tree = BranchingContextTree.from_senfs(
+            self._query_prior,
+            max_nodes=self._branch_max_nodes,
+            max_depth=self._branch_max_depth,
+        )
+        branch_definitions = {
+            branch.branch_id: branch for branch in tree.branches
+        }
+        interval_definitions = {
+            interval.interval_id: interval
+            for senf in self._query_prior
+            for interval in senf.validity_intervals
+        }
+        if query_context.branch_id not in branch_definitions:
+            raise ValueError("query references an unknown branch")
+        candidate_senf.branches = list(branch_definitions.values())
+        candidate_senf.validity_intervals = list(interval_definitions.values())
         if self._exemplar_enabled:
             score_exemplars(candidate_senf)
         graph = resolve_identity(
@@ -490,6 +620,7 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         weave = weaves[0] if weaves else None
         source = self._source_for_weave(weave)
         adapters: tuple[str, ...] = ()
+        temporal_decisions: tuple[TransportDecision, ...] = ()
         if self._emit_bridge_atoms:
             for option in weaves:
                 option_source = self._source_for_weave(option)
@@ -504,12 +635,27 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                 if generated:
                     weave, source, adapters = option, option_source, generated
                     break
+        query_context = self._query_contexts.get(candidate, self._query_context)
+        if self._counterfactual_enabled and (
+            query_context.branch_id != ACTUAL_BRANCH_ID
+            or query_context.validity_interval_id is not None
+        ):
+            theory, temporal_decisions = compile_branch_theory(
+                self._query_prior,
+                query_context,
+                max_statements=self._branch_max_theory_statements,
+                temporal_decay_rate=self._temporal_decay_rate,
+                max_branch_nodes=self._branch_max_nodes,
+                max_branch_depth=self._branch_max_depth,
+            )
+            adapters = tuple(self._dedupe_preserve_order(list(adapters) + theory))
         signals = self._senf_signals(weave)
         score = query_scoring.score_query_candidate_breakdown(
             parsed, facts, conclusions, is_yes_no, senf=signals
         ) if parsed else query_scoring.CandidateScore(rejected="invalid_query")
         return _CandidatePlan(
-            candidate, candidate_senf, graph, weave, source, score, adapters
+            candidate, candidate_senf, graph, weave, source, score, adapters,
+            query_context, temporal_decisions,
         )
 
     def _source_for_weave(self, weave: Optional[WeaveResult]) -> Optional[SENF]:
@@ -573,7 +719,18 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                 recalled
                 and not recalled.is_empty
                 and recalled.senf_id not in seen
-                and (not is_query or self._senf_overlaps_question(recalled, text))
+                and (
+                    not is_query
+                    or (
+                        self._counterfactual_enabled
+                        and self._query_context.branch_id != ACTUAL_BRANCH_ID
+                        and any(
+                            branch.branch_id == self._query_context.branch_id
+                            for branch in recalled.branches
+                        )
+                    )
+                    or self._senf_overlaps_question(recalled, text)
+                )
             ):
                 seen.add(recalled.senf_id)
                 recalled_prior.append(recalled)
@@ -634,6 +791,10 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             or recalled.kind_assertions != expected.kind_assertions
             or recalled.source_units != expected.source_units
             or recalled.constraints != expected.constraints
+            or recalled.branches != expected.branches
+            or recalled.validity_intervals != expected.validity_intervals
+            or recalled.entity_persistence != expected.entity_persistence
+            or recalled.source_atoms != expected.source_atoms
         ):
             return None
         if self._exemplar_enabled:
@@ -649,7 +810,47 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             return []
         try:
             store = self._store()
-            return store.retrieve_senf_context(text, self._context_top_k) if store else []
+            if not store:
+                return []
+            semantic_records = list(
+                store.retrieve_senf_context(text, self._context_top_k)
+            )
+            branch_records: list[dict] = []
+            if (
+                self._counterfactual_enabled
+                and self._query_context.branch_id != ACTUAL_BRANCH_ID
+                and hasattr(store, "retrieve_senf_branch_context")
+            ):
+                branch_records.extend(store.retrieve_senf_branch_context(
+                    self._query_context.branch_id, self._max_priors
+                ))
+                branch_senfs = [
+                    parsed
+                    for record in branch_records
+                    if isinstance(record, dict)
+                    if (parsed := senf_from_payload(record.get(SENF_PAYLOAD_KEY)))
+                    is not None
+                ]
+                if branch_senfs:
+                    tree = BranchingContextTree.from_senfs(
+                        branch_senfs,
+                        max_nodes=self._branch_max_nodes,
+                        max_depth=self._branch_max_depth,
+                    )
+                    for branch_id in tree.lineage(self._query_context.branch_id):
+                        if branch_id in (ACTUAL_BRANCH_ID, self._query_context.branch_id):
+                            continue
+                        branch_records.extend(store.retrieve_senf_branch_context(
+                            branch_id, self._max_priors
+                        ))
+            records = branch_records + semantic_records
+            deduped: dict[str, dict] = {}
+            for record in records:
+                payload = record.get(SENF_PAYLOAD_KEY) if isinstance(record, dict) else None
+                key = payload.get("senf_id") if isinstance(payload, dict) else None
+                if isinstance(key, str):
+                    deduped.setdefault(key, record)
+            return list(deduped.values())
         except Exception:
             logger.warning("SENF context retrieval failed; continuing session-only", exc_info=True)
             return []

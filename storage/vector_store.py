@@ -187,6 +187,39 @@ class VectorStore:
                 })
         return records
 
+    def retrieve_senf_branch_context(self, branch_id: str, limit: int) -> List[dict]:
+        """Return exact branch records without embedding-based omission."""
+        if not branch_id or limit <= 0:
+            return []
+        resp = self._client.post(
+            f"{self._qdrant}/collections/{self._collection}/points/scroll",
+            json={
+                "filter": {
+                    "must": [{"key": "senf_branch_ids", "match": {"value": branch_id}}]
+                },
+                "limit": limit,
+                "with_payload": True,
+                "with_vector": False,
+            },
+        )
+        if resp.status_code != 200:
+            logger.warning(
+                "Qdrant SENF branch retrieval failed for %s with status %s",
+                branch_id,
+                resp.status_code,
+            )
+            return []
+        records = []
+        for item in resp.json().get("result", {}).get("points", []):
+            payload = item.get("payload", {})
+            if isinstance(payload.get(SENF_PAYLOAD_KEY), dict):
+                records.append({
+                    SENF_PAYLOAD_KEY: payload[SENF_PAYLOAD_KEY],
+                    "nl": payload.get("nl"),
+                    "pln": payload.get("pln"),
+                })
+        return records
+
     def reset(self):
         try:
             self._client.delete(f"{self._qdrant}/collections/{self._collection}")
