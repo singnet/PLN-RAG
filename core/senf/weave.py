@@ -5,7 +5,8 @@ from typing import Optional, Sequence
 from config import get_settings
 from core.senf.exemplars import exemplar_distance
 from core.senf.identity import IdentityEdge, IdentityGraph
-from core.senf.types import EntityRef, FrameRef, KindRef, Mention, Role, SENF, SENFFrame, ValueRef
+from core.senf.temporal import BranchingContextTree, TransportDecision, assess_transport
+from core.senf.types import Context, EntityPersistence, EntityRef, FrameRef, KindRef, Mention, Role, SENF, SENFFrame, ValidityInterval, ValueRef
 
 
 MIN_PAIR_SCORE = 0.3
@@ -73,6 +74,12 @@ class WeaveResult:
     modality_cost: float = 0.0
     unmatched_cost: float = 0.0
     distortion_cost: float = 0.0
+    branch_cost: float = 0.0
+    temporal_decay_cost: float = 0.0
+    persistence_cost: float = 0.0
+    branch_probability: float = 1.0
+    branch_lca: str = "actual_root"
+    transport_decisions: tuple[TransportDecision, ...] = ()
     total_cost: float = 0.0
     guard: str = ""
     residuals: tuple[float, float, float] = (0.0, 0.0, 0.0)
@@ -97,6 +104,10 @@ class _PairHypothesis:
     time: float
     location: float
     modality: float
+    branch: float
+    temporal_decay: float
+    persistence: float
+    transport_decision: TransportDecision
 
     @property
     def local_cost(self) -> float:
@@ -108,6 +119,9 @@ class _PairHypothesis:
             + self.time
             + self.location
             + self.modality
+            + self.branch
+            + self.temporal_decay
+            + self.persistence
         )
 
 
@@ -340,7 +354,44 @@ def _pair_hypotheses(
     source_frame: SENFFrame,
     graph: Optional[IdentityGraph],
     limits: _Limits,
+    tree: BranchingContextTree,
+    intervals: dict[str, ValidityInterval],
 ) -> tuple[_PairHypothesis, ...]:
+    source_context = source_frame.context or Context(source_senf.source_units[0].source_unit_id)
+    query_context = query_frame.context or Context(query_senf.source_units[0].source_unit_id)
+    persistence_policies = _frame_persistence(source_frame, source_senf)
+    if any(
+        item.validity_interval_id is not None
+        and item.validity_interval_id != source_context.validity_interval_id
+        for item in persistence_policies
+    ):
+        return ()
+    transport_decisions = [
+        assess_transport(
+            tree, source_context, query_context, intervals, persistence,
+            temporal_decay_rate=max(0.0, get_settings().senf_temporal_decay_rate),
+            purpose="fact",
+        )
+        for persistence in (persistence_policies or (None,))
+    ]
+    denied = next(
+        (decision for decision in transport_decisions if not decision.allowed), None
+    )
+    if denied is not None:
+        return ()
+    transport = TransportDecision(
+        True,
+        "allowed",
+        source_context.branch_id,
+        query_context.branch_id,
+        transport_decisions[0].branch_lca,
+        min(item.branch_probability for item in transport_decisions),
+        transport_decisions[0].interval_relation,
+        min(item.temporal_decay for item in transport_decisions),
+        max(item.branch_cost for item in transport_decisions),
+        max(item.temporal_cost for item in transport_decisions),
+        max(item.persistence_cost for item in transport_decisions),
+    )
     predicate_cost = _predicate_cost(query_frame.predicate_head, source_frame.predicate_head)
     if predicate_cost is None or len(query_frame.roles) != len(source_frame.roles):
         return ()
@@ -475,6 +526,10 @@ def _pair_hypotheses(
             time,
             location,
             modality,
+            transport.branch_cost,
+            transport.temporal_cost,
+            transport.persistence_cost,
+            transport,
         ))
         if len(hypotheses) >= limits.max_exemplar_alternatives:
             break
@@ -633,12 +688,16 @@ def _result(
     time = average("time")
     location = average("location")
     modality = average("modality")
+    branch = average("branch")
+    temporal_decay_cost = average("temporal_decay")
+    persistence_cost = average("persistence")
     unmatched = state.skipped / max(1, query_count)
     cross_distortion = _cross_frame_distortion(query, source, selected)
     distortion = min(1.0, unmatched + cross_distortion)
     total = (
         structural + exemplar + identity + conflict + time + location
-        + modality + unmatched + cross_distortion
+        + modality + branch + temporal_decay_cost + persistence_cost
+        + unmatched + cross_distortion
     )
 
     used_source = {pair.source_frame_id for pair in pairs}
@@ -694,6 +753,18 @@ def _result(
         modality_cost=round(modality, 4),
         unmatched_cost=round(unmatched, 4),
         distortion_cost=round(cross_distortion, 4),
+        branch_cost=round(branch, 4),
+        temporal_decay_cost=round(temporal_decay_cost, 4),
+        persistence_cost=round(persistence_cost, 4),
+        branch_probability=round(min(
+            (item.transport_decision.branch_probability for item in selected),
+            default=1.0,
+        ), 8),
+        branch_lca=next((
+            item.transport_decision.branch_lca
+            for item in selected if item.transport_decision.branch_lca
+        ), "actual_root"),
+        transport_decisions=tuple(item.transport_decision for item in selected),
         total_cost=round(total, 4),
         guard=f"{source.sentence_id}->{query.sentence_id}",
         residuals=(rounded_distortion, rounded_distortion, rounded_distortion),
@@ -706,6 +777,14 @@ def _weave_source(
     graph: Optional[IdentityGraph],
     limits: _Limits,
 ) -> tuple[WeaveResult, ...]:
+    tree = BranchingContextTree.from_senfs((source, query))
+    intervals: dict[str, ValidityInterval] = {}
+    for senf in (source, query):
+        for interval in senf.validity_intervals:
+            existing = intervals.get(interval.interval_id)
+            if existing is not None and existing != interval:
+                return (WeaveResult(guard=f"{source.sentence_id}->{query.sentence_id}"),)
+            intervals[interval.interval_id] = interval
     all_query_frames = sorted(
         (frame for frame in query.frames if frame.clause_role == "fact"),
         key=lambda frame: frame.frame_id,
@@ -719,7 +798,7 @@ def _weave_source(
     for query_frame in query_frames:
         for source_frame in source_frames:
             by_query[query_frame.frame_id].extend(_pair_hypotheses(
-                query, source, query_frame, source_frame, graph, limits
+                query, source, query_frame, source_frame, graph, limits, tree, intervals
             ))
         by_query[query_frame.frame_id].sort(key=_pair_key)
 
@@ -818,10 +897,33 @@ def _reject_over_cost(result: WeaveResult) -> WeaveResult:
         modality_cost=result.modality_cost,
         unmatched_cost=result.unmatched_cost,
         distortion_cost=result.distortion_cost,
+        branch_cost=result.branch_cost,
+        temporal_decay_cost=result.temporal_decay_cost,
+        persistence_cost=result.persistence_cost,
+        branch_probability=result.branch_probability,
+        branch_lca=result.branch_lca,
+        transport_decisions=result.transport_decisions,
         total_cost=result.total_cost,
         guard=result.guard,
         residuals=result.residuals,
     )
+
+
+def _frame_persistence(
+    frame: SENFFrame, senf: SENF
+) -> tuple[EntityPersistence, ...]:
+    entity_ids = {
+        role.filler.entity_id
+        for role in frame.roles
+        if isinstance(role.filler, EntityRef)
+    }
+    candidates = [
+        item
+        for item in senf.entity_persistence
+        if item.entity_id in entity_ids
+        and item.branch_id == (frame.context.branch_id if frame.context else "actual_root")
+    ]
+    return tuple(sorted(candidates, key=lambda item: (item.entity_id, item.persistence_type)))
 
 
 def build_weaves(

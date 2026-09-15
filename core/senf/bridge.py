@@ -4,7 +4,15 @@ from dataclasses import dataclass
 from typing import Iterable, Optional
 
 from core.senf.identity import IdentityEdge
-from core.senf.types import EntityRef, FrameRef, KindRef, SENF, SENFFrame, ValueRef
+from core.senf.types import (
+    ACTUAL_BRANCH_ID,
+    EntityRef,
+    FrameRef,
+    KindRef,
+    SENF,
+    SENFFrame,
+    ValueRef,
+)
 from core.senf.weave import WeaveResult
 
 
@@ -144,9 +152,29 @@ def executable_bridge_atoms(
     source_roots = _root_frame_ids(source)
     query_roots = _root_frame_ids(query)
     for index, pair in enumerate(weave.pairs):
+        decision = (
+            weave.transport_decisions[index]
+            if index < len(weave.transport_decisions)
+            else None
+        )
+        if decision is not None and not decision.allowed:
+            continue
         source_frame = _frame(source, pair.source_frame_id)
         query_frame = _frame(query, pair.query_frame_id)
         if source_frame is None or query_frame is None:
+            continue
+        source_branch = (
+            source_frame.context.branch_id
+            if source_frame.context else ACTUAL_BRANCH_ID
+        )
+        query_branch = (
+            query_frame.context.branch_id
+            if query_frame.context else ACTUAL_BRANCH_ID
+        )
+        if (
+            decision is None
+            and (source_branch != ACTUAL_BRANCH_ID or query_branch != ACTUAL_BRANCH_ID)
+        ):
             continue
         if (
             source_frame.frame_id not in source_roots
@@ -200,7 +228,10 @@ def executable_bridge_atoms(
         if not justified or (not predicate_changed and source_args == query_args):
             continue
 
-        tv = transport_truth(1.0, 1.0, weave.total_cost + identity_cost)
+        probability = weave.branch_probability if decision is not None else 1.0
+        tv = transport_truth(
+            probability, probability, weave.total_cost + identity_cost
+        )
         source_body = f"({source_frame.predicate_head} {' '.join(source_args)})"
         query_body = f"({query_frame.predicate_head} {' '.join(query_args)})"
         atoms.append(

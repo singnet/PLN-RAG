@@ -817,3 +817,49 @@ class TestGuideCasesDownstream:
 
         assert result.aligned
         assert result.conflict_cost > 0.0
+
+
+class TestStage7Transport:
+    def test_actual_fact_alignment_into_branch_carries_probability_cost(self):
+        declaration = "(: rain (BranchContext rain actual_root counterfactual 0.4) (STV 1 1))"
+        source = senf_for(
+            "s1", "The camera is at the lab.",
+            [declaration, "(: a (AtLocation camera lab) (STV 1 1))"],
+        )
+        query = senf_for(
+            "q1", "In the rain branch, is the camera in the lab?",
+            [declaration, "(: q (InContext rain none (LocatedIn camera lab)) $tv)"],
+        )
+        graph = resolve_identity([source, query])
+        result = next(
+            item for item in build_weaves(query, [source], k=3, identity_graph=graph)
+            if item.aligned
+        )
+
+        assert result.branch_probability == 0.4
+        assert result.branch_cost == pytest.approx(0.6)
+        adapter = executable_bridge_atoms(result, source, query, graph)[0]
+        assert _bridge_strength(adapter) < 0.4
+
+    def test_sibling_branch_alignment_is_rejected_before_search(self):
+        declarations = [
+            "(: rain (BranchContext rain actual_root counterfactual 0.4) (STV 1 1))",
+            "(: dry (BranchContext dry actual_root counterfactual 0.6) (STV 1 1))",
+        ]
+        source = senf_for(
+            "s1", "Rain world.", declarations + [
+                "(: a (InContext rain none (Wet ground)) (STV 1 1))"
+            ],
+        )
+        query = senf_for(
+            "q1", "Dry world?", declarations + [
+                "(: q (InContext dry none (Wet ground)) $tv)"
+            ],
+        )
+
+        assert not weave(query, [source]).aligned
+
+
+def _bridge_strength(atom: str) -> float:
+    marker = atom.rsplit("(STV ", 1)[1]
+    return float(marker.split()[0])
