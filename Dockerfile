@@ -71,7 +71,7 @@ RUN git clone https://github.com/trueagi-io/PeTTa.git && \
     (git -C /deps/PeTTa checkout ${PETTA_COMMIT} || \
      (git -C /deps/PeTTa fetch origin ${PETTA_COMMIT} && \
        git -C /deps/PeTTa checkout FETCH_HEAD)) && \
-    git clone https://github.com/rTreutlein/PeTTaChainer.git && \
+    git clone https://github.com/BekLG/PeTTaChainer.git && \
     git -C /deps/PeTTaChainer checkout ${PETTACHAINER_COMMIT}
 
 # Install PeTTa — strip the janus-swi pip dep, then point PYTHONPATH

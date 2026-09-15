@@ -10,7 +10,7 @@ RUN git clone https://github.com/trueagi-io/PeTTa.git /matrix/PeTTa \
     && (git -C /matrix/PeTTa checkout ${PETTA_COMMIT} \
         || (git -C /matrix/PeTTa fetch origin ${PETTA_COMMIT} \
             && git -C /matrix/PeTTa checkout FETCH_HEAD)) \
-    && git clone https://github.com/rTreutlein/PeTTaChainer.git /matrix/PeTTaChainer \
+    && git clone https://github.com/BekLG/PeTTaChainer.git /matrix/PeTTaChainer \
     && (git -C /matrix/PeTTaChainer checkout ${PETTACHAINER_COMMIT} \
         || (git -C /matrix/PeTTaChainer fetch origin ${PETTACHAINER_COMMIT} \
             && git -C /matrix/PeTTaChainer checkout FETCH_HEAD))

@@ -246,7 +246,7 @@ cd ..
 
 # 4. Clone and install PeTTa + PeTTaChainer
 git clone https://github.com/trueagi-io/PeTTa.git
-git clone https://github.com/rTreutlein/PeTTaChainer.git
+git clone https://github.com/BekLG/PeTTaChainer.git
 
 cd PeTTa
 sed -i "/'janus-swi'/d" setup.py   # remove the broken pip janus-swi dep
