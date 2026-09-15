@@ -393,6 +393,18 @@ class TestVectorContext:
         assert prior.frames[0].source_atom_id == forged.frames[0].source_atom_id
         assert parser._validated_recalled_senf(record) is None
 
+    def test_unpersistable_senf_still_remains_in_the_local_session(self, parser):
+        atom = "(: malformed_kind (IsA coefficient_measure) (STV 1 1))"
+        filtered, _ = parser._post_filter_hook(
+            ["A coefficient measure exists."], [atom], [], [], False
+        )
+        result = ParseResult(statements=filtered, parser_state=parser._pending_ingest)
+
+        assert parser.prepare_ingest(result, filtered) == {}
+        assert result.parser_state is not None
+        parser.commit_ingest(result)
+        assert parser._session[-1].source_atoms == [atom]
+
     def test_recalled_exemplar_annotations_are_recomputed(self, parser):
         text = "The Nikon camera arrived."
         atom = "(: arrived (Arrived camera) (STV 1 1))"
@@ -414,6 +426,20 @@ class TestVectorContext:
         parser._session = [trusted]
 
         assert parser._prior_senfs("Did the camera arrive?", is_query=True) == [trusted]
+
+    def test_actual_root_declaration_does_not_bypass_query_overlap(self, monkeypatch):
+        monkeypatch.setattr(CanonicalPLNParser, "__init__", lambda self: None)
+        unrelated_atom = "(: eat (Eats kebede fish) (STV 1 1))"
+        unrelated = extract_senf(
+            "s1", "Kebede eats fish.", [unrelated_atom]
+        )
+        made = CanonicalSENFPLNParser()
+        made._counterfactual_enabled = False
+        made._vector_store = RecordingStore(records=[retrieval_record(
+            unrelated, "Kebede eats fish.", [unrelated_atom]
+        )])
+
+        assert made._prior_senfs("Did the camera arrive?", is_query=True) == []
 
     def test_retrieval_failure_is_fail_open(self, monkeypatch):
         monkeypatch.setattr(CanonicalPLNParser, "__init__", lambda self: None)

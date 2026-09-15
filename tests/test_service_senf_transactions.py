@@ -40,6 +40,9 @@ class RecordingReasoner:
         self.query_calls.append((query, transient_statements))
         return ["proof"]
 
+    def query_transient_only(self, query, transient_statements):
+        return self.query(query, transient_statements)
+
 
 class FixedParser(SemanticParser):
     def __init__(self, statements):
@@ -319,6 +322,68 @@ def test_explicitly_trusted_query_adapters_are_executed_but_not_persisted(
 
     assert reasoner.calls == []
     assert reasoner.query_calls == [(query, [adapter])]
+
+
+def test_selected_counterfactual_candidate_reports_its_temporal_plan(
+    monkeypatch, fake_vector_store
+):
+    support = "(: stage7_rain_wet (Wet ground) (STV 0.4 0.4))"
+    query = "(: $prf (Wet ground) $tv)"
+    plan = {
+        "query": query,
+        "branch_id": "rain",
+        "validity_interval_id": None,
+        "decisions": [{"allowed": True, "reason": "allowed"}],
+    }
+
+    class CounterfactualParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(
+                queries=[query],
+                candidate_trusted_transient_statements=[[support]],
+                diagnostics={"candidate_temporal_plans": [plan]},
+            )
+
+    reasoner = RecordingReasoner()
+    service = query_service(CounterfactualParser([]), fake_vector_store, reasoner)
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("In the rain branch, is the ground wet?")
+
+    assert reasoner.query_calls == [(query, [support])]
+    assert response.senf["executed_temporal_plan"] == plan
+
+
+def test_retry_reports_the_retry_temporal_plan(monkeypatch, fake_vector_store):
+    first = "(: $prf (First answer) $tv)"
+    retry_query = "(: $prf (Retry answer) $tv)"
+    first_plan = {"query": first, "branch_id": "first"}
+    retry_plan = {"query": retry_query, "branch_id": "retry"}
+
+    class RetryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(
+                queries=[first], diagnostics={"candidate_temporal_plans": [first_plan]}
+            )
+
+        def retry_parse_query(self, text, context, attempted_query):
+            return ParseResult(
+                queries=[retry_query],
+                diagnostics={"candidate_temporal_plans": [retry_plan]},
+            )
+
+    class RetryReasoner(RecordingReasoner):
+        def query(self, query, transient_statements=None):
+            self.query_calls.append((query, transient_statements))
+            return ["proof"] if query == retry_query else []
+
+    service = query_service(RetryParser([]), fake_vector_store, RetryReasoner())
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("Retry the answer.")
+
+    assert response.retry_used is True
+    assert response.senf["executed_temporal_plan"] == retry_plan
 
 
 def test_malformed_transient_context_fails_closed_then_retries_ordinary_query(
