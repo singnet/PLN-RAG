@@ -186,6 +186,39 @@ def grade_case(gold: dict[str, Any], case_result: dict[str, Any]) -> dict[str, A
         "matched_entities": [],
     }
 
+    if gold.get("expected_proof") is False:
+        result["verdict_gradable"] = False
+        query = (case_result.get("end_to_end") or {}).get("query") or {}
+        query_status = query.get("query_status")
+        if case_result.get("error") or query_status == "error":
+            result["answer_reason"] = "runtime error; expected non-proof is ungraded"
+            return result
+        ingest = (case_result.get("end_to_end") or {}).get("ingest")
+        ingest_valid = (
+            isinstance(ingest, list)
+            and bool(ingest)
+            and all(
+                item.get("status") == "success"
+                and int(item.get("rejected_count", 0) or 0) == 0
+                for item in ingest
+                if isinstance(item, dict)
+            )
+            and all(isinstance(item, dict) for item in ingest)
+        )
+        if not ingest_valid:
+            result["answer_reason"] = "ingestion was not clean; expected non-proof is ungraded"
+            return result
+        if not traces and query_status not in {"well_aligned", "weakly_aligned"}:
+            result["answer_reason"] = "query was not executed; expected non-proof is ungraded"
+            return result
+        if traces:
+            result["answer_reason"] = "unexpected proof"
+        else:
+            result["answer_correct"] = True
+            result["answer_score"] = 1.0
+            result["answer_reason"] = "expected no proof; none found"
+        return result
+
     if not traces:
         result["answer_reason"] = "no proof"
         return result

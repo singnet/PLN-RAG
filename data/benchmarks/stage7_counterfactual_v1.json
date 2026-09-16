@@ -1,0 +1,219 @@
+{
+  "suite_id": "stage7_counterfactual_v1",
+  "description": "Deterministic Stage 7 capability and isolation comparison using reviewed generated MeTTa fixtures.",
+  "version": "1.0",
+  "cases": [
+    {
+      "case_id": "S701",
+      "name": "branch_local_rule",
+      "category": "authorized_positive",
+      "input_text": "In the rain counterfactual, wet ground would be slippery.",
+      "user_query": "In the rain counterfactual, would the ground be slippery?",
+      "statement_atoms": [
+        "(: rain (BranchContext rain actual_root counterfactual 0.4) (STV 1 1))",
+        "(: dry (BranchContext dry actual_root counterfactual 0.6) (STV 1 1))",
+        "(: wet (InContext rain none (Wet ground)) (STV 1 1))",
+        "(: wet_rule (InContext rain none (Implication (Premises (Wet $x)) (Conclusions (Slippery $x)))) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $prf (InContext rain none (Slippery ground)) $tv)"
+      ],
+      "expected_proof": true,
+      "stage7_expectation": {"branch_id": "rain", "minimum_theory_statements": 2, "branch_probability": 0.4}
+    },
+    {
+      "case_id": "S702",
+      "name": "actual_ancestor_inheritance",
+      "category": "authorized_positive",
+      "input_text": "The ground has a seed in actuality, and a rain counterfactual is considered.",
+      "user_query": "In the rain counterfactual, does the ground have a seed?",
+      "statement_atoms": [
+        "(: rain (BranchContext rain actual_root counterfactual 0.4) (STV 1 1))",
+        "(: seed (Seed ground) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $prf (InContext rain none (Seed ground)) $tv)"
+      ],
+      "expected_proof": true,
+      "stage7_expectation": {"branch_id": "rain", "minimum_theory_statements": 1, "branch_probability": 0.4}
+    },
+    {
+      "case_id": "S703",
+      "name": "nested_branch_inheritance",
+      "category": "authorized_positive",
+      "input_text": "A battery is charged in actuality. In a projected forecast, charged batteries are powered. In its rain counterfactual, powered batteries are ready. In a nested storm counterfactual, ready batteries are operational.",
+      "user_query": "In the nested storm counterfactual, is the battery operational?",
+      "statement_atoms": [
+        "(: forecast (BranchContext forecast actual_root projected 0.8) (STV 1 1))",
+        "(: rain (BranchContext rain forecast counterfactual 0.5) (STV 1 1))",
+        "(: storm (BranchContext storm rain counterfactual 0.25) (STV 1 1))",
+        "(: dry (BranchContext dry forecast counterfactual 0.5) (STV 1 1))",
+        "(: charged (Charged battery) (STV 1 1))",
+        "(: power_rule (InContext forecast none (Implication (Premises (Charged $x)) (Conclusions (Powered $x)))) (STV 1 1))",
+        "(: ready_rule (InContext rain none (Implication (Premises (Powered $x)) (Conclusions (Ready $x)))) (STV 1 1))",
+        "(: operation_rule (InContext storm none (Implication (Premises (Ready $x)) (Conclusions (Operational $x)))) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $prf (InContext storm none (Operational battery)) $tv)"
+      ],
+      "expected_proof": true,
+      "stage7_expectation": {"branch_id": "storm", "minimum_theory_statements": 4, "branch_probability": 0.1}
+    },
+    {
+      "case_id": "S704",
+      "name": "sibling_branch_isolation",
+      "category": "safety_negative",
+      "input_text": "The ground is wet only in the rain counterfactual, not in the dry sibling.",
+      "user_query": "In the dry counterfactual, is the ground wet?",
+      "statement_atoms": [
+        "(: rain (BranchContext rain actual_root counterfactual 0.5) (STV 1 1))",
+        "(: dry (BranchContext dry actual_root counterfactual 0.5) (STV 1 1))",
+        "(: wet (InContext rain none (Wet ground)) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $prf (InContext dry none (Wet ground)) $tv)"
+      ],
+      "expected_proof": false,
+      "stage7_expectation": {"branch_id": "dry", "minimum_theory_statements": 0, "denial_reason": "branch_not_inherited"}
+    },
+    {
+      "case_id": "S705",
+      "name": "counterfactual_to_actual_isolation",
+      "category": "safety_negative",
+      "input_text": "The ground is wet only in a rain counterfactual.",
+      "user_query": "Is the ground wet in actuality?",
+      "statement_atoms": [
+        "(: rain (BranchContext rain actual_root counterfactual 0.4) (STV 1 1))",
+        "(: wet (InContext rain none (Wet ground)) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $prf (Wet ground) $tv)"
+      ],
+      "expected_proof": false,
+      "stage7_expectation": {"branch_id": "actual_root", "minimum_theory_statements": 0}
+    },
+    {
+      "case_id": "S706",
+      "name": "zero_probability_branch",
+      "category": "safety_negative",
+      "input_text": "A zero-probability branch imagines that a beacon exists.",
+      "user_query": "In the void branch, does the beacon exist?",
+      "statement_atoms": [
+        "(: void (BranchContext void actual_root counterfactual 0.0) (STV 1 1))",
+        "(: beacon (InContext void none (Exists beacon)) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $prf (InContext void none (Exists beacon)) $tv)"
+      ],
+      "expected_proof": false,
+      "stage7_expectation": {"branch_id": "void", "minimum_theory_statements": 0, "branch_probability": 0.0}
+    },
+    {
+      "case_id": "S707",
+      "name": "ghost_entity_rejection",
+      "category": "safety_negative",
+      "input_text": "A ghost camera appears only in a rain counterfactual.",
+      "user_query": "In the rain counterfactual, does the camera exist?",
+      "statement_atoms": [
+        "(: rain (BranchContext rain actual_root counterfactual 0.5) (STV 1 1))",
+        "(: camera_policy (EntityPersistence camera contingent ghost rain none) (STV 1 1))",
+        "(: camera (InContext rain none (Exists camera)) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $prf (InContext rain none (Exists camera)) $tv)"
+      ],
+      "expected_proof": false,
+      "stage7_expectation": {"branch_id": "rain", "minimum_theory_statements": 0, "denial_reason": "ghost_entity"}
+    },
+    {
+      "case_id": "S708",
+      "name": "same_interval_context",
+      "category": "authorized_positive",
+      "input_text": "The gate is open during the early interval in the rain branch.",
+      "user_query": "During that early rain interval, is the gate open?",
+      "statement_atoms": [
+        "(: rain (BranchContext rain actual_root counterfactual 0.4) (STV 1 1))",
+        "(: early (ValidityInterval early 2026-01-01 2026-01-02) (STV 1 1))",
+        "(: gate (InContext rain early (Open gate)) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $prf (InContext rain early (Open gate)) $tv)"
+      ],
+      "expected_proof": true,
+      "stage7_expectation": {"branch_id": "rain", "validity_interval_id": "early", "minimum_theory_statements": 1, "branch_probability": 0.4, "temporal_decay": 1.0}
+    },
+    {
+      "case_id": "S709",
+      "name": "temporal_decay_transport",
+      "category": "authorized_positive",
+      "input_text": "A beacon emitted a signal in an early interval before a nearby interval.",
+      "user_query": "In the nearby rain interval, is there a signal from the beacon?",
+      "statement_atoms": [
+        "(: rain (BranchContext rain actual_root counterfactual 0.4) (STV 1 1))",
+        "(: early (ValidityInterval early 2026-01-01 2026-01-02) (STV 1 1))",
+        "(: near (ValidityInterval near 2026-01-03 2026-01-04) (STV 1 1))",
+        "(: signal (InContext rain early (Signal beacon)) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $prf (InContext rain near (Signal beacon)) $tv)"
+      ],
+      "expected_proof": true,
+      "stage7_expectation": {"branch_id": "rain", "validity_interval_id": "near", "minimum_theory_statements": 1, "branch_probability": 0.4, "temporal_decay": 0.99004983}
+    },
+    {
+      "case_id": "S710",
+      "name": "temporal_entity_expiry",
+      "category": "safety_negative",
+      "input_text": "A temporal camera exists only in an early rain interval.",
+      "user_query": "Does that camera exist in the late rain interval?",
+      "statement_atoms": [
+        "(: rain (BranchContext rain actual_root counterfactual 0.5) (STV 1 1))",
+        "(: early (ValidityInterval early 2026-01-01 2026-01-02) (STV 1 1))",
+        "(: late (ValidityInterval late 2026-03-01 2026-03-02) (STV 1 1))",
+        "(: camera_policy (EntityPersistence camera temporal realized rain early) (STV 1 1))",
+        "(: camera (InContext rain early (Exists camera)) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $prf (InContext rain late (Exists camera)) $tv)"
+      ],
+      "expected_proof": false,
+      "stage7_expectation": {"branch_id": "rain", "validity_interval_id": "late", "minimum_theory_statements": 0, "denial_reason": "persistence_interval_mismatch"}
+    },
+    {
+      "case_id": "S711",
+      "name": "unknown_interval_rejection",
+      "category": "safety_negative",
+      "input_text": "The ground is wet in the known early rain interval.",
+      "user_query": "Is it wet in an undeclared rain interval?",
+      "statement_atoms": [
+        "(: rain (BranchContext rain actual_root counterfactual 0.5) (STV 1 1))",
+        "(: early (ValidityInterval early 2026-01-01 2026-01-02) (STV 1 1))",
+        "(: wet (InContext rain early (Wet ground)) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $prf (InContext rain missing (Wet ground)) $tv)"
+      ],
+      "expected_proof": false,
+      "stage7_expectation": {"stage7_rejection": true, "minimum_theory_statements": 0}
+    },
+    {
+      "case_id": "S712",
+      "name": "multi_context_rejection",
+      "category": "safety_negative",
+      "input_text": "Rain makes the ground wet while the dry sibling keeps it dry.",
+      "user_query": "Compare whether the ground is wet in rain and dry branches.",
+      "statement_atoms": [
+        "(: rain (BranchContext rain actual_root counterfactual 0.5) (STV 1 1))",
+        "(: dry (BranchContext dry actual_root counterfactual 0.5) (STV 1 1))",
+        "(: wet (InContext rain none (Wet ground)) (STV 1 1))",
+        "(: dry_ground (InContext dry none (Dry ground)) (STV 1 1))"
+      ],
+      "query_atoms": [
+        "(: $rain (InContext rain none (Wet ground)) $tv)",
+        "(: $dry (InContext dry none (Dry ground)) $tv)"
+      ],
+      "expected_proof": false,
+      "stage7_expectation": {"stage7_rejection": true, "minimum_theory_statements": 0}
+    }
+  ]
+}

@@ -352,6 +352,10 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                 and item.context.validity_interval_id not in interval_ids
                 for item in contextual
             ):
+                if self._telemetry is not None:
+                    self._telemetry["stage7_rejection"] = (
+                        "query references unknown branch or validity interval"
+                    )
                 return []
         if not canonical:
             return canonical

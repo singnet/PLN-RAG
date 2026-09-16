@@ -54,6 +54,11 @@ class CanonicalPLNParser(SemanticParser):
         "partof": "PartOf",
     }
     _QUERY_MARKERS = {"who", "what", "when", "where", "why", "how", "which"}
+    _NON_QUERYABLE_HEADS = {
+        "BranchContext",
+        "ValidityInterval",
+        "EntityPersistence",
+    }
 
     def __init__(self):
         cfg = get_settings()
@@ -797,7 +802,11 @@ class CanonicalPLNParser(SemanticParser):
         signatures: list[dict] = []
         for match in re.finditer(r"\(:\s+[^\s()]+\s+(\([^()]+\))\s+\((?:STV|PointMass|ParticleFromNormal|ParticleFromPairs)", text):
             parsed = self._parse_simple_atom(match.group(1))
-            if parsed and parsed["head"] != "Implication":
+            if (
+                parsed
+                and parsed["head"] != "Implication"
+                and parsed["head"] not in self._NON_QUERYABLE_HEADS
+            ):
                 signatures.append(parsed)
         return signatures
 

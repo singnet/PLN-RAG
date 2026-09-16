@@ -32,7 +32,10 @@ def case(proof, *, key="proof", proof_found=True, case_id="X01"):
     return {
         "case": {"case_id": case_id},
         "proof_found": proof_found,
-        "end_to_end": {"query": {key: proof}},
+        "end_to_end": {
+            "ingest": [{"status": "success", "rejected_count": 0}],
+            "query": {key: proof, "query_status": "well_aligned"},
+        },
     }
 
 
@@ -117,6 +120,47 @@ class TestGradeCase:
         result = bg.grade_case(gold, case("[]", proof_found=False))
         assert result["answer_correct"] is False
         assert result["answer_reason"] == "no proof"
+
+    def test_expected_no_proof_is_correct_when_absent(self):
+        gold = {"expected_proof": False, "entities": []}
+
+        result = bg.grade_case(gold, case("[]", proof_found=False))
+
+        assert result["answer_correct"] is True
+        assert result["answer_score"] == 1.0
+        assert result["answer_reason"] == "expected no proof; none found"
+
+    def test_expected_no_proof_rejects_unexpected_proof(self):
+        gold = {"expected_proof": False, "entities": []}
+
+        result = bg.grade_case(gold, case(repr([TRACE_LOOKUP])))
+
+        assert result["answer_correct"] is False
+        assert result["answer_reason"] == "unexpected proof"
+
+    @pytest.mark.parametrize("status", ["no_query", "error"])
+    def test_expected_no_proof_does_not_credit_non_execution(self, status):
+        gold = {"expected_proof": False, "entities": []}
+        result_case = case("[]", proof_found=False)
+        result_case["end_to_end"]["query"]["query_status"] = status
+
+        result = bg.grade_case(gold, result_case)
+
+        assert result["answer_correct"] is False
+        assert "ungraded" in result["answer_reason"]
+
+    @pytest.mark.parametrize("ingest", [[], [{"status": "failed"}], [{
+        "status": "success", "rejected_count": 1,
+    }]])
+    def test_expected_no_proof_requires_clean_ingestion(self, ingest):
+        gold = {"expected_proof": False, "entities": []}
+        result_case = case("[]", proof_found=False)
+        result_case["end_to_end"]["ingest"] = ingest
+
+        result = bg.grade_case(gold, result_case)
+
+        assert result["answer_correct"] is False
+        assert "ingestion was not clean" in result["answer_reason"]
 
     def test_partial_coverage_scores_between_zero_and_one(self):
         gold = {

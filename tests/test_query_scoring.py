@@ -1,6 +1,7 @@
 import pytest
 
 from core import query_scoring
+from parsers.canonical_pln_parser import CanonicalPLNParser
 
 
 def sig(head: str, *args: str) -> dict:
@@ -54,6 +55,21 @@ class TestHasWitnessPath:
 
     def test_conclusion_alone_provides_path(self):
         assert query_scoring.has_witness_path(q("Smart", "$x"), [], [sig("Smart", "kebede")])
+
+
+class TestAvailableSignatures:
+    def test_stage7_declarations_are_not_query_candidates(self):
+        parser = CanonicalPLNParser.__new__(CanonicalPLNParser)
+        declarations = [
+            "(: rain (BranchContext rain actual_root counterfactual 0.4) (STV 1 1))",
+            "(: early (ValidityInterval early 2026-01-01 2026-01-02) (STV 1 1))",
+            "(: policy (EntityPersistence camera rigid realized rain none) (STV 1 1))",
+        ]
+
+        facts, conclusions = parser._collect_available_signatures([], declarations)
+
+        assert facts == []
+        assert conclusions == []
 
 
 class TestScoreQueryCandidate:

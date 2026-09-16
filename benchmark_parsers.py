@@ -139,6 +139,17 @@ def _is_truthy(value: Any) -> bool:
     return text in {"1", "true", "yes", "y"}
 
 ACTIVE_PARSERS = ("nl2pln", "canonical_pln")
+_BASE_COUNTERFACTUAL_ENV = os.environ.get("SENF_COUNTERFACTUAL_ENABLED")
+PARSER_ARMS: dict[str, dict[str, Any]] = {
+    "canonical_senf_pln_stage6": {
+        "parser": "canonical_senf_pln",
+        "senf_counterfactual_enabled": False,
+    },
+    "canonical_senf_pln_stage7": {
+        "parser": "canonical_senf_pln",
+        "senf_counterfactual_enabled": True,
+    },
+}
 AVAILABLE_PARSERS = (
     "nl2pln",
     "canonical_pln",
@@ -147,6 +158,7 @@ AVAILABLE_PARSERS = (
     "canonical_langextract",
     "canonical_pln_1686527",
     "canonical_pln_d8d39afd",
+    *PARSER_ARMS,
 )
 
 
@@ -302,6 +314,7 @@ def _select_cases(suite: str, quick: bool) -> tuple[dict[str, Any], list[dict[st
 
 
 def _get_parser_factory(name: str):
+    name = PARSER_ARMS.get(name, {}).get("parser", name)
     if name == "nl2pln":
         from parsers.nl2pln_parser import NL2PLNParser
 
@@ -335,6 +348,25 @@ def _get_parser_factory(name: str):
 
         return ManhinParser
     raise ValueError(f"Unsupported parser '{name}'")
+
+
+def _configure_parser_arm(name: str) -> None:
+    enabled = PARSER_ARMS.get(name, {}).get("senf_counterfactual_enabled")
+    if enabled is None:
+        if _BASE_COUNTERFACTUAL_ENV is None:
+            os.environ.pop("SENF_COUNTERFACTUAL_ENABLED", None)
+        else:
+            os.environ["SENF_COUNTERFACTUAL_ENABLED"] = _BASE_COUNTERFACTUAL_ENV
+        return
+    os.environ["SENF_COUNTERFACTUAL_ENABLED"] = "true" if enabled else "false"
+
+
+def _parser_arm_metadata(name: str) -> dict[str, Any]:
+    arm = PARSER_ARMS.get(name, {})
+    return {
+        "parser": arm.get("parser", name),
+        "senf_counterfactual_enabled": arm.get("senf_counterfactual_enabled"),
+    }
 
 
 def _preflight_llm() -> tuple[bool, str]:
@@ -408,6 +440,7 @@ def _configure_case_environment(parser_name: str, case_name: str, run_id: str):
     os.environ["CONCEPTNET_INDEX_ON_STARTUP"] = "false"
     os.environ["CONCEPTNET_AUTOLOAD"] = "false"
     os.environ["CONCEPTNET_AUTO_REBUILD_ON_CHANGE"] = "false"
+    _configure_parser_arm(parser_name)
     get_settings.cache_clear()
     return slug, Path(os.environ["ATOMSPACE_PATH"])
 
@@ -420,6 +453,7 @@ def _configure_suite_environment(parser_name: str, suite_name: str, run_id: str)
     os.environ["CONCEPTNET_INDEX_ON_STARTUP"] = "false"
     os.environ["CONCEPTNET_AUTOLOAD"] = "false"
     os.environ["CONCEPTNET_AUTO_REBUILD_ON_CHANGE"] = "false"
+    _configure_parser_arm(parser_name)
     get_settings.cache_clear()
     return slug, Path(os.environ["ATOMSPACE_PATH"])
 
@@ -761,6 +795,12 @@ def _summarize_parser(results: list[dict]) -> dict:
         for report in senf_reports
         if report.get("weave_distortion") is not None
     ]
+    temporal_plans = [
+        plan
+        for report in senf_reports
+        for plan in report.get("candidate_temporal_plans", [])
+        if isinstance(plan, dict)
+    ]
     return {
         "cases": total_cases,
         "correct": correct,
@@ -789,6 +829,24 @@ def _summarize_parser(results: list[dict]) -> dict:
         "mean_weave_distortion": (
             round(sum(distortions) / len(distortions), 4) if distortions else None
         ),
+        "stage7_contextual_cases": sum(
+            1
+            for report in senf_reports
+            if any(
+                plan.get("branch_id") != "actual_root"
+                or plan.get("validity_interval_id") is not None
+                for plan in report.get("candidate_temporal_plans", [])
+                if isinstance(plan, dict)
+            )
+        ),
+        "stage7_theory_statements": sum(
+            int(report.get("counterfactual_theory_statement_count", 0) or 0)
+            for report in senf_reports
+        ),
+        "stage7_rejections": sum(
+            1 for report in senf_reports if report.get("stage7_rejection")
+        ),
+        "stage7_temporal_plan_count": len(temporal_plans),
         "errors": sum(1 for result in results if result.get("error")),
         "avg_latency_seconds": round(sum(latencies) / total_cases, 4) if total_cases else 0.0,
         "median_latency_seconds": round(statistics.median(latencies), 4) if latencies else 0.0,
@@ -896,7 +954,9 @@ async def main() -> int:
     if args.capture_generation_tape and args.parsers != ["canonical_pln"]:
         cli.error("generation capture requires --parsers canonical_pln")
     if args.replay_generation_tape and any(
-        name not in {"canonical_pln", "canonical_senf_pln"} for name in args.parsers
+        _parser_arm_metadata(name)["parser"]
+        not in {"canonical_pln", "canonical_senf_pln"}
+        for name in args.parsers
     ):
         cli.error("generation replay supports canonical_pln and canonical_senf_pln only")
 
@@ -978,6 +1038,9 @@ async def main() -> int:
         "case_count": len(cases),
         "parsers": {},
         "summary": {},
+        "arm_metadata": {
+            name: _parser_arm_metadata(name) for name in args.parsers
+        },
     }
 
     payload["active_parsers"] = list(args.parsers)

@@ -84,6 +84,52 @@ class TestSummarizeParser:
         assert (stats["answer_graded"], stats["answer_correct"]) == (1, 1)
         assert stats["mean_answer_score"] == 1.0
 
+    def test_summarizes_stage7_telemetry(self):
+        results = [{
+            "proof_found": True,
+            "end_to_end": {"query": {"senf": {
+                "counterfactual_theory_statement_count": 3,
+                "candidate_temporal_plans": [{
+                    "branch_id": "rain", "validity_interval_id": None
+                }],
+            }}},
+        }]
+
+        stats = bp._summarize_parser(results)
+
+        assert stats["stage7_contextual_cases"] == 1
+        assert stats["stage7_theory_statements"] == 3
+        assert stats["stage7_temporal_plan_count"] == 1
+
+
+class TestParserArms:
+    def test_stage6_and_stage7_use_the_senf_parser(self):
+        assert bp._parser_arm_metadata("canonical_senf_pln_stage6") == {
+            "parser": "canonical_senf_pln",
+            "senf_counterfactual_enabled": False,
+        }
+        assert bp._parser_arm_metadata("canonical_senf_pln_stage7") == {
+            "parser": "canonical_senf_pln",
+            "senf_counterfactual_enabled": True,
+        }
+
+    @pytest.mark.parametrize(
+        ("arm", "expected"),
+        [
+            ("canonical_senf_pln_stage6", False),
+            ("canonical_senf_pln_stage7", True),
+        ],
+    )
+    def test_arm_configuration_clears_cached_settings(
+        self, monkeypatch, tmp_path, arm, expected
+    ):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("SENF_COUNTERFACTUAL_ENABLED", raising=False)
+
+        bp._configure_case_environment(arm, "case", "run")
+
+        assert bp.get_settings().senf_counterfactual_enabled is expected
+
 
 class TestGoldIntegration:
     def test_missing_sibling_gold_is_not_an_error(self):
