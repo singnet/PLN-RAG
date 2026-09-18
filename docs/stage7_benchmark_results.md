@@ -1,5 +1,12 @@
 # Stage 7 Benchmark Results
 
+## Historical Validated Results
+
+The results in this section are historical results for the exact revisions,
+artifacts, settings, and modes stated below. They predate the newer
+hierarchical TransWeave and optional source-grounded feature-provider modes and
+must not be cited as validation of those modes.
+
 These results were produced from base commit
 `c94ce1d9ceeb01ec782f77644a4ef87e633e27e7` plus the benchmark changes in the
 same commit as this document. The container image was
@@ -86,3 +93,23 @@ large run artifacts. The tracked suite and harness reproduce the
 counterfactual comparison. Reproducing the stress25 replay additionally
 requires the frozen tape identified by its hash above; the hashes identify the
 exact local artifacts used for these tables.
+
+## New Modes Without Validated Results
+
+The repository now contains additional experimental controls, but this document
+records no outcome for them:
+
+| Mode | Setting | Validation status |
+| --- | --- | --- |
+| Hierarchical TransWeave | `SENF_WEAVE_ENGINE=hierarchical` | Implemented with component and synthetic microbenchmark infrastructure; not run in the historical comparisons above, and no new outcome is reported here. |
+| Source-grounded LangExtract features | `SENF_FEATURE_PROVIDER=langextract` | Implemented behind an off-by-default provider boundary; no quality, latency, cost, or end-to-end result is reported here. |
+| Executable bridge atoms | `SENF_EMIT_BRIDGE_ATOMS=true` | Off by default; no new promotion result is reported here. |
+| Optional planner modalities | `SENF_WEAVE_FORGET_FINE_COSTS=true`, `SENF_WEAVE_COARSE_IDENTITY=true`, lowered conflict/transport ceilings, or `SENF_WEAVE_REQUIRE_CONTEXT_MATCH=true` | Implemented controls; the historical tables do not establish their effect. |
+| Hierarchical diagnostic scoring | Nonzero soft-mass, residual-ratio, or alignment-confidence weights | Defaults remain zero; no result is reported here. |
+
+Future results for these modes must be reported as new, dated paired runs with
+the complete settings, suite/gold/generation-tape hashes, dependency revisions,
+raw artifact hash, fallback/rejection counts, and safety outcomes. See
+[`senf_full_implementation.md`](senf_full_implementation.md) for the evaluation
+matrix and promotion gates. The absence of a result in this section is not a
+negative result and must not be converted into an inferred outcome.

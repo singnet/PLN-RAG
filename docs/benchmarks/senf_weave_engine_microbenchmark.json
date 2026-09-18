@@ -1,0 +1,699 @@
+{
+  "schema": "senf-weave-engine-microbenchmark-v1",
+  "generator": "scripts/benchmark_weave_engines.py",
+  "parameters": {
+    "sizes": [
+      2,
+      4
+    ],
+    "sparsities": [
+      0.0,
+      0.25,
+      1.0
+    ],
+    "source_count": 2,
+    "repeats": 3,
+    "warmups": 1,
+    "top_k": 3
+  },
+  "timing": {
+    "classification": "descriptive-only",
+    "note": "Wall time is environment-sensitive; hashes, counts, residuals, fallbacks, and bounds are deterministic checks.",
+    "environment": {
+      "python": "3.10.12",
+      "platform": "Linux-7.1.3-arch1-3-x86_64-with-glibc2.35",
+      "processor": "x86_64",
+      "cpu_count": 16
+    }
+  },
+  "reproducibility": {
+    "command": "python scripts/benchmark_weave_engines.py --sizes 2,4 --sparsities 0.0,0.25,1.0 --sources 2 --repeats 3 --warmups 1 --top-k 3 --json-output docs/benchmarks/senf_weave_engine_microbenchmark.json --markdown-output docs/benchmarks/senf_weave_engine_microbenchmark.md",
+    "dataset_sha256": "f88f5c18bb7aee900a802acf795c1449877d9da64257ede641b61af025627fe4",
+    "generator_sha256": "ed3fd1d2abd07308f0766a24a9b2da7644f90d7c27cf841bf17c3d5efb4a163e",
+    "git_revision": "4244dc69782dde7031ac11fe6398436959eb0a78",
+    "settings": {
+      "senf_query_max_priors": 16,
+      "senf_query_max_source_frames": 128,
+      "senf_weave_beam_width": 32,
+      "senf_weave_coarse_identity": false,
+      "senf_weave_forget_fine_costs": false,
+      "senf_weave_global_candidate_cap": 512,
+      "senf_weave_max_cells": 65536,
+      "senf_weave_max_conflict_cost": 1000000.0,
+      "senf_weave_max_cost": 2.0,
+      "senf_weave_max_exemplar_alternatives": 4,
+      "senf_weave_max_frames": 64,
+      "senf_weave_max_iterations": 200,
+      "senf_weave_max_pair_candidates": 256,
+      "senf_weave_max_seeds": 32,
+      "senf_weave_max_transport_cost": 1000000.0,
+      "senf_weave_per_source_k": 3,
+      "senf_weave_require_context_match": false,
+      "senf_weave_sinkhorn_regularization": 0.25,
+      "senf_weave_sinkhorn_tolerance": 1e-07,
+      "senf_weave_engine": [
+        "beam",
+        "hierarchical"
+      ]
+    },
+    "dependencies": {
+      "numpy": "2.2.6",
+      "pydantic": "2.13.5",
+      "pydantic-settings": "2.15.0"
+    },
+    "determinism_scope": "same-process repeats plus one fresh-process hash test in pytest"
+  },
+  "cases": [
+    {
+      "case_id": "n2-s0.000-sources2",
+      "size": 2,
+      "sparsity": 0.0,
+      "target_compatible_pair_density": 1.0,
+      "source_count": 2,
+      "bounds": {
+        "query_frames": 2,
+        "source_frames": 4,
+        "pair_work": 8,
+        "pair_work_cap": 8192,
+        "pair_work_within_bound": true,
+        "compatible_pairs": 4,
+        "candidate_cap": 512,
+        "candidates_within_bound": true,
+        "sinkhorn_cells_upper_bound": 36,
+        "assignment_cells_upper_bound": 12,
+        "largest_matrix_cells_upper_bound": 36,
+        "matrix_cell_cap": 65536,
+        "matrix_cells_within_bound": true
+      },
+      "engines": [
+        {
+          "engine": "beam",
+          "result_hash": "84aa5e821c35934777648e9bfdac046a196caa72dc856ffc80ba07319b14868d",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "84aa5e821c35934777648e9bfdac046a196caa72dc856ffc80ba07319b14868d",
+          "source_order_deterministic": true,
+          "result_count": 3,
+          "pair_counts": [
+            2,
+            2,
+            1
+          ],
+          "aligned_result_count": 3,
+          "candidate_count": 0,
+          "residuals": [
+            null,
+            null,
+            null
+          ],
+          "max_residual": null,
+          "fallback": false,
+          "fallback_reasons": [],
+          "wall_time_ms": {
+            "samples": [
+              0.380501,
+              0.408914,
+              0.472071
+            ],
+            "median": 0.408914,
+            "min": 0.380501,
+            "max": 0.472071
+          }
+        },
+        {
+          "engine": "hierarchical",
+          "result_hash": "c730d52bce276b16319d04faf4b6be26161ec5198ef05af23d67ae0f16ec8d95",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "c730d52bce276b16319d04faf4b6be26161ec5198ef05af23d67ae0f16ec8d95",
+          "source_order_deterministic": true,
+          "result_count": 3,
+          "pair_counts": [
+            2,
+            2,
+            2
+          ],
+          "aligned_result_count": 3,
+          "candidate_count": 4,
+          "residuals": [
+            [
+              5.255025214978559e-08,
+              7.056085715717586e-08,
+              4.7309372863679755e-08
+            ],
+            [
+              5.255025214978559e-08,
+              7.056085715717586e-08,
+              4.7309372863679755e-08
+            ],
+            [
+              5.255025214978559e-08,
+              7.056085715717586e-08,
+              4.7309372863679755e-08
+            ]
+          ],
+          "max_residual": 7.056085715717586e-08,
+          "fallback": false,
+          "fallback_reasons": [],
+          "wall_time_ms": {
+            "samples": [
+              11.957499,
+              13.009359,
+              11.847767
+            ],
+            "median": 11.957499,
+            "min": 11.847767,
+            "max": 13.009359
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "n2-s0.250-sources2",
+      "size": 2,
+      "sparsity": 0.25,
+      "target_compatible_pair_density": 0.75,
+      "source_count": 2,
+      "bounds": {
+        "query_frames": 2,
+        "source_frames": 4,
+        "pair_work": 8,
+        "pair_work_cap": 8192,
+        "pair_work_within_bound": true,
+        "compatible_pairs": 3,
+        "candidate_cap": 512,
+        "candidates_within_bound": true,
+        "sinkhorn_cells_upper_bound": 25,
+        "assignment_cells_upper_bound": 10,
+        "largest_matrix_cells_upper_bound": 25,
+        "matrix_cell_cap": 65536,
+        "matrix_cells_within_bound": true
+      },
+      "engines": [
+        {
+          "engine": "beam",
+          "result_hash": "fba15882e13b2cd675d89370151c4f28d0bc0f9ec83d1af6f335ae495059da9f",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "fba15882e13b2cd675d89370151c4f28d0bc0f9ec83d1af6f335ae495059da9f",
+          "source_order_deterministic": true,
+          "result_count": 3,
+          "pair_counts": [
+            2,
+            1,
+            1
+          ],
+          "aligned_result_count": 3,
+          "candidate_count": 0,
+          "residuals": [
+            null,
+            null,
+            null
+          ],
+          "max_residual": null,
+          "fallback": false,
+          "fallback_reasons": [],
+          "wall_time_ms": {
+            "samples": [
+              0.443628,
+              0.457313,
+              0.446132
+            ],
+            "median": 0.446132,
+            "min": 0.443628,
+            "max": 0.457313
+          }
+        },
+        {
+          "engine": "hierarchical",
+          "result_hash": "05fb94d5665e25f6a2ba08d15e20e1216a1da3c4d3cfe2fca0fa1f5806a0ca7c",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "05fb94d5665e25f6a2ba08d15e20e1216a1da3c4d3cfe2fca0fa1f5806a0ca7c",
+          "source_order_deterministic": true,
+          "result_count": 3,
+          "pair_counts": [
+            2,
+            2,
+            1
+          ],
+          "aligned_result_count": 3,
+          "candidate_count": 3,
+          "residuals": [
+            [
+              5.3944967159935686e-08,
+              9.678907963994732e-08,
+              8.544789975584166e-08
+            ],
+            [
+              5.3944967159935686e-08,
+              9.678907963994732e-08,
+              8.544789975584166e-08
+            ],
+            [
+              5.3944967159935686e-08,
+              9.678907963994732e-08,
+              8.544789975584166e-08
+            ]
+          ],
+          "max_residual": 9.678907963994732e-08,
+          "fallback": false,
+          "fallback_reasons": [],
+          "wall_time_ms": {
+            "samples": [
+              11.479148,
+              10.416147,
+              8.064671
+            ],
+            "median": 10.416147,
+            "min": 8.064671,
+            "max": 11.479148
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "n2-s1.000-sources2",
+      "size": 2,
+      "sparsity": 1.0,
+      "target_compatible_pair_density": 0.0,
+      "source_count": 2,
+      "bounds": {
+        "query_frames": 2,
+        "source_frames": 4,
+        "pair_work": 8,
+        "pair_work_cap": 8192,
+        "pair_work_within_bound": true,
+        "compatible_pairs": 0,
+        "candidate_cap": 512,
+        "candidates_within_bound": true,
+        "sinkhorn_cells_upper_bound": 0,
+        "assignment_cells_upper_bound": 4,
+        "largest_matrix_cells_upper_bound": 4,
+        "matrix_cell_cap": 65536,
+        "matrix_cells_within_bound": true
+      },
+      "engines": [
+        {
+          "engine": "beam",
+          "result_hash": "b88ab533cee564a31b19891f1c8adb03c5f00fd5ad9d2078b73056b9f975cf4d",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "b88ab533cee564a31b19891f1c8adb03c5f00fd5ad9d2078b73056b9f975cf4d",
+          "source_order_deterministic": true,
+          "result_count": 2,
+          "pair_counts": [
+            0,
+            0
+          ],
+          "aligned_result_count": 0,
+          "candidate_count": 0,
+          "residuals": [
+            null,
+            null
+          ],
+          "max_residual": null,
+          "fallback": false,
+          "fallback_reasons": [],
+          "wall_time_ms": {
+            "samples": [
+              0.139036,
+              0.151639,
+              0.143795
+            ],
+            "median": 0.143795,
+            "min": 0.139036,
+            "max": 0.151639
+          }
+        },
+        {
+          "engine": "hierarchical",
+          "result_hash": "b6acc066768bb94236879b535221d93dc9727078a5721247c8ca199c0106ad1b",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "b6acc066768bb94236879b535221d93dc9727078a5721247c8ca199c0106ad1b",
+          "source_order_deterministic": true,
+          "result_count": 1,
+          "pair_counts": [
+            0
+          ],
+          "aligned_result_count": 0,
+          "candidate_count": 0,
+          "residuals": [
+            null
+          ],
+          "max_residual": null,
+          "fallback": true,
+          "fallback_reasons": [
+            "no_hard_compatible_candidates"
+          ],
+          "wall_time_ms": {
+            "samples": [
+              0.090356,
+              0.097239,
+              0.093382
+            ],
+            "median": 0.093382,
+            "min": 0.090356,
+            "max": 0.097239
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "n4-s0.000-sources2",
+      "size": 4,
+      "sparsity": 0.0,
+      "target_compatible_pair_density": 1.0,
+      "source_count": 2,
+      "bounds": {
+        "query_frames": 4,
+        "source_frames": 8,
+        "pair_work": 32,
+        "pair_work_cap": 8192,
+        "pair_work_within_bound": true,
+        "compatible_pairs": 8,
+        "candidate_cap": 512,
+        "candidates_within_bound": true,
+        "sinkhorn_cells_upper_bound": 144,
+        "assignment_cells_upper_bound": 48,
+        "largest_matrix_cells_upper_bound": 144,
+        "matrix_cell_cap": 65536,
+        "matrix_cells_within_bound": true
+      },
+      "engines": [
+        {
+          "engine": "beam",
+          "result_hash": "f1076b0a5f430a1c243b6df743491bc853217c14feb0caf6f539ad05c98cc8a3",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "f1076b0a5f430a1c243b6df743491bc853217c14feb0caf6f539ad05c98cc8a3",
+          "source_order_deterministic": true,
+          "result_count": 3,
+          "pair_counts": [
+            4,
+            4,
+            3
+          ],
+          "aligned_result_count": 3,
+          "candidate_count": 0,
+          "residuals": [
+            null,
+            null,
+            null
+          ],
+          "max_residual": null,
+          "fallback": false,
+          "fallback_reasons": [],
+          "wall_time_ms": {
+            "samples": [
+              1.957439,
+              2.731597,
+              1.684606
+            ],
+            "median": 1.957439,
+            "min": 1.684606,
+            "max": 2.731597
+          }
+        },
+        {
+          "engine": "hierarchical",
+          "result_hash": "c599929fd77fd0735e44ce4b1584b4354d190ebab73beb9f9eb8ff8f11aa9ecf",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "c599929fd77fd0735e44ce4b1584b4354d190ebab73beb9f9eb8ff8f11aa9ecf",
+          "source_order_deterministic": true,
+          "result_count": 3,
+          "pair_counts": [
+            4,
+            4,
+            4
+          ],
+          "aligned_result_count": 3,
+          "candidate_count": 8,
+          "residuals": [
+            [
+              5.255025214978559e-08,
+              8.569811416059281e-08,
+              3.915960578027011e-08
+            ],
+            [
+              5.255025214978559e-08,
+              8.569811416059281e-08,
+              3.915960578027011e-08
+            ],
+            [
+              5.255025214978559e-08,
+              8.569811416059281e-08,
+              3.915960578027011e-08
+            ]
+          ],
+          "max_residual": 8.569811416059281e-08,
+          "fallback": false,
+          "fallback_reasons": [],
+          "wall_time_ms": {
+            "samples": [
+              23.85578,
+              25.111094,
+              24.928196
+            ],
+            "median": 24.928196,
+            "min": 23.85578,
+            "max": 25.111094
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "n4-s0.250-sources2",
+      "size": 4,
+      "sparsity": 0.25,
+      "target_compatible_pair_density": 0.75,
+      "source_count": 2,
+      "bounds": {
+        "query_frames": 4,
+        "source_frames": 8,
+        "pair_work": 32,
+        "pair_work_cap": 8192,
+        "pair_work_within_bound": true,
+        "compatible_pairs": 6,
+        "candidate_cap": 512,
+        "candidates_within_bound": true,
+        "sinkhorn_cells_upper_bound": 100,
+        "assignment_cells_upper_bound": 40,
+        "largest_matrix_cells_upper_bound": 100,
+        "matrix_cell_cap": 65536,
+        "matrix_cells_within_bound": true
+      },
+      "engines": [
+        {
+          "engine": "beam",
+          "result_hash": "08ada730058f1f059466cc70eeefa8edffdc7895726aafc3e2ba9d595c59d2a8",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "08ada730058f1f059466cc70eeefa8edffdc7895726aafc3e2ba9d595c59d2a8",
+          "source_order_deterministic": true,
+          "result_count": 3,
+          "pair_counts": [
+            3,
+            3,
+            2
+          ],
+          "aligned_result_count": 3,
+          "candidate_count": 0,
+          "residuals": [
+            null,
+            null,
+            null
+          ],
+          "max_residual": null,
+          "fallback": false,
+          "fallback_reasons": [],
+          "wall_time_ms": {
+            "samples": [
+              0.991027,
+              0.991168,
+              1.085642
+            ],
+            "median": 0.991168,
+            "min": 0.991027,
+            "max": 1.085642
+          }
+        },
+        {
+          "engine": "hierarchical",
+          "result_hash": "bb221dcd7a9de0de93c383304ec0d347158e622c3b2be0fd897ebb46e679d7f8",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "bb221dcd7a9de0de93c383304ec0d347158e622c3b2be0fd897ebb46e679d7f8",
+          "source_order_deterministic": true,
+          "result_count": 3,
+          "pair_counts": [
+            4,
+            4,
+            4
+          ],
+          "aligned_result_count": 3,
+          "candidate_count": 6,
+          "residuals": [
+            [
+              5.3944967159935686e-08,
+              9.678907963994732e-08,
+              7.936370827188455e-08
+            ],
+            [
+              5.3944967159935686e-08,
+              9.678907963994732e-08,
+              7.936370827188455e-08
+            ],
+            [
+              5.3944967159935686e-08,
+              9.678907963994732e-08,
+              7.936370827188455e-08
+            ]
+          ],
+          "max_residual": 9.678907963994732e-08,
+          "fallback": false,
+          "fallback_reasons": [],
+          "wall_time_ms": {
+            "samples": [
+              25.828928,
+              24.556712,
+              25.535657
+            ],
+            "median": 25.535657,
+            "min": 24.556712,
+            "max": 25.828928
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "n4-s1.000-sources2",
+      "size": 4,
+      "sparsity": 1.0,
+      "target_compatible_pair_density": 0.0,
+      "source_count": 2,
+      "bounds": {
+        "query_frames": 4,
+        "source_frames": 8,
+        "pair_work": 32,
+        "pair_work_cap": 8192,
+        "pair_work_within_bound": true,
+        "compatible_pairs": 0,
+        "candidate_cap": 512,
+        "candidates_within_bound": true,
+        "sinkhorn_cells_upper_bound": 0,
+        "assignment_cells_upper_bound": 16,
+        "largest_matrix_cells_upper_bound": 16,
+        "matrix_cell_cap": 65536,
+        "matrix_cells_within_bound": true
+      },
+      "engines": [
+        {
+          "engine": "beam",
+          "result_hash": "b88ab533cee564a31b19891f1c8adb03c5f00fd5ad9d2078b73056b9f975cf4d",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "b88ab533cee564a31b19891f1c8adb03c5f00fd5ad9d2078b73056b9f975cf4d",
+          "source_order_deterministic": true,
+          "result_count": 2,
+          "pair_counts": [
+            0,
+            0
+          ],
+          "aligned_result_count": 0,
+          "candidate_count": 0,
+          "residuals": [
+            null,
+            null
+          ],
+          "max_residual": null,
+          "fallback": false,
+          "fallback_reasons": [],
+          "wall_time_ms": {
+            "samples": [
+              0.30379,
+              0.30935,
+              0.304932
+            ],
+            "median": 0.304932,
+            "min": 0.30379,
+            "max": 0.30935
+          }
+        },
+        {
+          "engine": "hierarchical",
+          "result_hash": "b6acc066768bb94236879b535221d93dc9727078a5721247c8ca199c0106ad1b",
+          "repeat_hashes_identical": true,
+          "source_order_hash": "b6acc066768bb94236879b535221d93dc9727078a5721247c8ca199c0106ad1b",
+          "source_order_deterministic": true,
+          "result_count": 1,
+          "pair_counts": [
+            0
+          ],
+          "aligned_result_count": 0,
+          "candidate_count": 0,
+          "residuals": [
+            null
+          ],
+          "max_residual": null,
+          "fallback": true,
+          "fallback_reasons": [
+            "no_hard_compatible_candidates"
+          ],
+          "wall_time_ms": {
+            "samples": [
+              0.234011,
+              0.250412,
+              0.244841
+            ],
+            "median": 0.244841,
+            "min": 0.234011,
+            "max": 0.250412
+          }
+        }
+      ]
+    }
+  ],
+  "ablation": {
+    "baseline": "beam",
+    "variant": "hierarchical",
+    "case_count": 6,
+    "equal_result_hash_count": 0,
+    "source_order_deterministic_case_count": 6,
+    "comparisons": [
+      {
+        "case_id": "n2-s0.000-sources2",
+        "result_hash_equal": false,
+        "pair_count_delta": 1,
+        "fallback_changed": false,
+        "hierarchical_to_beam_median_wall_time_ratio": 29.242088
+      },
+      {
+        "case_id": "n2-s0.250-sources2",
+        "result_hash_equal": false,
+        "pair_count_delta": 1,
+        "fallback_changed": false,
+        "hierarchical_to_beam_median_wall_time_ratio": 23.34768
+      },
+      {
+        "case_id": "n2-s1.000-sources2",
+        "result_hash_equal": false,
+        "pair_count_delta": 0,
+        "fallback_changed": true,
+        "hierarchical_to_beam_median_wall_time_ratio": 0.649411
+      },
+      {
+        "case_id": "n4-s0.000-sources2",
+        "result_hash_equal": false,
+        "pair_count_delta": 1,
+        "fallback_changed": false,
+        "hierarchical_to_beam_median_wall_time_ratio": 12.735107
+      },
+      {
+        "case_id": "n4-s0.250-sources2",
+        "result_hash_equal": false,
+        "pair_count_delta": 4,
+        "fallback_changed": false,
+        "hierarchical_to_beam_median_wall_time_ratio": 25.763198
+      },
+      {
+        "case_id": "n4-s1.000-sources2",
+        "result_hash_equal": false,
+        "pair_count_delta": 0,
+        "fallback_changed": true,
+        "hierarchical_to_beam_median_wall_time_ratio": 0.802936
+      }
+    ]
+  }
+}

@@ -16,4 +16,5 @@ data/benchmarks/*
 !data/benchmarks/stress25_v1.json
 !data/benchmarks/stress25_v1_gold.json
 !data/benchmarks/stage7_counterfactual_v1.json
+!data/benchmarks/senf_components_v1.json
 data/conceptnet/conceptnet-assertions-5.7.0.csv.gz

@@ -1,0 +1,303 @@
+{
+  "benchmark_id": "senf_components_v1",
+  "benchmark_version": 1,
+  "case_count": 14,
+  "cases": [
+    {
+      "component": "spans",
+      "deterministic": true,
+      "exact": true,
+      "id": "span_lending"
+    },
+    {
+      "component": "spans",
+      "deterministic": true,
+      "exact": true,
+      "id": "span_repeated_occurrences"
+    },
+    {
+      "component": "identity",
+      "deterministic": true,
+      "false_merges": 0,
+      "id": "identity_pronoun_positive",
+      "merge_pairs": [
+        "ip1:m0|ip2:m0"
+      ]
+    },
+    {
+      "component": "identity",
+      "deterministic": true,
+      "false_merges": 0,
+      "id": "identity_definite_positive",
+      "merge_pairs": [
+        "id1:m2|id2:m0"
+      ]
+    },
+    {
+      "component": "identity",
+      "deterministic": true,
+      "false_merges": 0,
+      "id": "identity_pronoun_abstention",
+      "merge_pairs": []
+    },
+    {
+      "component": "identity",
+      "deterministic": true,
+      "false_merges": 0,
+      "id": "identity_definite_abstention",
+      "merge_pairs": []
+    },
+    {
+      "component": "identity",
+      "deterministic": true,
+      "false_merges": 0,
+      "id": "identity_camera_contradiction",
+      "merge_pairs": []
+    },
+    {
+      "component": "identity",
+      "deterministic": true,
+      "false_merges": 0,
+      "id": "identity_lens_conflict",
+      "merge_pairs": []
+    },
+    {
+      "component": "identity",
+      "deterministic": true,
+      "false_merges": 0,
+      "id": "identity_bridge_deny",
+      "merge_pairs": [
+        "ib1:m0|ib2:m0"
+      ]
+    },
+    {
+      "component": "exemplar",
+      "deterministic": true,
+      "exact": true,
+      "id": "exemplar_games"
+    },
+    {
+      "adapter_count": 1,
+      "component": "weave",
+      "deterministic": true,
+      "extra_guards": [],
+      "guard": "s1->q1",
+      "id": "weave_typed_location_bridge_allow",
+      "max_residual": 6.371434502217e-08,
+      "top_k_hit": true,
+      "wrong_guards": []
+    },
+    {
+      "adapter_count": 0,
+      "component": "weave",
+      "deterministic": true,
+      "extra_guards": [],
+      "guard": "wt1->wtq",
+      "id": "weave_typed_time_exemplar",
+      "max_residual": 9.50536611643571e-08,
+      "top_k_hit": true,
+      "wrong_guards": []
+    },
+    {
+      "adapter_count": 0,
+      "component": "weave",
+      "deterministic": true,
+      "extra_guards": [],
+      "guard": "unaligned->wdq",
+      "id": "weave_bridge_deny_inverse",
+      "max_residual": null,
+      "top_k_hit": true,
+      "wrong_guards": []
+    },
+    {
+      "adapter_count": 0,
+      "component": "weave",
+      "deterministic": true,
+      "extra_guards": [
+        "wm1->wmq"
+      ],
+      "guard": "wm1+wm2->wmq",
+      "id": "weave_multi_source",
+      "max_residual": 2.624475348156352e-08,
+      "top_k_hit": true,
+      "wrong_guards": [
+        "wm1->wmq"
+      ]
+    }
+  ],
+  "metrics": {
+    "bridge_adapter": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 1
+    },
+    "determinism": {
+      "cases": 14,
+      "rate": 1.0,
+      "stable": 14
+    },
+    "exemplar": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 3
+    },
+    "false_bridge_rate": 0.0,
+    "false_merge_rate": 0.0,
+    "id_minus": {
+      "f1": 0.375,
+      "fn": 0,
+      "fp": 10,
+      "precision": 0.230769,
+      "recall": 1.0,
+      "tp": 3
+    },
+    "id_plus": {
+      "f1": 0.909091,
+      "fn": 0,
+      "fp": 2,
+      "precision": 0.833333,
+      "recall": 1.0,
+      "tp": 10
+    },
+    "identity_merge": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 3
+    },
+    "mapping_entity": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 6
+    },
+    "mapping_exemplar": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 2
+    },
+    "mapping_frame": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 5
+    },
+    "mapping_location": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 1
+    },
+    "mapping_role": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 7
+    },
+    "mapping_time": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 1
+    },
+    "residual": {
+      "converged": 3,
+      "convergence_rate": 1.0,
+      "max": 9.50536611643571e-08,
+      "mean": 4.6423e-08,
+      "runs": 3,
+      "tolerance": 1e-07
+    },
+    "spans": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 6
+    },
+    "top_k": {
+      "cases": 4,
+      "extra_prediction_count": 1,
+      "hit_rate": 1.0,
+      "hits": 4,
+      "k": 3,
+      "wrong_guard_count": 1
+    },
+    "typed_mappings_micro": {
+      "f1": 1.0,
+      "fn": 0,
+      "fp": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 22
+    }
+  },
+  "reproducibility": {
+    "command": "python scripts/evaluate_senf_components.py --gold data/benchmarks/senf_components_v1.json --format json --output docs/benchmarks/senf_components_v1.json",
+    "dataset_sha256": "94307583375462b9f680345a60cdf8026724c2232c5d8d83d82fc058e568df0d",
+    "determinism_scope": "two sequential runs in the same process",
+    "environment": {
+      "cpu_count": 16,
+      "dependencies": {
+        "numpy": "2.5.3",
+        "pydantic": "2.13.5",
+        "pydantic-settings": "2.15.0"
+      },
+      "platform": "Linux-7.1.3-arch1-3-x86_64-with-glibc2.43",
+      "processor": "unknown",
+      "python": "3.14.6"
+    },
+    "generator_sha256": "8424aa3d6421a51c632b652072c7f557f6df060e6eef32791671d0ba1a731f55",
+    "git_revision": "4244dc69782dde7031ac11fe6398436959eb0a78",
+    "settings": {
+      "senf_exemplar_enabled": true,
+      "senf_identity_threshold": 0.75,
+      "senf_query_max_candidate_work": 64,
+      "senf_query_max_mentions": 256,
+      "senf_query_max_priors": 16,
+      "senf_query_max_source_frames": 128,
+      "senf_weave_beam_width": 32,
+      "senf_weave_coarse_identity": false,
+      "senf_weave_engine": "hierarchical",
+      "senf_weave_forget_fine_costs": false,
+      "senf_weave_global_candidate_cap": 512,
+      "senf_weave_max_cells": 65536,
+      "senf_weave_max_conflict_cost": 1000000.0,
+      "senf_weave_max_cost": 2.0,
+      "senf_weave_max_exemplar_alternatives": 4,
+      "senf_weave_max_frames": 64,
+      "senf_weave_max_iterations": 200,
+      "senf_weave_max_pair_candidates": 256,
+      "senf_weave_max_seeds": 32,
+      "senf_weave_max_transport_cost": 1000000.0,
+      "senf_weave_per_source_k": 3,
+      "senf_weave_require_context_match": false,
+      "senf_weave_sinkhorn_regularization": 0.25,
+      "senf_weave_sinkhorn_tolerance": 1e-07,
+      "senf_weave_top_k": 3
+    }
+  },
+  "schema_version": "senf-components-report/v2"
+}

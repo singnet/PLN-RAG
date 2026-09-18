@@ -1,0 +1,282 @@
+{
+  "schema_version": "senf-components-gold/v1",
+  "benchmark_id": "senf_components_v1",
+  "benchmark_version": 1,
+  "description": "Deterministic component-level gold for the SENF PDF examples and safety properties.",
+  "top_k": 3,
+  "residual_tolerance": 1e-07,
+  "cases": [
+    {
+      "id": "span_lending",
+      "component": "spans",
+      "tags": ["exact-span"],
+      "documents": [
+        {
+          "id": "span1",
+          "text": "Alex lent Sam the Nikon camera at noon.",
+          "atoms": [
+            "(: a (Lent alex sam nikon_camera) (STV 1 1))",
+            "(: b (AtTime nikon_camera noon) (STV 1 1))"
+          ]
+        }
+      ],
+      "gold": {
+        "mentions": [
+          ["span1", "alex", "Alex", 0, 4],
+          ["span1", "sam", "Sam", 10, 13],
+          ["span1", "nikon_camera", "Nikon camera", 18, 30],
+          ["span1", "noon", "noon", 34, 38]
+        ]
+      }
+    },
+    {
+      "id": "span_repeated_occurrences",
+      "component": "spans",
+      "tags": ["exact-span", "occurrence"],
+      "documents": [
+        {
+          "id": "span2",
+          "text": "A camera was beside another camera.",
+          "atoms": ["(: a (Beside camera camera) (STV 1 1))"]
+        }
+      ],
+      "gold": {
+        "mentions": [
+          ["span2", "camera", "camera", 2, 8],
+          ["span2", "camera", "camera", 28, 34]
+        ]
+      }
+    },
+    {
+      "id": "identity_pronoun_positive",
+      "component": "identity",
+      "tags": ["pronoun", "positive", "id-plus"],
+      "documents": [
+        {"id": "ip1", "text": "The camera has a wide lens.", "atoms": ["(: a (HasProperty camera wide_lens) (STV 1 1))"]},
+        {"id": "ip2", "text": "It is expensive.", "atoms": ["(: b (HasProperty it expensive) (STV 1 1))"]}
+      ],
+      "gold": {
+        "merge_pairs": [["ip1:m0", "ip2:m0"]],
+        "non_merge_pairs": [
+          ["ip1:m0", "ip1:m1"], ["ip1:m0", "ip2:m1"], ["ip1:m1", "ip2:m0"],
+          ["ip1:m1", "ip2:m1"], ["ip2:m0", "ip2:m1"]
+        ],
+        "abstain_pairs": [],
+        "id_plus": [["ip1:m0", "ip2:m0"]],
+        "id_minus": []
+      }
+    },
+    {
+      "id": "identity_definite_positive",
+      "component": "identity",
+      "tags": ["definite-description", "positive", "id-plus"],
+      "documents": [
+        {"id": "id1", "text": "Alex lent Sam a camera.", "atoms": ["(: a (Lent alex sam camera) (STV 1 1))"]},
+        {"id": "id2", "text": "Later, the camera was found at Alex's house.", "atoms": ["(: b (AtLocation camera alex_house) (STV 1 1))"]}
+      ],
+      "gold": {
+        "merge_pairs": [["id1:m2", "id2:m0"]],
+        "non_merge_pairs": [
+          ["id1:m0", "id1:m1"], ["id1:m0", "id1:m2"], ["id1:m0", "id2:m0"], ["id1:m0", "id2:m1"],
+          ["id1:m1", "id1:m2"], ["id1:m1", "id2:m0"], ["id1:m1", "id2:m1"],
+          ["id1:m2", "id2:m1"], ["id2:m0", "id2:m1"]
+        ],
+        "abstain_pairs": [],
+        "id_plus": [["id1:m2", "id2:m0"]],
+        "id_minus": []
+      }
+    },
+    {
+      "id": "identity_pronoun_abstention",
+      "component": "identity",
+      "tags": ["pronoun", "abstention"],
+      "documents": [
+        {"id": "ia1", "text": "Kebede works and Almaz works.", "atoms": ["(: a (Works kebede) (STV 1 1))", "(: b (Works almaz) (STV 1 1))"]},
+        {"id": "ia2", "text": "He was late.", "atoms": ["(: c (Late he) (STV 1 1))"]}
+      ],
+      "gold": {
+        "merge_pairs": [],
+        "non_merge_pairs": [["ia1:m0", "ia1:m1"], ["ia1:m0", "ia2:m0"], ["ia1:m1", "ia2:m0"]],
+        "abstain_pairs": [["ia1:m0", "ia2:m0"], ["ia1:m1", "ia2:m0"]],
+        "id_plus": [["ia1:m0", "ia2:m0"], ["ia1:m1", "ia2:m0"]],
+        "id_minus": []
+      }
+    },
+    {
+      "id": "identity_definite_abstention",
+      "component": "identity",
+      "tags": ["definite-description", "abstention"],
+      "documents": [
+        {"id": "ida1", "text": "A camera appeared.", "atoms": ["(: a (Appeared camera) (STV 1 1))"]},
+        {"id": "ida2", "text": "Prices rose.", "atoms": ["(: b (Rose price) (STV 1 1))"]},
+        {"id": "ida3", "text": "The camera broke.", "atoms": ["(: c (Broke camera) (STV 1 1))"]}
+      ],
+      "gold": {
+        "merge_pairs": [],
+        "non_merge_pairs": [["ida1:m0", "ida2:m0"], ["ida1:m0", "ida3:m0"], ["ida2:m0", "ida3:m0"]],
+        "abstain_pairs": [["ida1:m0", "ida3:m0"]],
+        "id_plus": [["ida1:m0", "ida3:m0"]],
+        "id_minus": []
+      }
+    },
+    {
+      "id": "identity_camera_contradiction",
+      "component": "identity",
+      "tags": ["camera", "id-plus", "id-minus", "contradiction"],
+      "documents": [
+        {"id": "ic1", "text": "A camera was beside another camera.", "atoms": ["(: a (Beside camera camera) (STV 1 1))"]}
+      ],
+      "gold": {
+        "merge_pairs": [],
+        "non_merge_pairs": [["ic1:m0", "ic1:m1"]],
+        "abstain_pairs": [["ic1:m0", "ic1:m1"]],
+        "id_plus": [["ic1:m0", "ic1:m1"]],
+        "id_minus": [["ic1:m0", "ic1:m1"]]
+      }
+    },
+    {
+      "id": "identity_lens_conflict",
+      "component": "identity",
+      "tags": ["lens", "id-plus", "id-minus", "conflict"],
+      "documents": [
+        {"id": "il1", "text": "The lens attached to the camera was cracked.", "atoms": ["(: a (Attached lens camera) (STV 1 1))"]},
+        {"id": "il2", "text": "Casey says Sam borrowed the lens separately.", "atoms": ["(: b (Says casey (Borrowed sam lens)) (STV 1 1))"]}
+      ],
+      "gold": {
+        "merge_pairs": [],
+        "non_merge_pairs": [
+          ["il1:m0", "il1:m1"], ["il1:m0", "il2:m0"], ["il1:m0", "il2:m1"], ["il1:m0", "il2:m2"],
+          ["il1:m1", "il2:m0"], ["il1:m1", "il2:m1"], ["il1:m1", "il2:m2"],
+          ["il2:m0", "il2:m1"], ["il2:m0", "il2:m2"], ["il2:m1", "il2:m2"]
+        ],
+        "abstain_pairs": [["il1:m0", "il2:m2"]],
+        "id_plus": [["il1:m0", "il2:m2"]],
+        "id_minus": [["il1:m0", "il2:m2"]]
+      }
+    },
+    {
+      "id": "identity_bridge_deny",
+      "component": "identity",
+      "tags": ["bridge-deny", "false-merge"],
+      "documents": [
+        {"id": "ib1", "text": "Dr Kebede Alemu leads the trial.", "atoms": ["(: a (IsA kebede_alemu researcher) (STV 1 1))"]},
+        {"id": "ib2", "text": "Kebede published results.", "atoms": ["(: b (IsA kebede researcher) (STV 1 1))"]},
+        {"id": "ib3", "text": "Dr Kebede Bekele leads the trial.", "atoms": ["(: c (IsA kebede_bekele researcher) (STV 1 1))"]}
+      ],
+      "gold": {
+        "merge_pairs": [["ib1:m0", "ib2:m0"]],
+        "non_merge_pairs": [["ib1:m0", "ib3:m0"], ["ib2:m0", "ib3:m0"]],
+        "abstain_pairs": [["ib1:m0", "ib3:m0"], ["ib2:m0", "ib3:m0"]],
+        "id_plus": [["ib1:m0", "ib2:m0"], ["ib1:m0", "ib3:m0"], ["ib2:m0", "ib3:m0"]],
+        "id_minus": [["ib1:m0", "ib3:m0"]]
+      }
+    },
+    {
+      "id": "exemplar_games",
+      "component": "exemplar",
+      "tags": ["chess", "football", "generic", "exemplar"],
+      "documents": [
+        {"id": "ex1", "text": "The game required deep strategy.", "atoms": ["(: a (IsA game Game) (STV 1 1))"]},
+        {"id": "ex2", "text": "The game was physically exhausting.", "atoms": ["(: b (IsA game Game) (STV 1 1))"]},
+        {"id": "ex3", "text": "The game ended.", "atoms": ["(: c (IsA game Game) (STV 1 1))"]}
+      ],
+      "gold": {
+        "assignments": [
+          ["ex1:m0", "chess_game"],
+          ["ex2:m0", "football_game"],
+          ["ex3:m0", "generic_game"]
+        ]
+      }
+    },
+    {
+      "id": "weave_typed_location_bridge_allow",
+      "component": "weave",
+      "tags": ["typed-mapping", "frame", "entity", "role", "location", "bridge-allow"],
+      "documents": [
+        {"id": "s1", "text": "The camera is at the lab.", "atoms": ["(: a (AtLocation camera lab) (STV 1 1))"]}
+      ],
+      "query": {"id": "q1", "text": "Is the camera located in the lab?", "atoms": ["(: q (LocatedIn camera lab) $tv)"]},
+      "gold": {
+        "top_k_guards": ["s1->q1"],
+        "mappings": {
+          "frame": ["s1:f0->q1:f0"],
+          "entity": ["s1:m0->q1:m0", "s1:m1->q1:m1"],
+          "role": ["Location->Location", "Theme->Theme"],
+          "exemplar": ["consumer_camera->consumer_camera"],
+          "time": [],
+          "location": ["lab->lab"]
+        },
+        "bridge": "allow",
+        "adapters": [{
+          "source_frame": "s1:f0",
+          "query_frame": "q1:f0",
+          "source_predicate": "AtLocation",
+          "query_predicate": "LocatedIn",
+          "source_arguments": ["camera", "lab"],
+          "query_arguments": ["camera", "lab"],
+          "atom": "(: senf_adapter_0_s1_f0_q1_f0 (Implication (Premises (AtLocation camera lab)) (Conclusions (LocatedIn camera lab))) (STV 0.704688 0.740741))"
+        }]
+      }
+    },
+    {
+      "id": "weave_typed_time_exemplar",
+      "component": "weave",
+      "tags": ["typed-mapping", "time", "exemplar", "chess"],
+      "documents": [
+        {"id": "wt1", "text": "The strategic game occurred today.", "atoms": ["(: a (AtTime game today) (STV 1 1))", "(: k (IsA game Game) (STV 1 1))"]}
+      ],
+      "query": {"id": "wtq", "text": "Did the strategic game occur today?", "atoms": ["(: q (AtTime game today) $tv)", "(: k (IsA game Game) $tv)"]},
+      "gold": {
+        "top_k_guards": ["wt1->wtq"],
+        "mappings": {
+          "frame": ["wt1:f0->wtq:f0", "wt1:f1->wtq:f1"],
+          "entity": ["wt1:m0->wtq:m0", "wt1:m1->wtq:m1"],
+          "role": ["Class->Class", "Instance->Instance", "Theme->Theme", "Time->Time"],
+          "exemplar": ["chess_game->chess_game"],
+          "time": ["today->today"],
+          "location": []
+        },
+        "bridge": "none",
+        "adapters": []
+      }
+    },
+    {
+      "id": "weave_bridge_deny_inverse",
+      "component": "weave",
+      "tags": ["bridge-deny", "inverse"],
+      "documents": [
+        {"id": "wd1", "text": "The camera has a lens.", "atoms": ["(: a (HasPart camera lens) (STV 1 1))"]}
+      ],
+      "query": {"id": "wdq", "text": "Is the lens part of the camera?", "atoms": ["(: q (PartOf lens camera) $tv)"]},
+      "gold": {
+        "top_k_guards": [],
+        "mappings": {"frame": [], "entity": [], "role": [], "exemplar": [], "time": [], "location": []},
+        "bridge": "deny",
+        "adapters": []
+      }
+    },
+    {
+      "id": "weave_multi_source",
+      "component": "weave",
+      "tags": ["multi-source", "weave"],
+      "documents": [
+        {"id": "wm1", "text": "Alpha arrived.", "atoms": ["(: a (Arrived alpha) (STV 1 1))"]},
+        {"id": "wm2", "text": "Beta left.", "atoms": ["(: b (Left beta) (STV 1 1))"]}
+      ],
+      "query": {"id": "wmq", "text": "Did alpha arrive and beta leave?", "atoms": ["(: q1 (Arrived alpha) $tv)", "(: q2 (Left beta) $tv)"]},
+      "gold": {
+        "top_k_guards": ["wm1+wm2->wmq"],
+        "mappings": {
+          "frame": ["wm1:f0->wmq:f0", "wm2:f0->wmq:f1"],
+          "entity": ["wm1:m0->wmq:m0", "wm2:m0->wmq:m1"],
+          "role": ["Arg0->Arg0"],
+          "exemplar": [],
+          "time": [],
+          "location": []
+        },
+        "bridge": "none",
+        "adapters": []
+      }
+    }
+  ]
+}
