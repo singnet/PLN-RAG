@@ -367,7 +367,11 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
 
         try:
             text = " ".join(texts)
-            feature_validation = provide_features(text, self._feature_provider)
+            feature_validation = provide_features(
+                text,
+                self._feature_provider,
+                max_rejections=self._feature_diagnostics_limit,
+            )
             self._feature_diagnostics = feature_validation.rejected
             self._sentence_counter += 1
             sentence_id = f"{self._session_nonce}:s{self._sentence_counter}"

@@ -71,6 +71,22 @@ class TestGenerationTape:
                 "replay", path, metadata={"suite": "stress25", "cases": "changed"}
             )
 
+    def test_feature_configuration_drift_fails_before_replay(self, tmp_path):
+        path, _ = capture_one(
+            tmp_path,
+            metadata={"suite": "test", "feature_configs": {
+                "canonical_senf_pln": {"config_sha256": "old"},
+            }},
+        )
+        with pytest.raises(GenerationTapeError, match="feature_configs"):
+            GenerationTape(
+                "replay",
+                path,
+                metadata={"suite": "test", "feature_configs": {
+                    "canonical_senf_pln": {"config_sha256": "new"},
+                }},
+            )
+
     def test_missing_scope_fails(self, tmp_path):
         path, _ = capture_one(tmp_path)
         backend = GenerationTape("replay", path).backend("canonical_pln", "A02")
@@ -196,7 +212,7 @@ class TestFeatureTape:
         backend = capture.backend("canonical_senf_pln", "A01")
         backend.set_phase("e2e_query")
         backend.feature_call(
-            request={"text": "She"}, config={"model": "m"},
+            request={"text": "She"}, config={"model": "m", "max_features": 4},
             live=lambda: [extraction()],
         )
         backend.finish()
@@ -205,7 +221,7 @@ class TestFeatureTape:
         backend = replay.backend("canonical_senf_pln", "A01")
         backend.set_phase("e2e_query")
         restored = backend.feature_call(
-            request={"text": "She"}, config={"model": "m"},
+            request={"text": "She"}, config={"model": "m", "max_features": 4},
             live=lambda: pytest.fail("feature replay called live"),
         )
         backend.finish()
@@ -217,7 +233,7 @@ class TestFeatureTape:
         backend = capture.backend("canonical_senf_pln", "A01")
         backend.set_phase("query")
         backend.feature_call(
-            request={"text": "She"}, config={"model": "m"}, live=lambda: [extraction()],
+            request={"text": "She"}, config={"model": "m", "max_features": 4}, live=lambda: [extraction()],
         )
         backend.finish()
 
@@ -230,7 +246,7 @@ class TestFeatureTape:
         backend = capture.backend("canonical_senf_pln", "A01")
         backend.set_phase("query")
         backend.feature_call(
-            request={"text": "She"}, config={"model": "m"}, live=lambda: [extraction()],
+            request={"text": "She"}, config={"model": "m", "max_features": 4}, live=lambda: [extraction()],
         )
         backend.finish()
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -241,7 +257,7 @@ class TestFeatureTape:
         backend.set_phase("query")
         with pytest.raises(GenerationTapeError, match="invalid schema"):
             backend.feature_call(
-                request={"text": "She"}, config={"model": "m"}, live=lambda: [],
+                request={"text": "She"}, config={"model": "m", "max_features": 4}, live=lambda: [],
             )
 
     def test_feature_replay_rejects_extra_hash_mismatch_and_unconsumed(self, tmp_path):
@@ -250,7 +266,7 @@ class TestFeatureTape:
         backend = capture.backend("canonical_senf_pln", "A01")
         backend.set_phase("query")
         backend.feature_call(
-            request={"text": "She"}, config={"model": "m"},
+            request={"text": "She"}, config={"model": "m", "max_features": 4},
             live=lambda: [extraction()],
         )
         backend.finish()
@@ -259,7 +275,7 @@ class TestFeatureTape:
         backend.set_phase("query")
         with pytest.raises(GenerationTapeError, match="Feature (text|request) mismatch"):
             backend.feature_call(
-                request={"text": "He"}, config={"model": "m"}, live=lambda: [],
+                request={"text": "He"}, config={"model": "m", "max_features": 4}, live=lambda: [],
             )
 
         backend = GenerationTape("replay", path).backend("canonical_senf_pln", "A01")
@@ -269,7 +285,7 @@ class TestFeatureTape:
         backend = GenerationTape("replay", path).backend("canonical_senf_pln", "A01")
         backend.set_phase("query")
         arguments = {
-            "request": {"text": "She"}, "config": {"model": "m"},
+            "request": {"text": "She"}, "config": {"model": "m", "max_features": 4},
             "live": lambda: [],
         }
         backend.feature_call(**arguments)
@@ -284,11 +300,38 @@ class TestFeatureTape:
         with pytest.raises(GenerationTapeError, match="Feature capture failed"):
             backend.feature_call(
                 request={"text": "She"},
-                config={"model": "m"},
+                config={"model": "m", "max_features": 4},
                 live=lambda: (_ for _ in ()).throw(TimeoutError("offline")),
             )
 
         assert tape.feature_calls == []
+
+    def test_feature_capture_serializes_only_cap_and_overflow_sentinel(self, tmp_path):
+        path = tmp_path / "bounded.json"
+        tape = GenerationTape("capture", path)
+        backend = tape.backend("canonical_senf_pln", "A01")
+        backend.set_phase("query")
+
+        def extractions():
+            yield extraction()
+            overflow = extraction()
+            overflow.extraction_text = "rejected raw secret"
+            yield overflow
+            pytest.fail("feature capture consumed beyond the overflow sentinel")
+
+        returned = backend.feature_call(
+            request={"text": "She"},
+            config={"model": "m", "max_features": 1},
+            live=extractions,
+        )
+        backend.finish()
+
+        assert len(returned) == 2
+        serialized = path.read_text(encoding="utf-8")
+        assert "rejected raw secret" not in serialized
+        assert json.loads(serialized)["feature_calls"][0]["extractions"][1][
+            "extraction_class"
+        ] == "__senf_feature_overflow__"
 
     def test_schema1_tape_remains_readable(self, tmp_path):
         path, _ = capture_one(tmp_path)

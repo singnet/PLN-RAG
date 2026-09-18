@@ -1,4 +1,5 @@
 import logging
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Callable, Literal, Optional, Sequence
@@ -521,6 +522,12 @@ class IdentityResolver:
         embed_band: float = 0.3,
         ambiguity_margin: float = 0.15,
     ):
+        if (
+            type(threshold) not in (int, float)
+            or not math.isfinite(threshold)
+            or not 0.0 <= threshold <= 1.0
+        ):
+            raise ValueError("identity threshold must be a finite value in [0, 1]")
         self.threshold = threshold
         self.weights = weights or IdentityWeights()
         self.max_mentions_per_sentence = max_mentions_per_sentence

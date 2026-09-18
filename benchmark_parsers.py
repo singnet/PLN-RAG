@@ -8,10 +8,11 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import benchmark_grading as bg
 from benchmark_replay import GenerationTape, GenerationTapeError, content_hash, file_hash
-from config import get_settings
+from config import Settings, get_settings
 from core.service import PLNRAGService
 
 
@@ -139,8 +140,17 @@ def _is_truthy(value: Any) -> bool:
     return text in {"1", "true", "yes", "y"}
 
 ACTIVE_PARSERS = ("nl2pln", "canonical_pln")
+ROOT = Path(__file__).resolve().parent
 _BASE_COUNTERFACTUAL_ENV = os.environ.get("SENF_COUNTERFACTUAL_ENABLED")
 _BASE_EXECUTION_POLICY_ENV = os.environ.get("QUERY_EXECUTION_POLICY")
+FEATURE_SETTINGS = {
+    "SENF_FEATURE_PROVIDER": "none",
+    "SENF_FEATURE_EXACT_ONLY": "true",
+    "SENF_FEATURE_MAX_FEATURES": "64",
+    "SENF_FEATURE_TIMEOUT": "20.0",
+    "SENF_FEATURE_MODEL": "",
+    "SENF_FEATURE_EXAMPLES_PATH": "data/senf_feature_examples.json",
+}
 QUERY_POLICY_SETTINGS = {
     "ANSWER_GENERATION_ENABLED": "false",
     "SOURCE_LOOKUP_MAX_ATOMS": "0",
@@ -198,10 +208,29 @@ QUERY_POLICY_SETTINGS = {
     "SENF_BRANCH_MAX_DEPTH": "16",
     "SENF_BRANCH_MAX_THEORY_STATEMENTS": "128",
     "SENF_TEMPORAL_DECAY_RATE": "0.01",
+    **FEATURE_SETTINGS,
 }
 _BASE_QUERY_POLICY_SETTINGS = {
     key: os.environ.get(key) for key in QUERY_POLICY_SETTINGS
 }
+_FEATURE_SETTING_FIELDS = {
+    "SENF_FEATURE_PROVIDER": "senf_feature_provider",
+    "SENF_FEATURE_EXACT_ONLY": "senf_feature_exact_only",
+    "SENF_FEATURE_MAX_FEATURES": "senf_feature_max_features",
+    "SENF_FEATURE_TIMEOUT": "senf_feature_timeout",
+    "SENF_FEATURE_MODEL": "senf_feature_model",
+    "SENF_FEATURE_EXAMPLES_PATH": "senf_feature_examples_path",
+}
+_base_feature_settings = Settings(openai_api_key="benchmark-feature-metadata")
+_BASE_FEATURE_CONFIG = {
+    field: getattr(_base_feature_settings, field)
+    for field in _FEATURE_SETTING_FIELDS.values()
+}
+_BASE_FEATURE_CONFIG.update({
+    "langextract_model_id": _base_feature_settings.langextract_model_id,
+    "langextract_model_url": _base_feature_settings.langextract_model_url,
+})
+del _base_feature_settings
 PARSER_ARMS: dict[str, dict[str, Any]] = {
     "canonical_senf_pln_stage6": {
         "parser": "canonical_senf_pln",
@@ -450,7 +479,7 @@ def _configure_parser_arm(name: str) -> None:
     else:
         os.environ["QUERY_EXECUTION_POLICY"] = policy
 
-    overrides = arm.get("settings") or {}
+    overrides = _parser_setting_overrides(name)
     for key, base_value in _BASE_QUERY_POLICY_SETTINGS.items():
         if key in overrides:
             os.environ[key] = overrides[key]
@@ -462,14 +491,89 @@ def _configure_parser_arm(name: str) -> None:
 
 def _parser_arm_metadata(name: str) -> dict[str, Any]:
     arm = PARSER_ARMS.get(name, {})
+    settings = _parser_setting_overrides(name)
     return {
         "parser": arm.get("parser", name),
         "senf_counterfactual_enabled": arm.get("senf_counterfactual_enabled"),
         "query_execution_policy": arm.get("query_execution_policy"),
         "settings": {
-            key.lower(): value for key, value in (arm.get("settings") or {}).items()
+            key.lower(): value for key, value in settings.items()
         },
     }
+
+
+def _parser_setting_overrides(name: str) -> dict[str, str]:
+    arm = PARSER_ARMS.get(name, {})
+    return {**FEATURE_SETTINGS, **(arm.get("settings") or {})}
+
+
+def _effective_feature_settings(name: str) -> dict[str, Any]:
+    values = dict(_BASE_FEATURE_CONFIG)
+    overrides = _parser_setting_overrides(name)
+    for environment_name, field in _FEATURE_SETTING_FIELDS.items():
+        if environment_name not in overrides:
+            continue
+        value: Any = overrides[environment_name]
+        if field == "senf_feature_exact_only":
+            value = _is_truthy(value)
+        elif field == "senf_feature_max_features":
+            value = int(value)
+        elif field == "senf_feature_timeout":
+            value = float(value)
+        values[field] = value
+    return values
+
+
+def _sanitized_endpoint(value: str | None) -> str | None:
+    if not value:
+        return None
+    parsed = urlsplit(value)
+    if not parsed.scheme or not parsed.hostname:
+        return parsed.path
+    host = parsed.hostname
+    if parsed.port is not None:
+        host = f"{host}:{parsed.port}"
+    return urlunsplit((parsed.scheme, host, parsed.path, "", ""))
+
+
+def _feature_config_metadata(cfg: Any) -> dict[str, Any]:
+    def setting(name: str) -> Any:
+        return cfg[name] if isinstance(cfg, dict) else getattr(cfg, name)
+
+    configured_path = setting("senf_feature_examples_path")
+    examples_path = Path(configured_path)
+    if not examples_path.is_absolute():
+        examples_path = ROOT / examples_path
+    feature_config = {
+        "provider": setting("senf_feature_provider"),
+        "model": setting("senf_feature_model") or setting("langextract_model_id"),
+        "endpoint": _sanitized_endpoint(setting("langextract_model_url")),
+        "examples_path": configured_path,
+        "examples_sha256": file_hash(examples_path),
+        "exact_only": setting("senf_feature_exact_only"),
+        "max_features": setting("senf_feature_max_features"),
+        "timeout": setting("senf_feature_timeout"),
+    }
+    hash_config = {
+        **feature_config,
+        "endpoint": setting("langextract_model_url"),
+    }
+    return {
+        **feature_config,
+        "config_sha256": content_hash(hash_config),
+    }
+
+
+def _feature_configs_metadata(
+    parser_names: list[str],
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any] | None]:
+    configs = {
+        name: _feature_config_metadata(_effective_feature_settings(name))
+        for name in parser_names
+    }
+    unique = {content_hash(config) for config in configs.values()}
+    shared = next(iter(configs.values())) if len(unique) == 1 and configs else None
+    return configs, shared
 
 
 def _preflight_llm() -> tuple[bool, str]:
@@ -1139,9 +1243,10 @@ async def main() -> int:
     gold_cases, gold_file = _resolve_gold(args.gold_file, suite_metadata or {}, suite_label)
     _apply_gold_expectations(cases, gold_cases)
 
+    cfg = get_settings()
+    feature_configs, feature_config = _feature_configs_metadata(args.parsers)
     generation_tape = None
     if using_tape:
-        cfg = get_settings()
         tape_metadata = {
             "suite": suite_label,
             "mode": args.mode,
@@ -1149,7 +1254,10 @@ async def main() -> int:
             "gold_sha256": content_hash(gold_cases),
             "canonical_module_sha256": file_hash(cfg.canonical_pln_nl2pln_module_path),
             "openai_model": cfg.openai_model,
+            "feature_configs": feature_configs,
         }
+        if feature_config is not None:
+            tape_metadata["feature_config"] = feature_config
         generation_tape = GenerationTape(
             "capture" if args.capture_generation_tape else "replay",
             args.capture_generation_tape or args.replay_generation_tape,
@@ -1169,7 +1277,10 @@ async def main() -> int:
         "arm_metadata": {
             name: _parser_arm_metadata(name) for name in args.parsers
         },
+        "feature_configs": feature_configs,
     }
+    if feature_config is not None:
+        payload["feature_config"] = feature_config
 
     payload["active_parsers"] = list(args.parsers)
 

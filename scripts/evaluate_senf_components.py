@@ -62,6 +62,12 @@ COMPONENT_SETTINGS = {
     "senf_weave_require_context_match": False,
     "senf_weave_forget_fine_costs": False,
     "senf_weave_coarse_identity": False,
+    "senf_feature_provider": "none",
+    "senf_feature_exact_only": True,
+    "senf_feature_max_features": 64,
+    "senf_feature_timeout": 20.0,
+    "senf_feature_model": None,
+    "senf_feature_examples_path": "data/senf_feature_examples.json",
 }
 
 
@@ -616,7 +622,7 @@ def render_markdown(report: dict) -> str:
     lines = [
         f"# SENF Component Benchmark v{report['benchmark_version']}",
         "",
-        f"Cases: **{report['case_count']}**  ",
+        f"Cases: **{report['case_count']}**",
         f"Schema: `{report['schema_version']}`",
         "",
         "## Classification And Mapping Metrics",

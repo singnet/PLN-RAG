@@ -57,6 +57,12 @@ BENCHMARK_SETTINGS = {
     "senf_weave_max_conflict_cost": 1000000.0,
     "senf_weave_max_transport_cost": 1000000.0,
     "senf_weave_require_context_match": False,
+    "senf_feature_provider": "none",
+    "senf_feature_exact_only": True,
+    "senf_feature_max_features": 64,
+    "senf_feature_timeout": 20.0,
+    "senf_feature_model": None,
+    "senf_feature_examples_path": "data/senf_feature_examples.json",
 }
 
 

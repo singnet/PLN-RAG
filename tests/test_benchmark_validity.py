@@ -104,17 +104,15 @@ class TestSummarizeParser:
 
 class TestParserArms:
     def test_stage6_and_stage7_use_the_senf_parser(self):
-        assert bp._parser_arm_metadata("canonical_senf_pln_stage6") == {
-            "parser": "canonical_senf_pln",
-            "senf_counterfactual_enabled": False,
-            "query_execution_policy": None,
-            "settings": {},
-        }
-        assert bp._parser_arm_metadata("canonical_senf_pln_stage7") == {
-            "parser": "canonical_senf_pln",
-            "senf_counterfactual_enabled": True,
-            "query_execution_policy": None,
-            "settings": {},
+        stage6 = bp._parser_arm_metadata("canonical_senf_pln_stage6")
+        stage7 = bp._parser_arm_metadata("canonical_senf_pln_stage7")
+        assert stage6["parser"] == stage7["parser"] == "canonical_senf_pln"
+        assert stage6["senf_counterfactual_enabled"] is False
+        assert stage7["senf_counterfactual_enabled"] is True
+        assert stage6["query_execution_policy"] is None
+        assert stage7["query_execution_policy"] is None
+        assert stage6["settings"] == stage7["settings"] == {
+            key.lower(): value for key, value in bp.FEATURE_SETTINGS.items()
         }
 
     @pytest.mark.parametrize(
@@ -130,6 +128,85 @@ class TestParserArms:
         assert metadata["senf_counterfactual_enabled"] is True
         assert metadata["query_execution_policy"] == policy
         assert metadata["settings"]["answer_generation_enabled"] == "false"
+        assert metadata["settings"]["senf_feature_provider"] == "none"
+
+    def test_feature_metadata_is_complete_hashed_and_sanitized(self):
+        from config import Settings
+
+        cfg = Settings(
+            openai_api_key="top-secret-openai-key",
+            langextract_api_key="top-secret-langextract-key",
+            langextract_model_url="https://user:password@example.test/v1?api_key=secret",
+            senf_feature_provider="langextract",
+            senf_feature_model="feature-model",
+        )
+
+        metadata = bp._feature_config_metadata(cfg)
+        serialized = str(metadata)
+        assert set(metadata) == {
+            "provider", "model", "endpoint", "examples_path", "examples_sha256",
+            "exact_only", "max_features", "timeout", "config_sha256",
+        }
+        assert metadata["endpoint"] == "https://example.test/v1"
+        assert metadata["examples_sha256"]
+        assert "top-secret" not in serialized
+        assert "password" not in serialized
+        assert "api_key" not in serialized
+
+    def test_feature_config_hash_changes_with_behavior(self):
+        from config import Settings
+
+        first = bp._feature_config_metadata(Settings(openai_api_key="test"))
+        second = bp._feature_config_metadata(Settings(
+            openai_api_key="test", senf_feature_exact_only=False
+        ))
+        assert first["config_sha256"] != second["config_sha256"]
+
+    def test_effective_feature_metadata_uses_forced_none_over_ambient_langextract(
+        self, monkeypatch
+    ):
+        monkeypatch.setitem(
+            bp._BASE_FEATURE_CONFIG, "senf_feature_provider", "langextract"
+        )
+
+        configs, shared = bp._feature_configs_metadata(["canonical_senf_pln"])
+
+        assert configs["canonical_senf_pln"]["provider"] == "none"
+        assert shared == configs["canonical_senf_pln"]
+
+    def test_effective_feature_metadata_uses_arm_override_over_ambient_none(
+        self, monkeypatch, tmp_path
+    ):
+        examples = tmp_path / "examples.json"
+        examples.write_text('{"examples": []}', encoding="utf-8")
+        monkeypatch.setitem(bp._BASE_FEATURE_CONFIG, "senf_feature_provider", "none")
+        monkeypatch.setitem(bp.PARSER_ARMS, "feature_arm", {
+            "parser": "canonical_senf_pln",
+            "settings": {
+                "SENF_FEATURE_PROVIDER": "langextract",
+                "SENF_FEATURE_EXAMPLES_PATH": str(examples),
+            },
+        })
+
+        configs, shared = bp._feature_configs_metadata(["feature_arm"])
+
+        assert configs["feature_arm"]["provider"] == "langextract"
+        assert configs["feature_arm"]["examples_path"] == str(examples)
+        assert configs["feature_arm"]["examples_sha256"] == bp.file_hash(examples)
+        assert shared == configs["feature_arm"]
+
+    def test_shared_feature_metadata_is_omitted_when_arms_differ(self, monkeypatch):
+        monkeypatch.setitem(bp.PARSER_ARMS, "feature_arm", {
+            "parser": "canonical_senf_pln",
+            "settings": {"SENF_FEATURE_PROVIDER": "langextract"},
+        })
+
+        configs, shared = bp._feature_configs_metadata([
+            "canonical_senf_pln", "feature_arm",
+        ])
+
+        assert set(configs) == {"canonical_senf_pln", "feature_arm"}
+        assert shared is None
 
     @pytest.mark.parametrize(
         ("arm", "expected"),

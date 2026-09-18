@@ -11,6 +11,7 @@ import hashlib
 import json
 import multiprocessing
 from collections.abc import Callable, Iterable
+from itertools import islice
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Optional
@@ -28,6 +29,8 @@ from core.senf.features import (
 FEATURE_EXTRACTION_CLASS = "senf_feature"
 COREFERENCE_EXTRACTION_CLASS = "senf_coreference"
 EXACT_ALIGNMENT = "MATCH_EXACT"
+OVERFLOW_EXTRACTION_CLASS = "__senf_feature_overflow__"
+_MISSING = object()
 _RESERVED_FIELDS = frozenset({
     "canonical_symbol", "canonicalsymbol", "symbol", "pln", "statement", "statements",
 })
@@ -81,7 +84,7 @@ class LangExtractFeatureProvider:
     def set_backend(self, backend: Any) -> None:
         self._backend = backend
 
-    def provide(self, source_text: str) -> FeatureBatch:
+    def provide(self, source_text: str) -> FeatureValidation:
         examples_path = self._resolved_examples_path()
         request = {"text": source_text, "prompt": "senf-feature-only-v1"}
         config = {
@@ -103,18 +106,20 @@ class LangExtractFeatureProvider:
             else live()
         )
         validation = features_from_langextract(
-            source_text, list(extractions)[: self._max_features],
+            source_text,
+            extractions,
             allowed_features=self._allowed,
             exact_only=self._exact_only,
+            max_features=self._max_features,
         )
-        return validation.accepted
+        return validation
 
     def _extract(self, source_text: str) -> list[Any]:
         context = multiprocessing.get_context("fork")
         receiver, sender = context.Pipe(duplex=False)
         process = context.Process(
             target=_extract_worker,
-            args=(self, source_text, sender),
+            args=(self, source_text, sender, self._max_features),
             name="senf-features",
             daemon=True,
         )
@@ -139,9 +144,9 @@ class LangExtractFeatureProvider:
                 process.terminate()
                 process.join()
 
-    def _extract_live(self, source_text: str) -> list[Any]:
+    def _extract_live(self, source_text: str) -> Iterable[Any]:
         if self._extractor is not None:
-            return list(self._extractor(source_text))
+            return self._extractor(source_text)
         import langextract as lx
 
         path = self._resolved_examples_path()
@@ -171,7 +176,7 @@ class LangExtractFeatureProvider:
             max_workers=1,
             show_progress=False,
         )
-        return list(getattr(result, "extractions", ()))
+        return getattr(result, "extractions", ())
 
     def _resolved_examples_path(self) -> Path:
         path = Path(self._examples_path or "data/senf_feature_examples.json")
@@ -184,6 +189,7 @@ def features_from_langextract(
     *,
     allowed_features: Optional[Iterable[str]] = None,
     exact_only: bool = True,
+    max_features: Optional[int] = None,
 ) -> FeatureValidation:
     """Convert only exactly aligned, feature-only LangExtract output."""
     allowed = frozenset(allowed_features) if allowed_features is not None else None
@@ -191,7 +197,17 @@ def features_from_langextract(
     grouped: dict[str, list[tuple[ExactSpan, float]]] = {}
     rejected: list[FeatureRejection] = []
 
-    for index, extraction in enumerate(extractions):
+    bounded = (
+        islice(extractions, max_features + 1)
+        if max_features is not None
+        else extractions
+    )
+    for index, extraction in enumerate(bounded):
+        if index == max_features or _is_overflow(extraction):
+            rejected.append(
+                FeatureRejection("langextract", index, "feature limit exceeded")
+            )
+            break
         extraction_class = str(getattr(extraction, "extraction_class", "")).strip()
         if extraction_class not in (FEATURE_EXTRACTION_CLASS, COREFERENCE_EXTRACTION_CLASS):
             rejected.append(FeatureRejection("langextract", index, "unsupported extraction class"))
@@ -231,7 +247,7 @@ def features_from_langextract(
     for grouped_key, members in grouped.items():
         polarity, group = grouped_key.split(":", 1)
         if len(members) < 2:
-            rejected.append(FeatureRejection("coreference_group", 0, f"group {group!r} has no pair"))
+            rejected.append(FeatureRejection("coreference_group", 0, "group has no pair"))
             continue
         antecedent, antecedent_confidence = members[0]
         for anaphor, confidence in members[1:]:
@@ -279,14 +295,25 @@ def _confidence(value: Any) -> float:
     return float(value)
 
 
-def _extract_worker(provider: LangExtractFeatureProvider, source_text: str, sender: Any) -> None:
+def _extract_worker(
+    provider: LangExtractFeatureProvider,
+    source_text: str,
+    sender: Any,
+    max_features: int,
+) -> None:
     try:
+        extracted = iter(provider._extract_live(source_text))
+        payload = [
+            _extraction_to_wire(item) for item in islice(extracted, max_features)
+        ]
+        if next(extracted, _MISSING) is not _MISSING:
+            payload.append(_overflow_payload())
         sender.send((
             "ok",
-            [_extraction_to_wire(item) for item in provider._extract_live(source_text)],
+            payload,
         ))
     except BaseException as exc:
-        sender.send(("error", f"{type(exc).__name__}: {exc}"))
+        sender.send(("error", f"{type(exc).__name__}: feature extraction failed"))
     finally:
         sender.close()
 
@@ -302,6 +329,21 @@ def _extraction_to_wire(extraction: Any) -> dict[str, Any]:
         "end": getattr(interval, "end_pos", None),
         "alignment": getattr(alignment, "name", None) or str(alignment).split(".")[-1],
     }
+
+
+def _overflow_payload() -> dict[str, Any]:
+    return {
+        "extraction_class": OVERFLOW_EXTRACTION_CLASS,
+        "extraction_text": None,
+        "attributes": None,
+        "start": None,
+        "end": None,
+        "alignment": None,
+    }
+
+
+def _is_overflow(extraction: Any) -> bool:
+    return getattr(extraction, "extraction_class", None) == OVERFLOW_EXTRACTION_CLASS
 
 
 def _extraction_from_wire(payload: dict[str, Any]) -> Any:

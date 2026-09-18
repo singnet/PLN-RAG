@@ -703,6 +703,12 @@ def test_threshold_of_one_disables_merging_entirely():
     assert graph.edges, "edges are still scored and reported, just never acted on"
 
 
+@pytest.mark.parametrize("threshold", [float("nan"), float("inf"), -0.01, 1.01])
+def test_resolver_rejects_invalid_identity_thresholds(threshold):
+    with pytest.raises(ValueError, match="finite value in \\[0, 1\\]"):
+        IdentityResolver(threshold=threshold)
+
+
 def test_confidence_grows_with_independent_evidence_but_never_exceeds_one():
     graph = resolve_identity(_camera_and_pronoun())
     strong = edge_for(graph, "camera", "it")

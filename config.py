@@ -87,7 +87,9 @@ class Settings(BaseSettings):
     conceptnet_startup_fail_open: bool = True
 
     # SENF extension (canonical_senf_pln)
-    senf_identity_threshold: float = 0.75
+    senf_identity_threshold: float = Field(
+        default=0.75, ge=0.0, le=1.0, allow_inf_nan=False
+    )
     senf_context_top_k: int = 10
     senf_session_max_frames: int = 200
     senf_use_vector_context: bool = True

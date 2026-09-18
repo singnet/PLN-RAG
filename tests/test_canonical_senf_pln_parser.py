@@ -499,6 +499,18 @@ class TestSettings:
         assert parser._context_top_k == cfg.senf_context_top_k
         assert parser._max_frames == cfg.senf_session_max_frames
 
+    @pytest.mark.parametrize(
+        "threshold", [float("nan"), float("inf"), -0.01, 1.01]
+    )
+    def test_identity_threshold_rejects_nonfinite_and_out_of_range_values(
+        self, threshold
+    ):
+        from pydantic import ValidationError
+        from config import Settings
+
+        with pytest.raises(ValidationError):
+            Settings(openai_api_key="test", senf_identity_threshold=threshold)
+
     def test_planner_modality_environment_values_parse(self):
         from config import Settings
 
@@ -592,6 +604,48 @@ class TestFeatureProviderIntegration:
         assert statements == [CAMERA]
         assert queries == []
         assert parser.senf_telemetry()["feature_rejections"][0]["category"] == "provider"
+
+    def test_provider_validation_rejections_reach_parser_telemetry(self, parser):
+        from core.senf.features import FeatureRejection, FeatureValidation
+
+        class RejectingProvider:
+            def provide(self, text):
+                return FeatureValidation(
+                    FeatureBatch.empty(),
+                    (FeatureRejection("langextract", 0, "feature limit exceeded"),),
+                )
+
+        parser._feature_provider = RejectingProvider()
+        parser._feature_provider_name = "test"
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+
+        assert parser.senf_telemetry()["feature_rejections"] == [{
+            "category": "langextract",
+            "index": 0,
+            "reason": "feature limit exceeded",
+        }]
+
+    def test_provider_rejection_secrets_do_not_reach_parser_telemetry(self, parser):
+        from core.senf.features import FeatureRejection, FeatureValidation
+
+        class RejectingProvider:
+            def provide(self, text):
+                return FeatureValidation(
+                    FeatureBatch.empty(),
+                    (FeatureRejection("private", 2, "token=super-secret"),),
+                )
+
+        parser._feature_provider = RejectingProvider()
+        parser._feature_provider_name = "test"
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+
+        telemetry = parser.senf_telemetry()
+        assert telemetry["feature_rejections"] == [{
+            "category": "provider",
+            "index": 2,
+            "reason": "provider rejection details redacted",
+        }]
+        assert "super-secret" not in str(telemetry)
 
 
 class TestWeaveScoring:

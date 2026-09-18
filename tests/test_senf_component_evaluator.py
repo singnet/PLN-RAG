@@ -156,6 +156,11 @@ def test_json_and_markdown_cli_outputs(tmp_path):
     assert "False-merge rate" in render_markdown(evaluate(load_gold(DEFAULT_GOLD)))
 
 
+def test_generated_markdown_has_no_trailing_whitespace():
+    markdown = render_markdown(evaluate(load_gold(DEFAULT_GOLD)))
+    assert all(line == line.rstrip() for line in markdown.splitlines())
+
+
 def test_tracked_reports_match_the_evaluator():
     report = evaluate(load_gold(DEFAULT_GOLD), hashlib.sha256(DEFAULT_GOLD.read_bytes()).hexdigest())
     docs = Path(__file__).resolve().parents[1] / "docs" / "benchmarks"

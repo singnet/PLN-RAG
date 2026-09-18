@@ -5,12 +5,15 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import defaultdict
+from itertools import islice
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable
 
 
 TAPE_SCHEMA_VERSION = 2
+_FEATURE_OVERFLOW_CLASS = "__senf_feature_overflow__"
+_MISSING = object()
 
 
 class GenerationTapeError(RuntimeError):
@@ -136,6 +139,7 @@ class GenerationTape:
             "sha256": file_hash(self.path) if self.path.is_file() else None,
             "captured_calls": len(self.calls),
             "captured_feature_calls": len(self.feature_calls),
+            "metadata": self.metadata,
             "parser_runs": list(self._reports),
         }
 
@@ -253,7 +257,13 @@ class GenerationBackend:
         text_hash = content_hash(request.get("text"))
         if self.tape.mode == "capture":
             try:
-                result = list(live())
+                cap = config.get("max_features")
+                if type(cap) is not int or cap <= 0:
+                    raise ValueError("feature config requires a positive max_features")
+                iterator = iter(live())
+                result = list(islice(iterator, cap))
+                if next(iterator, _MISSING) is not _MISSING:
+                    result.append(_feature_overflow_sentinel())
             except Exception as exc:
                 raise GenerationTapeError(
                     f"Feature capture failed for {self.case_id}/{self.phase}/{index}"
@@ -355,6 +365,16 @@ def _extraction_to_payload(extraction: Any) -> dict[str, Any]:
         "end": getattr(interval, "end_pos", None),
         "alignment": getattr(alignment, "name", None) or str(alignment).split(".")[-1],
     }
+
+
+def _feature_overflow_sentinel() -> Any:
+    return SimpleNamespace(
+        extraction_class=_FEATURE_OVERFLOW_CLASS,
+        extraction_text=None,
+        attributes=None,
+        char_interval=SimpleNamespace(start_pos=None, end_pos=None),
+        alignment_status=SimpleNamespace(name=None),
+    )
 
 
 def _extraction_from_payload(payload: Any) -> Any:

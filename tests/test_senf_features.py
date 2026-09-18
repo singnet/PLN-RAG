@@ -18,6 +18,8 @@ from core.senf.features import (
     CoreferenceEvidence,
     ExactSpan,
     FeatureBatch,
+    FeatureRejection,
+    FeatureValidation,
     SpanFeature,
     validate_feature_batch,
 )
@@ -86,14 +88,19 @@ def test_binding_rejects_ambiguous_exact_mentions():
     assert result.rejected[0].reason == "ambiguous exact mention span"
 
 
-def test_optional_provider_is_noop_and_fail_open():
+def test_optional_provider_is_noop_and_fail_open(caplog):
     class BrokenProvider:
         def provide(self, source_text):
-            raise RuntimeError("offline")
+            raise RuntimeError("offline token=super-secret")
 
     assert provide_features("text").accepted == FeatureBatch.empty()
     assert NoOpFeatureProvider().provide("text") == FeatureBatch.empty()
-    assert FailOpenFeatureProvider(BrokenProvider()).provide("text") == FeatureBatch.empty()
+    result = FailOpenFeatureProvider(BrokenProvider()).provide("text")
+    assert result.accepted == FeatureBatch.empty()
+    assert result.rejected[0].category == "provider"
+    assert result.rejected[0].reason == "feature provider failed"
+    assert "super-secret" not in caplog.text
+    assert "RuntimeError" in caplog.text
 
 
 def test_fail_open_rejects_wrong_provider_return_type():
@@ -102,6 +109,60 @@ def test_fail_open_rejects_wrong_provider_return_type():
             return {"canonical_symbol": "provider_must_not_own_this"}
 
     assert provide_features("text", MalformedProvider()).accepted == FeatureBatch.empty()
+
+
+def test_provider_validation_is_preserved_and_accepted_batch_is_revalidated():
+    invalid = SpanFeature(ExactSpan(0, 4, "text"), "mention_type", "common")
+
+    class ValidatedProvider:
+        def provide(self, source_text):
+            return FeatureValidation(
+                FeatureBatch((invalid,)),
+                (FeatureRejection("LangExtract", 7, "feature limit exceeded"),),
+            )
+
+    result = provide_features("different", ValidatedProvider())
+
+    assert result.accepted == FeatureBatch.empty()
+    assert [item.reason for item in result.rejected] == [
+        "feature limit exceeded",
+        "span does not exactly match source",
+    ]
+    assert result.rejected[0].category == "langextract"
+
+
+def test_provider_rejection_text_is_redacted_and_malformed_entries_are_dropped():
+    class UntrustedProvider:
+        def provide(self, source_text):
+            return FeatureValidation(
+                FeatureBatch.empty(),
+                (
+                    FeatureRejection("Custom-Provider", 4, "token=super-secret"),
+                    {"reason": "token=another-secret"},
+                    FeatureRejection("provider", -1, "token=third-secret"),
+                ),
+            )
+
+    result = provide_features("text", UntrustedProvider())
+
+    assert result.rejected == (
+        FeatureRejection("provider", 4, "provider rejection details redacted"),
+    )
+    assert "secret" not in repr(result)
+
+
+def test_combined_provider_rejections_are_bounded():
+    class NoisyProvider:
+        def provide(self, source_text):
+            return FeatureValidation(
+                FeatureBatch.empty(),
+                tuple(
+                    FeatureRejection("provider", i, "feature limit exceeded")
+                    for i in range(10)
+                ),
+            )
+
+    assert len(provide_features("text", NoisyProvider(), max_rejections=3).rejected) == 3
 
 
 def test_fail_open_does_not_hide_strict_replay_integrity_errors():
@@ -223,9 +284,27 @@ def test_langextract_provider_controls_exactness_and_max_features():
     provider = LangExtractFeatureProvider(
         lambda _: [fuzzy, exact], exact_only=False, max_features=1,
     )
-    assert provider.provide("She").features == (
+    assert provider.provide("She").accepted.features == (
         SpanFeature(ExactSpan(0, 3, "She"), "mention_type", "pronoun", 1.0, ("langextract",)),
     )
+
+
+def test_langextract_provider_bounds_an_unbounded_injected_iterable():
+    exact = _extraction(
+        "senf_feature", "She", 0, 3,
+        {"name": "mention_type", "value": "pronoun"},
+    )
+
+    def unbounded(_):
+        while True:
+            yield exact
+
+    result = LangExtractFeatureProvider(unbounded, max_features=2).provide("She")
+
+    assert len(result.accepted.features) == 2
+    assert [(item.index, item.reason) for item in result.rejected] == [
+        (2, "feature limit exceeded")
+    ]
 
 
 def test_langextract_timeout_terminates_worker_process():
