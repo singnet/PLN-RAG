@@ -65,6 +65,10 @@ class ReasonResponse(BaseModel):
     candidate_count: Optional[int] = None  # total candidates available
     candidate_count_tried: Optional[int] = None
     executed_candidate_index: Optional[int] = None
+    successful_candidate_index: Optional[int] = None
+    execution_policy: Optional[str] = None
+    attempted_candidate_indices: Optional[List[Optional[int]]] = None
+    attempted_queries: Optional[List[str]] = None
     retry_used: Optional[bool] = None
 
     # Optional query path timings (seconds)

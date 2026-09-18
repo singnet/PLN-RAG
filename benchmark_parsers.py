@@ -140,6 +140,50 @@ def _is_truthy(value: Any) -> bool:
 
 ACTIVE_PARSERS = ("nl2pln", "canonical_pln")
 _BASE_COUNTERFACTUAL_ENV = os.environ.get("SENF_COUNTERFACTUAL_ENABLED")
+_BASE_EXECUTION_POLICY_ENV = os.environ.get("QUERY_EXECUTION_POLICY")
+QUERY_POLICY_SETTINGS = {
+    "ANSWER_GENERATION_ENABLED": "false",
+    "SOURCE_LOOKUP_MAX_ATOMS": "0",
+    "QUERY_CANDIDATE_MAX_TRIES": "5",
+    "CHUNK_SIZE": "512",
+    "CHUNK_OVERLAP": "64",
+    "CONTEXT_TOP_K": "10",
+    "PARSER_BATCH_SENTENCES": "4",
+    "PARSER_BATCH_MAX_CHARS": "2000",
+    "CHAINING_TIMEOUT": "30",
+    "CHAINING_MAX_STEPS": "100",
+    "SENF_IDENTITY_THRESHOLD": "0.75",
+    "SENF_CONTEXT_TOP_K": "10",
+    "SENF_SESSION_MAX_FRAMES": "200",
+    "SENF_USE_VECTOR_CONTEXT": "false",
+    "SENF_EXEMPLAR_ENABLED": "true",
+    "SENF_EMIT_BRIDGE_ATOMS": "false",
+    "SENF_WEAVE_TOP_K": "3",
+    "SENF_QUERY_MAX_PRIORS": "16",
+    "SENF_QUERY_MAX_SOURCE_FRAMES": "128",
+    "SENF_QUERY_MAX_MENTIONS": "256",
+    "SENF_QUERY_MAX_CANDIDATE_WORK": "32",
+    "SENF_WEAVE_PER_SOURCE_K": "3",
+    "SENF_WEAVE_BEAM_WIDTH": "32",
+    "SENF_WEAVE_MAX_FRAMES": "64",
+    "SENF_WEAVE_MAX_PAIR_CANDIDATES": "256",
+    "SENF_WEAVE_MAX_EXEMPLAR_ALTERNATIVES": "4",
+    "SENF_WEAVE_MAX_COST": "2.0",
+    "SENF_SOURCE_GROUNDING_WEIGHT": "3",
+    "SENF_ROLE_COMPAT_WEIGHT": "2",
+    "SENF_DISTORTION_WEIGHT": "0",
+    "SENF_IDENTITY_SUPPORT_WEIGHT": "2",
+    "SENF_EXEMPLAR_COHERENCE_WEIGHT": "2",
+    "SENF_CONFLICT_WEIGHT": "3",
+    "SENF_TRANSPORT_COST_WEIGHT": "2",
+    "SENF_BRANCH_MAX_NODES": "64",
+    "SENF_BRANCH_MAX_DEPTH": "16",
+    "SENF_BRANCH_MAX_THEORY_STATEMENTS": "128",
+    "SENF_TEMPORAL_DECAY_RATE": "0.01",
+}
+_BASE_QUERY_POLICY_SETTINGS = {
+    key: os.environ.get(key) for key in QUERY_POLICY_SETTINGS
+}
 PARSER_ARMS: dict[str, dict[str, Any]] = {
     "canonical_senf_pln_stage6": {
         "parser": "canonical_senf_pln",
@@ -148,6 +192,24 @@ PARSER_ARMS: dict[str, dict[str, Any]] = {
     "canonical_senf_pln_stage7": {
         "parser": "canonical_senf_pln",
         "senf_counterfactual_enabled": True,
+    },
+    "canonical_senf_pln_stage7_ranked_first_proof": {
+        "parser": "canonical_senf_pln",
+        "senf_counterfactual_enabled": True,
+        "query_execution_policy": "ranked_first_proof",
+        "settings": QUERY_POLICY_SETTINGS,
+    },
+    "canonical_senf_pln_stage7_ranked_first_only": {
+        "parser": "canonical_senf_pln",
+        "senf_counterfactual_enabled": True,
+        "query_execution_policy": "ranked_first_only",
+        "settings": QUERY_POLICY_SETTINGS,
+    },
+    "canonical_senf_pln_stage7_original_only": {
+        "parser": "canonical_senf_pln",
+        "senf_counterfactual_enabled": True,
+        "query_execution_policy": "original_only",
+        "settings": QUERY_POLICY_SETTINGS,
     },
 }
 AVAILABLE_PARSERS = (
@@ -351,14 +413,33 @@ def _get_parser_factory(name: str):
 
 
 def _configure_parser_arm(name: str) -> None:
-    enabled = PARSER_ARMS.get(name, {}).get("senf_counterfactual_enabled")
+    arm = PARSER_ARMS.get(name, {})
+    enabled = arm.get("senf_counterfactual_enabled")
     if enabled is None:
         if _BASE_COUNTERFACTUAL_ENV is None:
             os.environ.pop("SENF_COUNTERFACTUAL_ENABLED", None)
         else:
             os.environ["SENF_COUNTERFACTUAL_ENABLED"] = _BASE_COUNTERFACTUAL_ENV
-        return
-    os.environ["SENF_COUNTERFACTUAL_ENABLED"] = "true" if enabled else "false"
+    else:
+        os.environ["SENF_COUNTERFACTUAL_ENABLED"] = "true" if enabled else "false"
+
+    policy = arm.get("query_execution_policy")
+    if policy is None:
+        if _BASE_EXECUTION_POLICY_ENV is None:
+            os.environ.pop("QUERY_EXECUTION_POLICY", None)
+        else:
+            os.environ["QUERY_EXECUTION_POLICY"] = _BASE_EXECUTION_POLICY_ENV
+    else:
+        os.environ["QUERY_EXECUTION_POLICY"] = policy
+
+    overrides = arm.get("settings") or {}
+    for key, base_value in _BASE_QUERY_POLICY_SETTINGS.items():
+        if key in overrides:
+            os.environ[key] = overrides[key]
+        elif base_value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = base_value
 
 
 def _parser_arm_metadata(name: str) -> dict[str, Any]:
@@ -366,6 +447,10 @@ def _parser_arm_metadata(name: str) -> dict[str, Any]:
     return {
         "parser": arm.get("parser", name),
         "senf_counterfactual_enabled": arm.get("senf_counterfactual_enabled"),
+        "query_execution_policy": arm.get("query_execution_policy"),
+        "settings": {
+            key.lower(): value for key, value in (arm.get("settings") or {}).items()
+        },
     }
 
 
@@ -562,6 +647,10 @@ async def _benchmark_case(
                     "candidate_count": query_response.candidate_count,
                     "candidate_count_tried": query_response.candidate_count_tried,
                     "executed_candidate_index": query_response.executed_candidate_index,
+                    "successful_candidate_index": query_response.successful_candidate_index,
+                    "execution_policy": query_response.execution_policy,
+                    "attempted_candidate_indices": query_response.attempted_candidate_indices,
+                    "attempted_queries": query_response.attempted_queries,
                     "retry_used": query_response.retry_used,
                     "context_retrieval_seconds": query_response.context_retrieval_seconds,
                     "parse_query_seconds": query_response.parse_query_seconds,
@@ -658,6 +747,10 @@ async def _benchmark_case_with_service(
                 "candidate_count": query_response.candidate_count,
                 "candidate_count_tried": query_response.candidate_count_tried,
                 "executed_candidate_index": query_response.executed_candidate_index,
+                "successful_candidate_index": query_response.successful_candidate_index,
+                "execution_policy": query_response.execution_policy,
+                "attempted_candidate_indices": query_response.attempted_candidate_indices,
+                "attempted_queries": query_response.attempted_queries,
                 "retry_used": query_response.retry_used,
                 "context_retrieval_seconds": query_response.context_retrieval_seconds,
                 "parse_query_seconds": query_response.parse_query_seconds,
@@ -941,6 +1034,10 @@ async def main() -> int:
         help="Replay raw canonical NL2PLN calls without using the LLM",
     )
     cli.add_argument(
+        "--expected-generation-tape-sha256",
+        help="Require the capture/replay tape to have this SHA-256",
+    )
+    cli.add_argument(
         "--limit",
         type=int,
         default=0,
@@ -953,6 +1050,15 @@ async def main() -> int:
         cli.error("generation capture/replay currently supports isolated mode only")
     if args.capture_generation_tape and args.parsers != ["canonical_pln"]:
         cli.error("generation capture requires --parsers canonical_pln")
+    if args.expected_generation_tape_sha256 and not args.replay_generation_tape:
+        cli.error("--expected-generation-tape-sha256 requires replay mode")
+    if args.expected_generation_tape_sha256 and args.replay_generation_tape:
+        actual_tape_hash = file_hash(args.replay_generation_tape)
+        if actual_tape_hash != args.expected_generation_tape_sha256:
+            cli.error(
+                "generation tape SHA-256 mismatch: "
+                f"expected {args.expected_generation_tape_sha256}, got {actual_tape_hash}"
+            )
     if args.replay_generation_tape and any(
         _parser_arm_metadata(name)["parser"]
         not in {"canonical_pln", "canonical_senf_pln"}

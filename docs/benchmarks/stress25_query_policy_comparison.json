@@ -1,0 +1,1884 @@
+{
+  "comparison_schema_version": 1,
+  "suite": "stress25_v1",
+  "run_id": "913ce90c",
+  "generation_tape_sha256": "9cac194f1f7534ee3b1130f26d66b4fdd76b8873458900cf8eff74cfa5920fe2",
+  "policies": {
+    "ranked_first_proof": "canonical_senf_pln_stage7_ranked_first_proof",
+    "ranked_first_only": "canonical_senf_pln_stage7_ranked_first_only",
+    "original_only": "canonical_senf_pln_stage7_original_only"
+  },
+  "settings": {
+    "answer_generation_enabled": "false",
+    "source_lookup_max_atoms": "0",
+    "query_candidate_max_tries": "5",
+    "chunk_size": "512",
+    "chunk_overlap": "64",
+    "context_top_k": "10",
+    "parser_batch_sentences": "4",
+    "parser_batch_max_chars": "2000",
+    "chaining_timeout": "30",
+    "chaining_max_steps": "100",
+    "senf_identity_threshold": "0.75",
+    "senf_context_top_k": "10",
+    "senf_session_max_frames": "200",
+    "senf_use_vector_context": "false",
+    "senf_exemplar_enabled": "true",
+    "senf_emit_bridge_atoms": "false",
+    "senf_weave_top_k": "3",
+    "senf_query_max_priors": "16",
+    "senf_query_max_source_frames": "128",
+    "senf_query_max_mentions": "256",
+    "senf_query_max_candidate_work": "32",
+    "senf_weave_per_source_k": "3",
+    "senf_weave_beam_width": "32",
+    "senf_weave_max_frames": "64",
+    "senf_weave_max_pair_candidates": "256",
+    "senf_weave_max_exemplar_alternatives": "4",
+    "senf_weave_max_cost": "2.0",
+    "senf_source_grounding_weight": "3",
+    "senf_role_compat_weight": "2",
+    "senf_distortion_weight": "0",
+    "senf_identity_support_weight": "2",
+    "senf_exemplar_coherence_weight": "2",
+    "senf_conflict_weight": "3",
+    "senf_transport_cost_weight": "2",
+    "senf_branch_max_nodes": "64",
+    "senf_branch_max_depth": "16",
+    "senf_branch_max_theory_statements": "128",
+    "senf_temporal_decay_rate": "0.01"
+  },
+  "summary": {
+    "ranked_first_proof": {
+      "cases": 25,
+      "proof_found": 22,
+      "automatic_correct": 8,
+      "average_candidates_tried": 1.16
+    },
+    "ranked_first_only": {
+      "cases": 25,
+      "proof_found": 22,
+      "automatic_correct": 8,
+      "average_candidates_tried": 1.0
+    },
+    "original_only": {
+      "cases": 25,
+      "proof_found": 15,
+      "automatic_correct": 1,
+      "average_candidates_tried": 1.0
+    }
+  },
+  "automatic_discordance": {
+    "both_automatic_correct": 1,
+    "current_only_automatic_correct": 7,
+    "neither_automatic_correct": 17
+  },
+  "changed_case_count": 20,
+  "ingest_rejection_cases": [
+    "S07"
+  ],
+  "cases": [
+    {
+      "case_id": "A01",
+      "question": "Did the digital diabetes logbook improve glycemic control?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.5,
+          "answer_reason": "1/2 slots [any]: optimal_glycemic_control; verdict positive: ok",
+          "original_query": "(: $prf (Improve glycemic_control) $tv)",
+          "executed_query": "(: $prf (Achieve optimal_glycemic_control) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: (merge/revision (logbook_usage_rule (conjunction materialized_use_fact materialized_increase_fact)) (optimal_glycemic_control_rule (conjunction materialized_use_fact materialized_increase_fact))) (Achieve optimal_glycemic_control) (STV 1.0 0.9996501220202653))']",
+          "proof_conclusions": [
+            "(Achieve optimal_glycemic_control)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.5,
+          "answer_reason": "1/2 slots [any]: optimal_glycemic_control; verdict positive: ok",
+          "original_query": "(: $prf (Improve glycemic_control) $tv)",
+          "executed_query": "(: $prf (Achieve optimal_glycemic_control) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: (merge/revision (logbook_usage_rule (conjunction materialized_use_fact materialized_increase_fact)) (optimal_glycemic_control_rule (conjunction materialized_use_fact materialized_increase_fact))) (Achieve optimal_glycemic_control) (STV 1.0 0.9996501220202653))']",
+          "proof_conclusions": [
+            "(Achieve optimal_glycemic_control)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.5,
+          "answer_reason": "1/2 slots [any]: glycemic_control; verdict positive: ok",
+          "original_query": "(: $prf (Improve glycemic_control) $tv)",
+          "executed_query": "(: $prf (Improve glycemic_control) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (merge/revision (digital_tool_effect (conjunction materialized_reduce_fact materialized_help_fact)) (glycemic_control_rule (conjunction materialized_reduce_fact materialized_help_fact))) (Improve glycemic_control) (STV 1.0 0.9996501220202653))']",
+          "proof_conclusions": [
+            "(Improve glycemic_control)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            1
+          ],
+          "successful_candidate_index": 1
+        }
+      }
+    },
+    {
+      "case_id": "A02",
+      "question": "Did the IoT-based intervention reduce HbA1c?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/1 slots [any]: none; verdict negative: unmet",
+          "original_query": "(: $prf (HbA1CChange trial over_52_week) $tv)",
+          "executed_query": "(: $prf (ExaminedEffect trial iot_effect) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_examined_effect_fact (ExaminedEffect trial iot_effect) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(ExaminedEffect trial iot_effect)"
+          ],
+          "candidate_count": 4,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/1 slots [any]: none; verdict negative: unmet",
+          "original_query": "(: $prf (HbA1CChange trial over_52_week) $tv)",
+          "executed_query": "(: $prf (ExaminedEffect trial iot_effect) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_examined_effect_fact (ExaminedEffect trial iot_effect) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(ExaminedEffect trial iot_effect)"
+          ],
+          "candidate_count": 4,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/1 slots [any]: none; verdict negative: unmet",
+          "original_query": "(: $prf (HbA1CChange trial over_52_week) $tv)",
+          "executed_query": "(: $prf (HbA1CChange trial over_52_week) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (primary_endpoint materialized_examined_effect_fact) (HbA1CChange trial over_52_week) (STV 1.0 0.9998000398670517))']",
+          "proof_conclusions": [
+            "(HbA1CChange trial over_52_week)"
+          ],
+          "candidate_count": 4,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            3
+          ],
+          "successful_candidate_index": 3
+        }
+      }
+    },
+    {
+      "case_id": "A03",
+      "question": "What does Cas9-AAV6 correction improve in sickle cell disease cells?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (StableHemoglobinProduction $cells) $tv)",
+          "executed_query": "(: $prf (Increased chimerism) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_increased_fact (Increased chimerism) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Increased chimerism)"
+          ],
+          "candidate_count": 4,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (StableHemoglobinProduction $cells) $tv)",
+          "executed_query": "(: $prf (Increased chimerism) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_increased_fact (Increased chimerism) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Increased chimerism)"
+          ],
+          "candidate_count": 4,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (StableHemoglobinProduction $cells) $tv)",
+          "executed_query": "(: $prf (StableHemoglobinProduction $cells) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 4,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            3
+          ],
+          "successful_candidate_index": null
+        }
+      }
+    },
+    {
+      "case_id": "A04",
+      "question": "How does semaglutide compare with other GLP-1 receptor agonists?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.25,
+          "answer_reason": "1/4 slots [any]: hba1c",
+          "original_query": "(: $prf (CompareEffectiveness semaglutide other_glp1_receptor_agonist) $tv)",
+          "executed_query": "(: $prf (Decreases hba1c) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_decreas_fact (Decreases hba1c) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Decreases hba1c)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.25,
+          "answer_reason": "1/4 slots [any]: hba1c",
+          "original_query": "(: $prf (CompareEffectiveness semaglutide other_glp1_receptor_agonist) $tv)",
+          "executed_query": "(: $prf (Decreases hba1c) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_decreas_fact (Decreases hba1c) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Decreases hba1c)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (CompareEffectiveness semaglutide other_glp1_receptor_agonist) $tv)",
+          "executed_query": "(: $prf (CompareEffectiveness semaglutide other_glp1_receptor_agonist) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            4
+          ],
+          "successful_candidate_index": null
+        }
+      }
+    },
+    {
+      "case_id": "A05",
+      "question": "Which treatments are compared for reducing cardiovascular events?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "strength 0.0 (asserts negation); 0/3 slots [any]: none",
+          "original_query": "(: $prf (ReducesMACE {liraglutide,) $tv)",
+          "executed_query": "(: $prf (ReducesMACE tirzepatide}) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: (merge/revision (incident_mace_rule cpu) (efficacy_rule cpu)) (ReducesMACE tirzepatide}) (STV 0.0 1.9999980000019997e-06))']",
+          "proof_conclusions": [
+            "(ReducesMACE tirzepatide})"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "strength 0.0 (asserts negation); 0/3 slots [any]: none",
+          "original_query": "(: $prf (ReducesMACE {liraglutide,) $tv)",
+          "executed_query": "(: $prf (ReducesMACE tirzepatide}) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: (merge/revision (incident_mace_rule cpu) (efficacy_rule cpu)) (ReducesMACE tirzepatide}) (STV 0.0 1.9999980000019997e-06))']",
+          "proof_conclusions": [
+            "(ReducesMACE tirzepatide})"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "strength 0.0 (asserts negation); 0/3 slots [any]: none",
+          "original_query": "(: $prf (ReducesMACE {liraglutide,) $tv)",
+          "executed_query": "(: $prf (ReducesMACE {liraglutide,) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (efficacy_rule cpu) (ReducesMACE {liraglutide,) (STV 0.0 1.0e-06))']",
+          "proof_conclusions": [
+            "(ReducesMACE {liraglutide,)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            4
+          ],
+          "successful_candidate_index": 4
+        }
+      }
+    },
+    {
+      "case_id": "A06",
+      "question": "How does serafilcon A compare with other reusable silicone hydrogel lens materials?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.3333,
+          "answer_reason": "1/3 slots [any]: friction",
+          "original_query": "(: $prf (EvaluateWettabilityFriction serafilcon_a) $tv)",
+          "executed_query": "(: $prf (Measured coefficient friction) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: (measure_coefficient_rule materialized_is_a_fact) (Measured coefficient friction) (STV 1.0 0.9998000398670517))']",
+          "proof_conclusions": [
+            "(Measured coefficient friction)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.3333,
+          "answer_reason": "1/3 slots [any]: friction",
+          "original_query": "(: $prf (EvaluateWettabilityFriction serafilcon_a) $tv)",
+          "executed_query": "(: $prf (Measured coefficient friction) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: (measure_coefficient_rule materialized_is_a_fact) (Measured coefficient friction) (STV 1.0 0.9998000398670517))']",
+          "proof_conclusions": [
+            "(Measured coefficient friction)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (EvaluateWettabilityFriction serafilcon_a) $tv)",
+          "executed_query": "(: $prf (EvaluateWettabilityFriction serafilcon_a) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            4
+          ],
+          "successful_candidate_index": null
+        }
+      }
+    },
+    {
+      "case_id": "A07",
+      "question": "Does the abstract claim a causal role for gut microbiome in colorectal cancer?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (Unclear gut_microbiome crc) $tv)",
+          "executed_query": "(: $prf (Role gut_microbiome) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_role_fact (Role gut_microbiome) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Role gut_microbiome)"
+          ],
+          "candidate_count": 2,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (Unclear gut_microbiome crc) $tv)",
+          "executed_query": "(: $prf (Role gut_microbiome) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_role_fact (Role gut_microbiome) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Role gut_microbiome)"
+          ],
+          "candidate_count": 2,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (Unclear gut_microbiome crc) $tv)",
+          "executed_query": "(: $prf (Unclear gut_microbiome crc) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (merge/revision (unclear_role_rule materialized_role_fact) (sensitivity_analysis_rule cpu)) (Unclear gut_microbiome crc) (STV 0.9999999997999997 0.9998000398670916))']",
+          "proof_conclusions": [
+            "(Unclear gut_microbiome crc)"
+          ],
+          "candidate_count": 2,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            1
+          ],
+          "successful_candidate_index": 1
+        }
+      }
+    },
+    {
+      "case_id": "A08",
+      "question": "How can microbiota affect inflammation?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (Effects inflammation microbiota) $tv)",
+          "executed_query": "(: $prf (Understood contribution microbiota physiology) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_understood_fact (Understood contribution microbiota physiology) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Understood contribution microbiota physiology)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (Effects inflammation microbiota) $tv)",
+          "executed_query": "(: $prf (Understood contribution microbiota physiology) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_understood_fact (Understood contribution microbiota physiology) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Understood contribution microbiota physiology)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (Effects inflammation microbiota) $tv)",
+          "executed_query": "(: $prf (Effects inflammation microbiota) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (bioactive_molecule_rule materialized_identified_fact) (Effects inflammation microbiota) (STV 1.0 0.9998000398670517))']",
+          "proof_conclusions": [
+            "(Effects inflammation microbiota)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            3
+          ],
+          "successful_candidate_index": 3
+        }
+      }
+    },
+    {
+      "case_id": "A09",
+      "question": "Why does sodium heparin improve perovskite solar cells?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.3333,
+          "answer_reason": "1/3 slots [any]: bridge_layer",
+          "original_query": "(: $prf (EnhanceBonding heparin_sodium) $tv)",
+          "executed_query": "(: $prf (BridgeLayer heparin_sodium) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: heparin_sodium_bridge (BridgeLayer heparin_sodium) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(BridgeLayer heparin_sodium)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.3333,
+          "answer_reason": "1/3 slots [any]: bridge_layer",
+          "original_query": "(: $prf (EnhanceBonding heparin_sodium) $tv)",
+          "executed_query": "(: $prf (BridgeLayer heparin_sodium) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: heparin_sodium_bridge (BridgeLayer heparin_sodium) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(BridgeLayer heparin_sodium)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none",
+          "original_query": "(: $prf (EnhanceBonding heparin_sodium) $tv)",
+          "executed_query": "(: $prf (EnhanceBonding heparin_sodium) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (heparin_bonding_rule (conjunction heparin_sodium_bridge heparin_functional_group)) (EnhanceBonding heparin_sodium) (STV 1.0 0.9999000098390023))']",
+          "proof_conclusions": [
+            "(EnhanceBonding heparin_sodium)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            3
+          ],
+          "successful_candidate_index": 3
+        }
+      }
+    },
+    {
+      "case_id": "A10",
+      "question": "Which biomarkers predict COVID-19 severity?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/5 slots [any]: none",
+          "original_query": "(: $prf (PredictSeverity $patient) $tv)",
+          "executed_query": "(: $prf (DeterminedRiskFactors study) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_determined_risk_factor_fact (DeterminedRiskFactors study) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(DeterminedRiskFactors study)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/5 slots [any]: none",
+          "original_query": "(: $prf (PredictSeverity $patient) $tv)",
+          "executed_query": "(: $prf (DeterminedRiskFactors study) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_determined_risk_factor_fact (DeterminedRiskFactors study) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(DeterminedRiskFactors study)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/5 slots [any]: none",
+          "original_query": "(: $prf (PredictSeverity $patient) $tv)",
+          "executed_query": "(: $prf (PredictSeverity $patient) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (biomarker_predict_rule (conjunction d_dimer_biomarker crp_biomarker ldh_biomarker alt_biomarker neutrophil_biomarker)) (PredictSeverity patient) (STV 1.0 0.999400358910178))']",
+          "proof_conclusions": [
+            "(PredictSeverity patient)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            4
+          ],
+          "successful_candidate_index": 4
+        }
+      }
+    },
+    {
+      "case_id": "A11",
+      "question": "Can serological inflammation indicators predict COVID-19 severity?",
+      "outputs_changed": false,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none; verdict positive: ok",
+          "original_query": "(: $prf (HasCondition patient severe_covid) $tv)",
+          "executed_query": "(: $prf (HasCondition patient severe_covid) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: materialized_has_condition_fact (HasCondition patient severe_covid) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(HasCondition patient severe_covid)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none; verdict positive: ok",
+          "original_query": "(: $prf (HasCondition patient severe_covid) $tv)",
+          "executed_query": "(: $prf (HasCondition patient severe_covid) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: materialized_has_condition_fact (HasCondition patient severe_covid) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(HasCondition patient severe_covid)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none; verdict positive: ok",
+          "original_query": "(: $prf (HasCondition patient severe_covid) $tv)",
+          "executed_query": "(: $prf (HasCondition patient severe_covid) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: materialized_has_condition_fact (HasCondition patient severe_covid) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(HasCondition patient severe_covid)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        }
+      }
+    },
+    {
+      "case_id": "A12",
+      "question": "What does contact angle indicate about hydrophilicity or hydrophobicity?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none",
+          "original_query": "(: $prf (HydrophilicHydrophobicDistinction $contact_angle) $tv)",
+          "executed_query": "(: $prf (ControlSurfaceWettabilityAndRoughness study surface) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_control_surface_wettability_and_roughness_fact (ControlSurfaceWettabilityAndRoughness study surface) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(ControlSurfaceWettabilityAndRoughness study surface)"
+          ],
+          "candidate_count": 3,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none",
+          "original_query": "(: $prf (HydrophilicHydrophobicDistinction $contact_angle) $tv)",
+          "executed_query": "(: $prf (ControlSurfaceWettabilityAndRoughness study surface) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_control_surface_wettability_and_roughness_fact (ControlSurfaceWettabilityAndRoughness study surface) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(ControlSurfaceWettabilityAndRoughness study surface)"
+          ],
+          "candidate_count": 3,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (HydrophilicHydrophobicDistinction $contact_angle) $tv)",
+          "executed_query": "(: $prf (HydrophilicHydrophobicDistinction $contact_angle) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 3,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            2
+          ],
+          "successful_candidate_index": null
+        }
+      }
+    },
+    {
+      "case_id": "A13",
+      "question": "Why is comparing perovskite stability difficult?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (DifficultiesInComparingStabilityData $device) $tv)",
+          "executed_query": "(: $prf (EnablesComparison device) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_enable_comparison_fact (EnablesComparison device) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(EnablesComparison device)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (DifficultiesInComparingStabilityData $device) $tv)",
+          "executed_query": "(: $prf (EnablesComparison device) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_enable_comparison_fact (EnablesComparison device) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(EnablesComparison device)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (DifficultiesInComparingStabilityData $device) $tv)",
+          "executed_query": "(: $prf (DifficultiesInComparingStabilityData $device) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (stability_issue (conjunction materialized_stability_fact materialized_restrict_commercialization_fact)) (DifficultiesInComparingStabilityData device) (STV 1.0 0.999700089698173))']",
+          "proof_conclusions": [
+            "(DifficultiesInComparingStabilityData device)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            4
+          ],
+          "successful_candidate_index": 4
+        }
+      }
+    },
+    {
+      "case_id": "A14",
+      "question": "What relationship is reported between efficiency and stability?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (HigherEfficiencyAlsoHigherStability $efficiency) $tv)",
+          "executed_query": "(: $prf (Analyze mppt_data) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: (mppt_data_analysis_rule (conjunction materialized_is_a_fact materialized_collected_with_fact)) (Analyze mppt_data) (STV 1.0 0.999700089698173))']",
+          "proof_conclusions": [
+            "(Analyze mppt_data)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (HigherEfficiencyAlsoHigherStability $efficiency) $tv)",
+          "executed_query": "(: $prf (Analyze mppt_data) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: (mppt_data_analysis_rule (conjunction materialized_is_a_fact materialized_collected_with_fact)) (Analyze mppt_data) (STV 1.0 0.999700089698173))']",
+          "proof_conclusions": [
+            "(Analyze mppt_data)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (HigherEfficiencyAlsoHigherStability $efficiency) $tv)",
+          "executed_query": "(: $prf (HigherEfficiencyAlsoHigherStability $efficiency) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (efficiency_stability_rule (conjunction materialized_max_power_conversion_efficiency_fact materialized_relative_pce_loss_after_ageing_fact)) (HigherEfficiencyAlsoHigherStability max_efficiency) (STV 1.0 0.999700089698173))']",
+          "proof_conclusions": [
+            "(HigherEfficiencyAlsoHigherStability max_efficiency)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            4
+          ],
+          "successful_candidate_index": 4
+        }
+      }
+    },
+    {
+      "case_id": "A15",
+      "question": "What methodological approaches help establish causality in microbiome research?",
+      "outputs_changed": false,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (GatherInsights diverse_range_of_stakeholder) $tv)",
+          "executed_query": "(: $prf (GatherInsights diverse_range_of_stakeholder) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (structured_approach_rule (conjunction materialized_adopt_fact materialized_encompass_fact)) (GatherInsights diverse_range_of_stakeholder) (STV 1.0 0.999700089698173))']",
+          "proof_conclusions": [
+            "(GatherInsights diverse_range_of_stakeholder)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (GatherInsights diverse_range_of_stakeholder) $tv)",
+          "executed_query": "(: $prf (GatherInsights diverse_range_of_stakeholder) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (structured_approach_rule (conjunction materialized_adopt_fact materialized_encompass_fact)) (GatherInsights diverse_range_of_stakeholder) (STV 1.0 0.999700089698173))']",
+          "proof_conclusions": [
+            "(GatherInsights diverse_range_of_stakeholder)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (GatherInsights diverse_range_of_stakeholder) $tv)",
+          "executed_query": "(: $prf (GatherInsights diverse_range_of_stakeholder) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (structured_approach_rule (conjunction materialized_adopt_fact materialized_encompass_fact)) (GatherInsights diverse_range_of_stakeholder) (STV 1.0 0.999700089698173))']",
+          "proof_conclusions": [
+            "(GatherInsights diverse_range_of_stakeholder)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        }
+      }
+    },
+    {
+      "case_id": "E01",
+      "question": "Why does Venus appear brighter than other planets?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.5,
+          "answer_reason": "1/2 slots [any]: highly_reflective_cloud",
+          "original_query": "(: $prf (Brighter venus) $tv)",
+          "executed_query": "(: $prf (Covered venus highly_reflective_cloud) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: venus_highly_reflective (Covered venus highly_reflective_cloud) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Covered venus highly_reflective_cloud)"
+          ],
+          "candidate_count": 3,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.5,
+          "answer_reason": "1/2 slots [any]: highly_reflective_cloud",
+          "original_query": "(: $prf (Brighter venus) $tv)",
+          "executed_query": "(: $prf (Covered venus highly_reflective_cloud) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: venus_highly_reflective (Covered venus highly_reflective_cloud) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Covered venus highly_reflective_cloud)"
+          ],
+          "candidate_count": 3,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (Brighter venus) $tv)",
+          "executed_query": "(: $prf (Brighter venus) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 3,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            2
+          ],
+          "successful_candidate_index": null
+        }
+      }
+    },
+    {
+      "case_id": "E02",
+      "question": "During which month does New York State have the greatest daylight?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 1.0,
+          "answer_reason": "1/1 slots [all]: june",
+          "original_query": "(: $prf (Greatest daylight $month) $tv)",
+          "executed_query": "(: $prf (InSeason june summer) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: (june_summer_rule (merge/revision june_in_summer materialized_is_a_fact)) (InSeason june summer) (STV 1.0 0.9998000348690448))']",
+          "proof_conclusions": [
+            "(InSeason june summer)"
+          ],
+          "candidate_count": 3,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 1.0,
+          "answer_reason": "1/1 slots [all]: june",
+          "original_query": "(: $prf (Greatest daylight $month) $tv)",
+          "executed_query": "(: $prf (InSeason june summer) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: (june_summer_rule (merge/revision june_in_summer materialized_is_a_fact)) (InSeason june summer) (STV 1.0 0.9998000348690448))']",
+          "proof_conclusions": [
+            "(InSeason june summer)"
+          ],
+          "candidate_count": 3,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/1 slots [all]: none",
+          "original_query": "(: $prf (Greatest daylight $month) $tv)",
+          "executed_query": "(: $prf (Greatest daylight $month) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (daylight_greatest_summer_rule materialized_in_season_fact) (Greatest daylight summer) (STV 1.0 0.9998000398670517))']",
+          "proof_conclusions": [
+            "(Greatest daylight summer)"
+          ],
+          "candidate_count": 3,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            2
+          ],
+          "successful_candidate_index": 2
+        }
+      }
+    },
+    {
+      "case_id": "E03",
+      "question": "Why does the Sun appear brighter than the stars seen in the night sky?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.5,
+          "answer_reason": "1/2 slots [any]: closest",
+          "original_query": "(: $prf (WillAppearBrighter sun) $tv)",
+          "executed_query": "(: $prf (Closest sun earth) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_closest_fact (Closest sun earth) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Closest sun earth)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.5,
+          "answer_reason": "1/2 slots [any]: closest",
+          "original_query": "(: $prf (WillAppearBrighter sun) $tv)",
+          "executed_query": "(: $prf (Closest sun earth) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_closest_fact (Closest sun earth) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Closest sun earth)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (WillAppearBrighter sun) $tv)",
+          "executed_query": "(: $prf (WillAppearBrighter sun) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            4
+          ],
+          "successful_candidate_index": null
+        }
+      }
+    },
+    {
+      "case_id": "S01",
+      "question": "What role does sodium heparin play in perovskite solar cells?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none",
+          "original_query": "(: $prf (Links sodium_heparin $mechanism) $tv)",
+          "executed_query": "(: $prf (Reported sodium_heparin additive_strategy) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_reported_fact (Reported sodium_heparin additive_strategy) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Reported sodium_heparin additive_strategy)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none",
+          "original_query": "(: $prf (Links sodium_heparin $mechanism) $tv)",
+          "executed_query": "(: $prf (Reported sodium_heparin additive_strategy) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_reported_fact (Reported sodium_heparin additive_strategy) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Reported sodium_heparin additive_strategy)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none",
+          "original_query": "(: $prf (Links sodium_heparin $mechanism) $tv)",
+          "executed_query": "(: $prf (Links sodium_heparin $mechanism) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: materialized_link_fact (Links sodium_heparin mechanism) (STV 1.0 1.0))', '(: (sodium_heparin_link materialized_reported_fact) (Links sodium_heparin interface_defect_passivation) (STV 1.0 0.9998000398670517))']",
+          "proof_conclusions": [
+            "(Links sodium_heparin mechanism)",
+            "(Links sodium_heparin interface_defect_passivation)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            4
+          ],
+          "successful_candidate_index": 4
+        }
+      }
+    },
+    {
+      "case_id": "S02",
+      "question": "Which blood markers are associated with severe COVID-19?",
+      "outputs_changed": false,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (Indicator $marker severity) $tv)",
+          "executed_query": "(: $prf (Indicator $marker severity) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 1,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": null
+        },
+        "ranked_first_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (Indicator $marker severity) $tv)",
+          "executed_query": "(: $prf (Indicator $marker severity) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 1,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": null
+        },
+        "original_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (Indicator $marker severity) $tv)",
+          "executed_query": "(: $prf (Indicator $marker severity) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 1,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": null
+        }
+      }
+    },
+    {
+      "case_id": "S03",
+      "question": "How does semaglutide compare with other GLP-1 receptor agonists?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none",
+          "original_query": "(: $prf (ProducesStrongGlycemicControl semaglutide relative_to $other_agent) $tv)",
+          "executed_query": "(: $prf (Used semaglutide type_diabetes) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_used_fact (Used semaglutide type_diabetes) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Used semaglutide type_diabetes)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none",
+          "original_query": "(: $prf (ProducesStrongGlycemicControl semaglutide relative_to $other_agent) $tv)",
+          "executed_query": "(: $prf (Used semaglutide type_diabetes) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_used_fact (Used semaglutide type_diabetes) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Used semaglutide type_diabetes)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/3 slots [any]: none",
+          "original_query": "(: $prf (ProducesStrongGlycemicControl semaglutide relative_to $other_agent) $tv)",
+          "executed_query": "(: $prf (ProducesStrongGlycemicControl semaglutide relative_to $other_agent) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: (semaglutide_comparative_effect (merge/revision semaglutide_type materialized_is_a_fact)) (ProducesStrongGlycemicControl semaglutide relative_to $_388856) (STV 1.0 0.9998000348690448))']",
+          "proof_conclusions": [
+            "(ProducesStrongGlycemicControl semaglutide relative_to $_388856)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            4
+          ],
+          "successful_candidate_index": 4
+        }
+      }
+    },
+    {
+      "case_id": "S04",
+      "question": "What does contact angle tell us about wettability?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (MeasurementOf contact_angle surface_wettability) $tv)",
+          "executed_query": "(: $prf (MeasurementOf contact_angle surface_wettability) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 5,
+          "candidate_count_tried": 5,
+          "attempted_candidate_indices": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "successful_candidate_index": null
+        },
+        "ranked_first_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (MeasurementOf contact_angle surface_wettability) $tv)",
+          "executed_query": "(: $prf (Hydrophilic contact_angle) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": null
+        },
+        "original_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (MeasurementOf contact_angle surface_wettability) $tv)",
+          "executed_query": "(: $prf (MeasurementOf contact_angle surface_wettability) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            4
+          ],
+          "successful_candidate_index": null
+        }
+      }
+    },
+    {
+      "case_id": "S05",
+      "question": "Is the gut microbiome causally linked to colorectal cancer?",
+      "outputs_changed": true,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.3333,
+          "answer_reason": "1/3 slots [any]: mixed",
+          "original_query": "(: $prf (Links many_study gut_microbiome_composition colorectal_cancer_risk) $tv)",
+          "executed_query": "(: $prf (EvidenceBase evidence mixed) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_evidence_base_fact (EvidenceBase evidence mixed) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(EvidenceBase evidence mixed)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": true,
+          "answer_score": 0.3333,
+          "answer_reason": "1/3 slots [any]: mixed",
+          "original_query": "(: $prf (Links many_study gut_microbiome_composition colorectal_cancer_risk) $tv)",
+          "executed_query": "(: $prf (EvidenceBase evidence mixed) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "['(: materialized_evidence_base_fact (EvidenceBase evidence mixed) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(EvidenceBase evidence mixed)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (Links many_study gut_microbiome_composition colorectal_cancer_risk) $tv)",
+          "executed_query": "(: $prf (Links many_study gut_microbiome_composition colorectal_cancer_risk) $tv)",
+          "query_status": "well_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            4
+          ],
+          "successful_candidate_index": null
+        }
+      }
+    },
+    {
+      "case_id": "S06",
+      "question": "Did the logbook improve diabetes control?",
+      "outputs_changed": false,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (Improves diabetes_control logbook) $tv)",
+          "executed_query": "(: $prf (Improves diabetes_control logbook) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: materialized_improve_fact (Improves diabetes_control logbook) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Improves diabetes_control logbook)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "ranked_first_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (Improves diabetes_control logbook) $tv)",
+          "executed_query": "(: $prf (Improves diabetes_control logbook) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: materialized_improve_fact (Improves diabetes_control logbook) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Improves diabetes_control logbook)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        },
+        "original_only": {
+          "proof_found": true,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "0/2 slots [any]: none",
+          "original_query": "(: $prf (Improves diabetes_control logbook) $tv)",
+          "executed_query": "(: $prf (Improves diabetes_control logbook) $tv)",
+          "query_status": "well_aligned",
+          "proof": "['(: materialized_improve_fact (Improves diabetes_control logbook) (STV 1.0 1.0))']",
+          "proof_conclusions": [
+            "(Improves diabetes_control logbook)"
+          ],
+          "candidate_count": 5,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": 0
+        }
+      }
+    },
+    {
+      "case_id": "S07",
+      "question": "Does higher efficiency imply better stability in perovskite cells?",
+      "outputs_changed": false,
+      "outcomes": {
+        "ranked_first_proof": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (StabilityFollowsEfficiency $study) $tv)",
+          "executed_query": "(: $prf (StabilityFollowsEfficiency $study) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 1,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": null
+        },
+        "ranked_first_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (StabilityFollowsEfficiency $study) $tv)",
+          "executed_query": "(: $prf (StabilityFollowsEfficiency $study) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 1,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": null
+        },
+        "original_only": {
+          "proof_found": false,
+          "answer_correct": false,
+          "answer_score": 0.0,
+          "answer_reason": "no proof",
+          "original_query": "(: $prf (StabilityFollowsEfficiency $study) $tv)",
+          "executed_query": "(: $prf (StabilityFollowsEfficiency $study) $tv)",
+          "query_status": "weakly_aligned",
+          "proof": "[]",
+          "proof_conclusions": [],
+          "candidate_count": 1,
+          "candidate_count_tried": 1,
+          "attempted_candidate_indices": [
+            0
+          ],
+          "successful_candidate_index": null
+        }
+      }
+    }
+  ],
+  "source_report": "parser_benchmark_stress25_v1_isolated_913ce90c.json",
+  "source_report_sha256": "5f9e810caeaea6b349bb1e457cee68978ae7bae81d25dbb439063528ff33b48f",
+  "adjudication_packet_sha256": "abebcb8b9573b6e6cdadaa82cdb0c1e4d64116f3a462e07b44c2c60b778c7762",
+  "manual_adjudications": [
+    {
+      "status": "first_blind_pass",
+      "notes": "First independent review of the corrected full-permutation blind packet. Five unchanged cases retain the prior source-grounded manual review.",
+      "summary": {
+        "ranked_first_proof": {
+          "adequate": 0,
+          "qualified": 7,
+          "insufficient": 12,
+          "incorrect": 6,
+          "strict_correct": 0,
+          "usable_correct": 7,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 6,
+            "automatic_true_manual_not_usable": 2,
+            "automatic_false_manual_usable": 1,
+            "automatic_false_manual_not_usable": 16
+          }
+        },
+        "ranked_first_only": {
+          "adequate": 0,
+          "qualified": 7,
+          "insufficient": 12,
+          "incorrect": 6,
+          "strict_correct": 0,
+          "usable_correct": 7,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 6,
+            "automatic_true_manual_not_usable": 2,
+            "automatic_false_manual_usable": 1,
+            "automatic_false_manual_not_usable": 16
+          }
+        },
+        "original_only": {
+          "adequate": 3,
+          "qualified": 3,
+          "insufficient": 7,
+          "incorrect": 12,
+          "strict_correct": 3,
+          "usable_correct": 6,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 1,
+            "automatic_true_manual_not_usable": 0,
+            "automatic_false_manual_usable": 5,
+            "automatic_false_manual_not_usable": 19
+          }
+        }
+      },
+      "blind_changed_summary": {
+        "ranked_first_proof": {
+          "adequate": 0,
+          "qualified": 7,
+          "insufficient": 10,
+          "incorrect": 3,
+          "strict_correct": 0,
+          "usable_correct": 7,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 6,
+            "automatic_true_manual_not_usable": 2,
+            "automatic_false_manual_usable": 1,
+            "automatic_false_manual_not_usable": 11
+          }
+        },
+        "ranked_first_only": {
+          "adequate": 0,
+          "qualified": 7,
+          "insufficient": 10,
+          "incorrect": 3,
+          "strict_correct": 0,
+          "usable_correct": 7,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 6,
+            "automatic_true_manual_not_usable": 2,
+            "automatic_false_manual_usable": 1,
+            "automatic_false_manual_not_usable": 11
+          }
+        },
+        "original_only": {
+          "adequate": 3,
+          "qualified": 3,
+          "insufficient": 5,
+          "incorrect": 9,
+          "strict_correct": 3,
+          "usable_correct": 6,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 1,
+            "automatic_true_manual_not_usable": 0,
+            "automatic_false_manual_usable": 5,
+            "automatic_false_manual_not_usable": 14
+          }
+        }
+      },
+      "current_to_original_transitions": {
+        "incorrect -> adequate": 1,
+        "incorrect -> incorrect": 5,
+        "insufficient -> adequate": 1,
+        "insufficient -> incorrect": 3,
+        "insufficient -> insufficient": 6,
+        "insufficient -> qualified": 2,
+        "qualified -> adequate": 1,
+        "qualified -> incorrect": 4,
+        "qualified -> insufficient": 1,
+        "qualified -> qualified": 1
+      }
+    },
+    {
+      "status": "second_blind_pass",
+      "notes": "Second independent review of the corrected full-permutation blind packet. Five unchanged cases retain the same prior source-grounded labels.",
+      "summary": {
+        "ranked_first_proof": {
+          "adequate": 4,
+          "qualified": 3,
+          "insufficient": 13,
+          "incorrect": 5,
+          "strict_correct": 4,
+          "usable_correct": 7,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 6,
+            "automatic_true_manual_not_usable": 2,
+            "automatic_false_manual_usable": 1,
+            "automatic_false_manual_not_usable": 16
+          }
+        },
+        "ranked_first_only": {
+          "adequate": 4,
+          "qualified": 3,
+          "insufficient": 13,
+          "incorrect": 5,
+          "strict_correct": 4,
+          "usable_correct": 7,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 6,
+            "automatic_true_manual_not_usable": 2,
+            "automatic_false_manual_usable": 1,
+            "automatic_false_manual_not_usable": 16
+          }
+        },
+        "original_only": {
+          "adequate": 4,
+          "qualified": 2,
+          "insufficient": 6,
+          "incorrect": 13,
+          "strict_correct": 4,
+          "usable_correct": 6,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 1,
+            "automatic_true_manual_not_usable": 0,
+            "automatic_false_manual_usable": 5,
+            "automatic_false_manual_not_usable": 19
+          }
+        }
+      },
+      "blind_changed_summary": {
+        "ranked_first_proof": {
+          "adequate": 4,
+          "qualified": 3,
+          "insufficient": 11,
+          "incorrect": 2,
+          "strict_correct": 4,
+          "usable_correct": 7,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 6,
+            "automatic_true_manual_not_usable": 2,
+            "automatic_false_manual_usable": 1,
+            "automatic_false_manual_not_usable": 11
+          }
+        },
+        "ranked_first_only": {
+          "adequate": 4,
+          "qualified": 3,
+          "insufficient": 11,
+          "incorrect": 2,
+          "strict_correct": 4,
+          "usable_correct": 7,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 6,
+            "automatic_true_manual_not_usable": 2,
+            "automatic_false_manual_usable": 1,
+            "automatic_false_manual_not_usable": 11
+          }
+        },
+        "original_only": {
+          "adequate": 4,
+          "qualified": 2,
+          "insufficient": 4,
+          "incorrect": 10,
+          "strict_correct": 4,
+          "usable_correct": 6,
+          "automatic_confusion": {
+            "automatic_true_manual_usable": 1,
+            "automatic_true_manual_not_usable": 0,
+            "automatic_false_manual_usable": 5,
+            "automatic_false_manual_not_usable": 14
+          }
+        }
+      },
+      "current_to_original_transitions": {
+        "adequate -> adequate": 1,
+        "adequate -> incorrect": 3,
+        "incorrect -> incorrect": 5,
+        "insufficient -> adequate": 1,
+        "insufficient -> incorrect": 4,
+        "insufficient -> insufficient": 6,
+        "insufficient -> qualified": 2,
+        "qualified -> adequate": 2,
+        "qualified -> incorrect": 1
+      }
+    }
+  ],
+  "manual_agreement": {
+    "ranked_first_proof": {
+      "exact_label_agreement": 15,
+      "usable_binary_agreement": 18,
+      "cases": 20
+    },
+    "ranked_first_only": {
+      "exact_label_agreement": 15,
+      "usable_binary_agreement": 18,
+      "cases": 20
+    },
+    "original_only": {
+      "exact_label_agreement": 18,
+      "usable_binary_agreement": 20,
+      "cases": 20
+    }
+  }
+}

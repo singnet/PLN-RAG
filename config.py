@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from pydantic import ConfigDict
-from typing import Optional
+from typing import Literal, Optional
 
 
 class Settings(BaseSettings):
@@ -50,6 +50,9 @@ class Settings(BaseSettings):
 
     # Query execution
     query_fallback_enabled: bool = True
+    query_execution_policy: Optional[
+        Literal["ranked_first_proof", "ranked_first_only", "original_only"]
+    ] = None
 
     # Maximum number of query candidates to try before giving up.
     # Applies to all parsers when query_fallback_enabled is true.

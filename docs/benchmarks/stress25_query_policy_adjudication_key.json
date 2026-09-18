@@ -1,0 +1,106 @@
+{
+  "adjudication_key_schema_version": 1,
+  "source_report_sha256": "5f9e810caeaea6b349bb1e457cee68978ae7bae81d25dbb439063528ff33b48f",
+  "cases": {
+    "A01": {
+      "A": "original_only",
+      "B": "ranked_first_proof",
+      "C": "ranked_first_only"
+    },
+    "A02": {
+      "A": "ranked_first_proof",
+      "B": "ranked_first_only",
+      "C": "original_only"
+    },
+    "A03": {
+      "A": "ranked_first_only",
+      "B": "ranked_first_proof",
+      "C": "original_only"
+    },
+    "A04": {
+      "A": "original_only",
+      "B": "ranked_first_proof",
+      "C": "ranked_first_only"
+    },
+    "A05": {
+      "A": "ranked_first_proof",
+      "B": "original_only",
+      "C": "ranked_first_only"
+    },
+    "A06": {
+      "A": "ranked_first_proof",
+      "B": "ranked_first_only",
+      "C": "original_only"
+    },
+    "A07": {
+      "A": "ranked_first_proof",
+      "B": "ranked_first_only",
+      "C": "original_only"
+    },
+    "A08": {
+      "A": "ranked_first_only",
+      "B": "original_only",
+      "C": "ranked_first_proof"
+    },
+    "A09": {
+      "A": "original_only",
+      "B": "ranked_first_only",
+      "C": "ranked_first_proof"
+    },
+    "A10": {
+      "A": "original_only",
+      "B": "ranked_first_only",
+      "C": "ranked_first_proof"
+    },
+    "A12": {
+      "A": "ranked_first_proof",
+      "B": "ranked_first_only",
+      "C": "original_only"
+    },
+    "A13": {
+      "A": "original_only",
+      "B": "ranked_first_only",
+      "C": "ranked_first_proof"
+    },
+    "A14": {
+      "A": "ranked_first_proof",
+      "B": "ranked_first_only",
+      "C": "original_only"
+    },
+    "E01": {
+      "A": "ranked_first_only",
+      "B": "ranked_first_proof",
+      "C": "original_only"
+    },
+    "E02": {
+      "A": "ranked_first_proof",
+      "B": "ranked_first_only",
+      "C": "original_only"
+    },
+    "E03": {
+      "A": "original_only",
+      "B": "ranked_first_proof",
+      "C": "ranked_first_only"
+    },
+    "S01": {
+      "A": "ranked_first_only",
+      "B": "ranked_first_proof",
+      "C": "original_only"
+    },
+    "S03": {
+      "A": "ranked_first_proof",
+      "B": "ranked_first_only",
+      "C": "original_only"
+    },
+    "S04": {
+      "A": "original_only",
+      "B": "ranked_first_only",
+      "C": "ranked_first_proof"
+    },
+    "S05": {
+      "A": "ranked_first_only",
+      "B": "original_only",
+      "C": "ranked_first_proof"
+    }
+  }
+}

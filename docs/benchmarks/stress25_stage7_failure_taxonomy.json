@@ -1,0 +1,891 @@
+{
+  "analysis_schema_version": 1,
+  "suite": "stress25_v1",
+  "run_id": "eb705aff",
+  "parser": "canonical_senf_pln_stage7",
+  "scope": "incorrect answer-graded cases with proofs",
+  "summary": {
+    "analyzed_failures": 14,
+    "proof_bearing_incorrect": 14,
+    "no_proof_incorrect": 3,
+    "primary_failure_counts": {
+      "malformed_executed_query": 1,
+      "proof_answer_evidence_miss": 13
+    },
+    "evidence_flag_counts": {
+      "executed_query_answer_symbol_miss": 13,
+      "executed_query_changed": 11,
+      "fallback_selected": 11,
+      "malformed_executed_query": 1,
+      "nonpositive_proof": 1,
+      "original_query_answer_symbol_miss": 13,
+      "proof_answer_evidence_miss": 14,
+      "verdict_mismatch": 1,
+      "weak_alignment": 11
+    }
+  },
+  "failures": [
+    {
+      "case_id": "A02",
+      "name": "A02_iot_glycemic_control_type2_diabetes",
+      "question": "Did the IoT-based intervention reduce HbA1c?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "weak_alignment",
+        "fallback_selected",
+        "executed_query_changed",
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss",
+        "verdict_mismatch"
+      ],
+      "query_status": "weakly_aligned",
+      "fallback_used": true,
+      "original_query": "(: $prf (HbA1CChange trial over_52_week) $tv)",
+      "executed_query": "(: $prf (ExaminedEffect trial iot_effect) $tv)",
+      "proof_conclusions": [
+        "(ExaminedEffect trial iot_effect)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 1.0
+        }
+      ],
+      "gold_entities": [
+        [
+          "hb_a1c",
+          "hba1c",
+          "reduce_hb_a1c",
+          "reduces_hb_a1c"
+        ]
+      ],
+      "gold_verdict": "negative",
+      "matched_entities": [],
+      "answer_reason": "0/1 slots [any]: none; verdict negative: unmet",
+      "senf": {
+        "merge_count": 0,
+        "weave_total_cost": 0.8,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 21,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -2,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "A03",
+      "name": "A03_cas9_aav6_beta_globin_hsc",
+      "question": "What does Cas9-AAV6 correction improve in sickle cell disease cells?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "weak_alignment",
+        "fallback_selected",
+        "executed_query_changed",
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "weakly_aligned",
+      "fallback_used": true,
+      "original_query": "(: $prf (StableHemoglobinProduction $cells) $tv)",
+      "executed_query": "(: $prf (Increased chimerism) $tv)",
+      "proof_conclusions": [
+        "(Increased chimerism)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 1.0
+        }
+      ],
+      "gold_entities": [
+        [
+          "hemoglobin_a",
+          "hemoglobin",
+          "hemoglobin_a_production"
+        ],
+        [
+          "red_blood_cell",
+          "rbc",
+          "erythropoiesis"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "0/2 slots [any]: none",
+      "senf": {
+        "merge_count": 0,
+        "weave_total_cost": 0.4,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 16,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -1,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "A05",
+      "name": "A05_tirzepatide_liraglutide_semaglutide_comparison",
+      "question": "Which treatments are compared for reducing cardiovascular events?",
+      "primary_failure": "malformed_executed_query",
+      "evidence_flags": [
+        "weak_alignment",
+        "fallback_selected",
+        "executed_query_changed",
+        "malformed_executed_query",
+        "proof_answer_evidence_miss",
+        "nonpositive_proof"
+      ],
+      "query_status": "weakly_aligned",
+      "fallback_used": true,
+      "original_query": "(: $prf (ReducesMACE {liraglutide,) $tv)",
+      "executed_query": "(: $prf (ReducesMACE tirzepatide}) $tv)",
+      "proof_conclusions": [
+        "(ReducesMACE tirzepatide})"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 0.0,
+          "confidence": 1.9999980000019997e-06
+        }
+      ],
+      "gold_entities": [
+        [
+          "tirzepatide"
+        ],
+        [
+          "liraglutide"
+        ],
+        [
+          "semaglutide"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "strength 0.0 (asserts negation); 0/3 slots [any]: none",
+      "senf": {
+        "merge_count": 2,
+        "weave_total_cost": 0.4,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 12,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -1,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "A07",
+      "name": "A07_mendelian_randomization_gut_microbiome_colorectal_cancer",
+      "question": "Does the abstract claim a causal role for gut microbiome in colorectal cancer?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "weak_alignment",
+        "fallback_selected",
+        "executed_query_changed",
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "weakly_aligned",
+      "fallback_used": true,
+      "original_query": "(: $prf (Unclear gut_microbiome crc) $tv)",
+      "executed_query": "(: $prf (Role gut_microbiome) $tv)",
+      "proof_conclusions": [
+        "(Role gut_microbiome)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 1.0
+        }
+      ],
+      "gold_entities": [
+        [
+          "unlikely",
+          "unlikely_to_reflect_causality",
+          "not_causal",
+          "no_causal_role"
+        ],
+        [
+          "caution",
+          "horizontal_pleiotropic",
+          "pleiotropy",
+          "sensitivity_analysis"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "0/2 slots [any]: none",
+      "senf": {
+        "merge_count": 6,
+        "weave_total_cost": 0.55,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 18,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -1,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "A08",
+      "name": "A08_microbiota_host_inflammation",
+      "question": "How can microbiota affect inflammation?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "weak_alignment",
+        "fallback_selected",
+        "executed_query_changed",
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "weakly_aligned",
+      "fallback_used": true,
+      "original_query": "(: $prf (Effects inflammation microbiota) $tv)",
+      "executed_query": "(: $prf (Understood contribution microbiota physiology) $tv)",
+      "proof_conclusions": [
+        "(Understood contribution microbiota physiology)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 1.0
+        }
+      ],
+      "gold_entities": [
+        [
+          "bioactive_molecule",
+          "microbiota_derived_bioactive_molecule",
+          "bioactive"
+        ],
+        [
+          "immune",
+          "immune_system",
+          "immunological",
+          "innate_lymphoid_cell",
+          "regulatory_t_cell",
+          "antigen_presenting_cell",
+          "epithelial_cell"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "0/2 slots [any]: none",
+      "senf": {
+        "merge_count": 0,
+        "weave_total_cost": 1.2,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 19,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -2,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "A10",
+      "name": "A10_biochemical_hematological_markers_covid_severity",
+      "question": "Which biomarkers predict COVID-19 severity?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "weak_alignment",
+        "fallback_selected",
+        "executed_query_changed",
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "weakly_aligned",
+      "fallback_used": true,
+      "original_query": "(: $prf (PredictSeverity $patient) $tv)",
+      "executed_query": "(: $prf (DeterminedRiskFactors study) $tv)",
+      "proof_conclusions": [
+        "(DeterminedRiskFactors study)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 1.0
+        }
+      ],
+      "gold_entities": [
+        [
+          "d_dimer",
+          "ddimer"
+        ],
+        [
+          "crp",
+          "c_reactive_protein"
+        ],
+        [
+          "ldh",
+          "lactate_dehydrogenase"
+        ],
+        [
+          "alt",
+          "sgpt"
+        ],
+        [
+          "neutrophil",
+          "neutrophil_count"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "0/5 slots [any]: none",
+      "senf": {
+        "merge_count": 2,
+        "weave_total_cost": 0.55,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 16,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -1,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "A11",
+      "name": "A11_serological_biomarkers_inflammation_covid_severity",
+      "question": "Can serological inflammation indicators predict COVID-19 severity?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "well_aligned",
+      "fallback_used": false,
+      "original_query": "(: $prf (HasCondition patient severe_covid) $tv)",
+      "executed_query": "(: $prf (HasCondition patient severe_covid) $tv)",
+      "proof_conclusions": [
+        "(HasCondition patient severe_covid)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 1.0
+        }
+      ],
+      "gold_entities": [
+        [
+          "pni",
+          "prognostic_nutritional_index"
+        ],
+        [
+          "hscar",
+          "high_sensitivity_c_reactive_protein_albumin_ratio"
+        ],
+        [
+          "hscpar",
+          "high_sensitivity_c_reactive_protein_prealbumin_ratio"
+        ]
+      ],
+      "gold_verdict": "positive",
+      "matched_entities": [],
+      "answer_reason": "0/3 slots [any]: none; verdict positive: ok",
+      "senf": {
+        "merge_count": 5,
+        "weave_total_cost": 0.8,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 21,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -2,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "A12",
+      "name": "A12_contact_angle_hydrophilicity_hydrophobicity",
+      "question": "What does contact angle indicate about hydrophilicity or hydrophobicity?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "weak_alignment",
+        "fallback_selected",
+        "executed_query_changed",
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "weakly_aligned",
+      "fallback_used": true,
+      "original_query": "(: $prf (HydrophilicHydrophobicDistinction $contact_angle) $tv)",
+      "executed_query": "(: $prf (ControlSurfaceWettabilityAndRoughness study surface) $tv)",
+      "proof_conclusions": [
+        "(ControlSurfaceWettabilityAndRoughness study surface)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 1.0
+        }
+      ],
+      "gold_entities": [
+        [
+          "threshold",
+          "contact_angle_threshold",
+          "ninety_degree",
+          "debated"
+        ],
+        [
+          "advancing_contact_angle",
+          "intrinsic_advancing_contact_angle"
+        ],
+        [
+          "wenzel",
+          "cassie",
+          "hemiwicking"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "0/3 slots [any]: none",
+      "senf": {
+        "merge_count": 0,
+        "weave_total_cost": 1.1,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 15,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -2,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "A13",
+      "name": "A13_big_data_perovskite_stability_analysis",
+      "question": "Why is comparing perovskite stability difficult?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "weak_alignment",
+        "fallback_selected",
+        "executed_query_changed",
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "weakly_aligned",
+      "fallback_used": true,
+      "original_query": "(: $prf (DifficultiesInComparingStabilityData $device) $tv)",
+      "executed_query": "(: $prf (EnablesComparison device) $tv)",
+      "proof_conclusions": [
+        "(EnablesComparison device)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 1.0
+        }
+      ],
+      "gold_entities": [
+        [
+          "standard",
+          "testing_standard",
+          "unified_stability_testing",
+          "disseminating_standard"
+        ],
+        [
+          "stress_condition",
+          "environmental_stress_condition",
+          "measurement_condition"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "0/2 slots [any]: none",
+      "senf": {
+        "merge_count": 0,
+        "weave_total_cost": 0.4,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 16,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -1,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "A14",
+      "name": "A14_perovskite_stability_follows_efficiency",
+      "question": "What relationship is reported between efficiency and stability?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "weak_alignment",
+        "fallback_selected",
+        "executed_query_changed",
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "weakly_aligned",
+      "fallback_used": true,
+      "original_query": "(: $prf (HigherEfficiencyAlsoHigherStability $efficiency) $tv)",
+      "executed_query": "(: $prf (Analyze mppt_data) $tv)",
+      "proof_conclusions": [
+        "(Analyze mppt_data)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 0.999700089698173
+        }
+      ],
+      "gold_entities": [
+        [
+          "correlation",
+          "correlate",
+          "correlated"
+        ],
+        [
+          "higher_stability",
+          "more_stable",
+          "better_stability"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "0/2 slots [any]: none",
+      "senf": {
+        "merge_count": 0,
+        "weave_total_cost": 0.55,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 12,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -1,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "A15",
+      "name": "A15_microbiome_causality_consensus_statement",
+      "question": "What methodological approaches help establish causality in microbiome research?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "well_aligned",
+      "fallback_used": false,
+      "original_query": "(: $prf (GatherInsights diverse_range_of_stakeholder) $tv)",
+      "executed_query": "(: $prf (GatherInsights diverse_range_of_stakeholder) $tv)",
+      "proof_conclusions": [
+        "(GatherInsights diverse_range_of_stakeholder)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 0.999700089698173
+        }
+      ],
+      "gold_entities": [
+        [
+          "preclinical_model",
+          "preclinical",
+          "animal_model",
+          "cell_based_model"
+        ],
+        [
+          "delphi",
+          "delphi_survey",
+          "consensus"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "0/2 slots [any]: none",
+      "senf": {
+        "merge_count": 2,
+        "weave_total_cost": 0.55,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 12,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -1,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "S01",
+      "name": "S01_sodium_heparin_perovskite_snippets",
+      "question": "What role does sodium heparin play in perovskite solar cells?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "weak_alignment",
+        "fallback_selected",
+        "executed_query_changed",
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "weakly_aligned",
+      "fallback_used": true,
+      "original_query": "(: $prf (Links sodium_heparin $mechanism) $tv)",
+      "executed_query": "(: $prf (Reported sodium_heparin additive_strategy) $tv)",
+      "proof_conclusions": [
+        "(Reported sodium_heparin additive_strategy)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 1.0
+        }
+      ],
+      "gold_entities": [
+        [
+          "defect",
+          "interface_defect",
+          "passivation",
+          "defect_passivation"
+        ],
+        [
+          "bonding",
+          "interfacial_bonding"
+        ],
+        [
+          "efficiency",
+          "stability"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "0/3 slots [any]: none",
+      "senf": {
+        "merge_count": 0,
+        "weave_total_cost": 0.8,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 15,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -2,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "S03",
+      "name": "S03_semaglutide_comparison_snippets",
+      "question": "How does semaglutide compare with other GLP-1 receptor agonists?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "weak_alignment",
+        "fallback_selected",
+        "executed_query_changed",
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "weakly_aligned",
+      "fallback_used": true,
+      "original_query": "(: $prf (ProducesStrongGlycemicControl semaglutide relative_to $other_agent) $tv)",
+      "executed_query": "(: $prf (Used semaglutide type_diabetes) $tv)",
+      "proof_conclusions": [
+        "(Used semaglutide type_diabetes)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 1.0
+        }
+      ],
+      "gold_entities": [
+        [
+          "hb_a1c",
+          "hba1c",
+          "glycemic_control"
+        ],
+        [
+          "weight",
+          "body_weight",
+          "weight_loss"
+        ],
+        [
+          "strong",
+          "superior",
+          "effective"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "0/3 slots [any]: none",
+      "senf": {
+        "merge_count": 0,
+        "weave_total_cost": 1.7,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 11,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 1,
+          "exemplar_coherence": 2,
+          "conflict": -3,
+          "transport": -3,
+          "distortion": 0
+        }
+      }
+    },
+    {
+      "case_id": "S06",
+      "name": "S06_digital_diabetes_logbook_snippets",
+      "question": "Did the logbook improve diabetes control?",
+      "primary_failure": "proof_answer_evidence_miss",
+      "evidence_flags": [
+        "original_query_answer_symbol_miss",
+        "executed_query_answer_symbol_miss",
+        "proof_answer_evidence_miss"
+      ],
+      "query_status": "well_aligned",
+      "fallback_used": false,
+      "original_query": "(: $prf (Improves diabetes_control logbook) $tv)",
+      "executed_query": "(: $prf (Improves diabetes_control logbook) $tv)",
+      "proof_conclusions": [
+        "(Improves diabetes_control logbook)"
+      ],
+      "proof_truth_values": [
+        {
+          "strength": 1.0,
+          "confidence": 1.0
+        }
+      ],
+      "gold_entities": [
+        [
+          "hb_a1c",
+          "hba1c"
+        ],
+        [
+          "glycemic_control",
+          "improve_glycemic_control",
+          "optimal_glycemic_control"
+        ]
+      ],
+      "gold_verdict": null,
+      "matched_entities": [],
+      "answer_reason": "0/2 slots [any]: none",
+      "senf": {
+        "merge_count": 2,
+        "weave_total_cost": 0.55,
+        "weave_distortion": 0.0,
+        "bridge_atom_count": 0,
+        "candidate_rank": 1,
+        "candidate_total_score": 23,
+        "candidate_rejected": null,
+        "candidate_senf_components": {
+          "source_grounding": 3,
+          "role_compat": 2,
+          "identity_support": 2,
+          "exemplar_coherence": 2,
+          "conflict": 0,
+          "transport": -1,
+          "distortion": 0
+        }
+      }
+    }
+  ],
+  "source_report": "parser_benchmark_stress25_v1_isolated_eb705aff.json",
+  "source_report_sha256": "16676c03244fb08802d57ebc73806cb9d3a630ab12df4536b1f7f46c5da19cc3"
+}

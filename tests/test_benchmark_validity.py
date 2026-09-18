@@ -107,11 +107,29 @@ class TestParserArms:
         assert bp._parser_arm_metadata("canonical_senf_pln_stage6") == {
             "parser": "canonical_senf_pln",
             "senf_counterfactual_enabled": False,
+            "query_execution_policy": None,
+            "settings": {},
         }
         assert bp._parser_arm_metadata("canonical_senf_pln_stage7") == {
             "parser": "canonical_senf_pln",
             "senf_counterfactual_enabled": True,
+            "query_execution_policy": None,
+            "settings": {},
         }
+
+    @pytest.mark.parametrize(
+        "policy",
+        ["ranked_first_proof", "ranked_first_only", "original_only"],
+    )
+    def test_query_policy_arm_metadata(self, policy):
+        arm = f"canonical_senf_pln_stage7_{policy}"
+
+        metadata = bp._parser_arm_metadata(arm)
+
+        assert metadata["parser"] == "canonical_senf_pln"
+        assert metadata["senf_counterfactual_enabled"] is True
+        assert metadata["query_execution_policy"] == policy
+        assert metadata["settings"]["answer_generation_enabled"] == "false"
 
     @pytest.mark.parametrize(
         ("arm", "expected"),
@@ -129,6 +147,24 @@ class TestParserArms:
         bp._configure_case_environment(arm, "case", "run")
 
         assert bp.get_settings().senf_counterfactual_enabled is expected
+
+    @pytest.mark.parametrize(
+        "policy",
+        ["ranked_first_proof", "ranked_first_only", "original_only"],
+    )
+    def test_query_policy_arm_configuration(self, monkeypatch, tmp_path, policy):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("QUERY_EXECUTION_POLICY", raising=False)
+        arm = f"canonical_senf_pln_stage7_{policy}"
+
+        try:
+            bp._configure_case_environment(arm, "case", "run")
+
+            assert bp.get_settings().query_execution_policy == policy
+            assert bp.get_settings().answer_generation_enabled is False
+        finally:
+            bp._configure_parser_arm("canonical_senf_pln_stage7")
+            bp.get_settings.cache_clear()
 
 
 class TestGoldIntegration:

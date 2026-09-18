@@ -39,6 +39,14 @@ class PLNRAGService:
         self._answer_gen = AnswerGenerator()
         self._context_top_k = cfg.context_top_k
         self._query_fallback_enabled = cfg.query_fallback_enabled
+        self._query_execution_policy = cfg.query_execution_policy or (
+            "ranked_first_proof"
+            if cfg.query_fallback_enabled
+            else "ranked_first_only"
+        )
+        self._legacy_retry_first_candidate = (
+            cfg.query_execution_policy is None and not cfg.query_fallback_enabled
+        )
         self._operation_lock = threading.RLock()
         self._conceptnet.ensure_loaded(self._reasoner, self._vector_store)
 
@@ -242,6 +250,11 @@ class PLNRAGService:
 
     def _reason(self, query: str) -> ReasonResponse:
         cfg = get_settings()
+        execution_policy = getattr(self, "_query_execution_policy", None) or (
+            "ranked_first_proof"
+            if self._query_fallback_enabled
+            else "ranked_first_only"
+        )
         # 1. Retrieve context for translation
         t0 = time.perf_counter()
         context, _ = self._vector_store.retrieve_context(query, top_k=self._context_top_k)
@@ -275,6 +288,11 @@ class PLNRAGService:
                 reasoning_seconds=0.0,
                 source_lookup_seconds=0.0,
                 answer_generation_seconds=0.0,
+                candidate_count=0,
+                candidate_count_tried=0,
+                execution_policy=execution_policy,
+                attempted_candidate_indices=[],
+                attempted_queries=[],
                 senf=parse_result.diagnostics,
             )
 
@@ -282,59 +300,91 @@ class PLNRAGService:
         t2 = time.perf_counter()
         proof_traces: List[str] = []
         executed_query = ""
-        candidates = (
-            parse_result.queries if self._query_fallback_enabled else parse_result.queries[:1]
-        )
-
-        candidate_count_total = len(candidates)
+        all_candidates = list(parse_result.queries)
+        candidate_count_total = len(all_candidates)
         max_tries = int(getattr(cfg, "query_candidate_max_tries", 0) or 0)
-        if self._query_fallback_enabled and max_tries > 0:
-            candidates = candidates[:max_tries]
-        candidate_count_tried = len(candidates)
+        if execution_policy == "original_only":
+            try:
+                original_index = all_candidates.index(original_query)
+            except ValueError:
+                original_index = None
+            candidates = (
+                [(original_query, original_index)]
+                if original_index is not None
+                else []
+            )
+        elif execution_policy == "ranked_first_only":
+            candidates = [(all_candidates[0], 0)]
+        else:
+            candidates = list(enumerate(all_candidates))
+            candidates = [(candidate, index) for index, candidate in candidates]
+            if max_tries > 0:
+                candidates = candidates[:max_tries]
+        candidate_count_tried = 0
 
         executed_candidate_index: int | None = None
+        successful_candidate_index: int | None = None
         executed_temporal_index: int | None = None
+        attempted_candidate_indices: list[int | None] = []
+        attempted_queries: list[str] = []
         executed_diagnostics = parse_result.diagnostics
         retry_used = False
-        for idx, candidate in enumerate(candidates):
+        for candidate, source_index in candidates:
             executed_query = candidate
-            executed_candidate_index = idx
-            executed_temporal_index = idx
-            proof_traces = self._query_candidate(candidate, parse_result, idx)
+            executed_candidate_index = source_index
+            executed_temporal_index = source_index
+            attempted_candidate_indices.append(source_index)
+            attempted_queries.append(candidate)
+            candidate_count_tried += 1
+            proof_traces = self._query_candidate(
+                candidate, parse_result, source_index if source_index is not None else -1
+            )
             if proof_traces:
+                successful_candidate_index = source_index
                 break
 
         # Parser-specific query retry hook (used for hybrid fast-query mode).
-        if not proof_traces and hasattr(self._parser, "retry_parse_query"):
+        if (
+            not proof_traces
+            and (
+                execution_policy == "ranked_first_proof"
+                or getattr(self, "_legacy_retry_first_candidate", False)
+            )
+            and hasattr(self._parser, "retry_parse_query")
+        ):
             try:
                 retry = getattr(self._parser, "retry_parse_query")
                 retry_result = retry(query, context, executed_query)
                 if retry_result and retry_result.queries:
                     retry_used = True
-                    more = (
-                        retry_result.queries
-                        if self._query_fallback_enabled
-                        else retry_result.queries[:1]
+                    more = list(retry_result.queries)
+                    legacy_retry = getattr(
+                        self, "_legacy_retry_first_candidate", False
                     )
                     candidate_count_total += len(more)
-                    if self._query_fallback_enabled and max_tries > 0:
+                    if legacy_retry:
+                        more = more[:1]
+                    elif max_tries > 0:
                         remaining = max_tries - candidate_count_tried
                         if remaining <= 0:
                             more = []
                         else:
                             more = more[:remaining]
-                    candidate_count_tried += len(more)
-                    retry_start = (executed_candidate_index or 0) + 1
+                    retry_start = len(all_candidates)
                     for retry_index, candidate in enumerate(more):
                         idx = retry_start + retry_index
                         executed_query = candidate
                         executed_candidate_index = idx
                         executed_temporal_index = retry_index
+                        attempted_candidate_indices.append(idx)
+                        attempted_queries.append(candidate)
+                        candidate_count_tried += 1
                         executed_diagnostics = retry_result.diagnostics
                         proof_traces = self._query_candidate(
                             candidate, retry_result, retry_index
                         )
                         if proof_traces:
+                            successful_candidate_index = idx
                             break
             except Exception as exc:
                 logger.warning("retry_parse_query failed: %s", exc)
@@ -394,6 +444,10 @@ class PLNRAGService:
             candidate_count=candidate_count_total,
             candidate_count_tried=candidate_count_tried,
             executed_candidate_index=executed_candidate_index,
+            successful_candidate_index=successful_candidate_index,
+            execution_policy=execution_policy,
+            attempted_candidate_indices=attempted_candidate_indices,
+            attempted_queries=attempted_queries,
             retry_used=retry_used,
             context_retrieval_seconds=round(context_retrieval_seconds, 4),
             parse_query_seconds=round(parse_query_seconds, 4),
@@ -406,10 +460,14 @@ class PLNRAGService:
     def _query_candidate(self, query: str, result, index: int) -> List[str]:
         common = result.trusted_transient_statements or []
         specific = result.candidate_trusted_transient_statements or []
-        raw = common + (specific[index] if index < len(specific) else [])
+        raw = common + (specific[index] if 0 <= index < len(specific) else [])
         transient, rejected = self._validate_statements(raw)
         plans = (result.diagnostics or {}).get("candidate_temporal_plans", [])
-        plan = plans[index] if isinstance(plans, list) and index < len(plans) else {}
+        plan = (
+            plans[index]
+            if isinstance(plans, list) and 0 <= index < len(plans)
+            else {}
+        )
         contextual = isinstance(plan, dict) and (
             plan.get("branch_id", "actual_root") != "actual_root"
             or plan.get("validity_interval_id") is not None

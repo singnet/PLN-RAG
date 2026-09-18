@@ -46,6 +46,41 @@ SHA-256: `16676c03244fb08802d57ebc73806cb9d3a630ab12df4536b1f7f46c5da19cc3`
 Generation tape SHA-256:
 `9cac194f1f7534ee3b1130f26d66b4fdd76b8873458900cf8eff74cfa5920fe2`
 
+The proof-bearing failures are analyzed in
+[`benchmarks/stress25_stage7_failure_taxonomy.md`](benchmarks/stress25_stage7_failure_taxonomy.md).
+All fourteen proofs lack answer evidence accepted by the benchmark grader; one
+also has a malformed executed query. Eleven failures use fallback-selected,
+weakly-aligned queries and three are marked well-aligned. The taxonomy records
+query/answer symbol overlap as a neutral diagnostic, not as proof that a query
+is semantically wrong.
+
+## Query Execution Policy Ablation
+
+The frozen tape was also replayed with current ranked traversal, ranked
+candidate zero only, and the original canonical query only. The full paired
+report is in
+[`benchmarks/stress25_query_policy_comparison.md`](benchmarks/stress25_query_policy_comparison.md).
+
+Disabling traversal produced no observed correctness difference: both ranked
+policies found 22 proofs and received 8 automatic answers. Original-query-only
+found 15 proofs and received one automatic answer. Two blind reviews of the 20
+changed outputs found a much smaller manual difference: ranked execution
+produced 7 usable answers and original-only produced 6. The five unchanged
+outputs retained shared prior labels but are excluded from blind-agreement
+claims. Across the 20 blind cases, reviewers agreed on usable/not-usable status
+for 18 ranked outputs and all 20 original-only outputs.
+
+One S07 atom was rejected identically in all three arms because the frozen tape
+contains a quoted phrase that PeTTaChainer cannot parse. This does not confound
+the paired policy comparison, but S07 must not be used as evidence about query
+execution quality.
+
+The observed counts do not support later-candidate traversal as the dominant
+failure, while bypassing ranking wholesale loses useful proofs. Original
+queries rescue some cases and degrade others; this motivates testing a semantic
+quality gate rather than globally preferring one query source. The one-case
+manual difference is descriptive, not evidence of statistical superiority.
+
 Generated reports and tapes are intentionally not committed because they are
 large run artifacts. The tracked suite and harness reproduce the
 counterfactual comparison. Reproducing the stress25 replay additionally

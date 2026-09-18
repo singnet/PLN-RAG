@@ -606,6 +606,151 @@ def test_original_query_provenance_survives_rewritten_candidate_execution(
     assert response.fallback_used is True
 
 
+def test_ranked_first_only_does_not_traverse_later_candidates(
+    monkeypatch, fake_vector_store
+):
+    queries = ["(: $prf (Wrong camera) $tv)", "(: $prf (Known camera) $tv)"]
+
+    class QueryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(queries=queries, original_query=queries[1])
+
+    class SecondSucceeds(RecordingReasoner):
+        def query(self, query, transient_statements=None):
+            self.query_calls.append((query, transient_statements))
+            return ["proof"] if query == queries[1] else []
+
+    reasoner = SecondSucceeds()
+    service = query_service(QueryParser([]), fake_vector_store, reasoner)
+    service._query_execution_policy = "ranked_first_only"
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("What is known?")
+
+    assert response.proof == "[]"
+    assert response.candidate_count == 2
+    assert response.candidate_count_tried == 1
+    assert response.attempted_candidate_indices == [0]
+    assert response.successful_candidate_index is None
+    assert reasoner.query_calls == [(queries[0], None)]
+
+
+def test_ranked_first_proof_records_actual_attempts(monkeypatch, fake_vector_store):
+    queries = ["(: $prf (Wrong camera) $tv)", "(: $prf (Known camera) $tv)"]
+
+    class QueryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(queries=queries, original_query=queries[1])
+
+    class SecondSucceeds(RecordingReasoner):
+        def query(self, query, transient_statements=None):
+            self.query_calls.append((query, transient_statements))
+            return ["proof"] if query == queries[1] else []
+
+    service = query_service(QueryParser([]), fake_vector_store, SecondSucceeds())
+    service._query_execution_policy = "ranked_first_proof"
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("What is known?")
+
+    assert response.candidate_count_tried == 2
+    assert response.attempted_candidate_indices == [0, 1]
+    assert response.successful_candidate_index == 1
+
+
+def test_original_only_uses_matching_candidate_transients(monkeypatch, fake_vector_store):
+    rewritten = "(: $prf (Wrong camera) $tv)"
+    original = "(: $prf (Known camera) $tv)"
+    original_adapter = "(: known (Known camera) (STV 1.0 1.0))"
+
+    class QueryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(
+                queries=[rewritten, original],
+                original_query=original,
+                candidate_trusted_transient_statements=[[], [original_adapter]],
+            )
+
+    class OriginalSucceeds(RecordingReasoner):
+        def query(self, query, transient_statements=None):
+            self.query_calls.append((query, transient_statements))
+            return ["proof"] if query == original else []
+
+    reasoner = OriginalSucceeds()
+    service = query_service(QueryParser([]), fake_vector_store, reasoner)
+    service._query_execution_policy = "original_only"
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("What is known?")
+
+    assert response.executed_query == original
+    assert response.executed_candidate_index == 1
+    assert response.successful_candidate_index == 1
+    assert response.attempted_queries == [original]
+    assert reasoner.query_calls == [(original, [original_adapter])]
+
+
+def test_original_only_does_not_execute_an_excluded_original(
+    monkeypatch, fake_vector_store
+):
+    ranked = "(: $prf (Known camera) $tv)"
+    excluded = "(: $prf (Excluded camera) $tv)"
+
+    class QueryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(queries=[ranked], original_query=excluded)
+
+    reasoner = RecordingReasoner()
+    service = query_service(QueryParser([]), fake_vector_store, reasoner)
+    service._query_execution_policy = "original_only"
+    monkeypatch.setattr("core.service.get_settings", query_settings)
+
+    response = service._reason("What is known?")
+
+    assert response.candidate_count_tried == 0
+    assert response.attempted_queries == []
+    assert response.proof == "[]"
+    assert reasoner.query_calls == []
+
+
+def test_legacy_disabled_fallback_still_allows_one_retry(
+    monkeypatch, fake_vector_store
+):
+    first = "(: $prf (First answer) $tv)"
+    retry_query = "(: $prf (Retry answer) $tv)"
+    later_retry = "(: $prf (Later retry answer) $tv)"
+
+    class RetryParser(FixedParser):
+        def parse_query(self, text, context):
+            return ParseResult(queries=[first])
+
+        def retry_parse_query(self, text, context, attempted_query):
+            return ParseResult(queries=[retry_query, later_retry])
+
+    class RetryReasoner(RecordingReasoner):
+        def query(self, query, transient_statements=None):
+            self.query_calls.append((query, transient_statements))
+            return ["proof"] if query == retry_query else []
+
+    service = query_service(RetryParser([]), fake_vector_store, RetryReasoner())
+    service._query_execution_policy = "ranked_first_only"
+    service._legacy_retry_first_candidate = True
+    monkeypatch.setattr(
+        "core.service.get_settings",
+        lambda: SimpleNamespace(
+            query_candidate_max_tries=1,
+            source_lookup_max_atoms=0,
+            answer_generation_enabled=False,
+        ),
+    )
+
+    response = service._reason("Retry the answer.")
+
+    assert response.retry_used is True
+    assert response.proof != "[]"
+    assert response.attempted_queries == [first, retry_query]
+
+
 def test_canonical_planner_records_candidate_before_subclass_rewrite():
     canonical = "(: $prf (HasProperty it expensive) $tv)"
     rewritten = "(: $prf (HasProperty camera expensive) $tv)"
