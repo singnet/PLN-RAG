@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -23,10 +24,10 @@ def _sample():
     )
 
 
-def test_v5_payload_is_json_safe_and_round_trips_every_field():
+def test_v6_payload_is_json_safe_and_round_trips_every_field():
     original = _sample()
     payload = senf_to_payload(original)
-    assert payload["senf_version"] == 5 == SENF_PAYLOAD_VERSION
+    assert payload["senf_version"] == 6 == SENF_PAYLOAD_VERSION
     assert json.loads(json.dumps(payload)) == payload
     assert senf_from_payload(json.loads(json.dumps(payload))) == original
 
@@ -41,10 +42,40 @@ def test_round_trip_preserves_all_reference_types():
     assert any(isinstance(filler, FrameRef) for filler in fillers)
 
 
-@pytest.mark.parametrize("version", [1, 2, 3, 4, 6, 99, "5", True, None])
+@pytest.mark.parametrize("version", [1, 2, 3, 4, 7, 99, "6", True, None])
 def test_absent_old_future_and_malformed_versions_are_unsupported(version):
     payload = senf_to_payload(_sample())
     payload["senf_version"] = version
+    assert senf_from_payload(payload) is None
+
+
+def test_static_v5_fixture_migrates_to_typed_v6_model():
+    fixture = Path(__file__).with_name("fixtures") / "senf_v5.json"
+    payload = json.loads(fixture.read_text())
+
+    restored = senf_from_payload(payload)
+
+    assert restored is not None
+    assert restored.mentions[0].char_span.start == 0
+    assert restored.frames[0].frame_span == (0, 12)
+    assert restored.frames[0].clause_span == (0, 13)
+    assert senf_to_payload(restored)["senf_version"] == 6
+
+
+def test_v6_requires_new_span_and_guard_fields():
+    payload = senf_to_payload(_sample())
+    del payload["frames"][0]["frame_span"]
+    assert senf_from_payload(payload) is None
+
+    from core.senf.exemplars import score_exemplars
+
+    scored = extract_senf(
+        "camera", "The camera arrived.",
+        ["(: a (Arrived camera) (STV 1 1))"],
+    )
+    payload = senf_to_payload(score_exemplars(scored))
+    score = next(iter(payload["exemplar_scores"].values()))[0]
+    del score["guard"]
     assert senf_from_payload(payload) is None
 
 

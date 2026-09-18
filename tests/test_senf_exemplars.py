@@ -1,5 +1,6 @@
 from core.senf.exemplars import exemplar_distance, score_exemplars
 from core.senf.extractor import extract_senf
+from core.senf.types import ContextGuard, ExemplarAlternative
 
 
 def _game(sentence_id: str, text: str):
@@ -30,6 +31,12 @@ def test_weak_evidence_keeps_close_active_alternatives_without_a_nearest_winner(
     assert senf.nearest_exemplar_for(camera) is None
     assert camera.mention_id not in senf.nearest_exemplars
     assert senf.kind_assertions == [], "lexical applicability must not synthesize IsA"
+    alternatives = senf.exemplar_scores[camera.mention_id]
+    assert all(isinstance(item, ExemplarAlternative) for item in alternatives)
+    assert all(isinstance(item.guard, ContextGuard) for item in alternatives)
+    assert senf.active_exemplars_for(camera) == tuple(
+        item.exemplar for item in alternatives if item.distance <= alternatives[0].distance + 0.1
+    )
 
 
 def test_exemplar_context_does_not_leak_across_source_units():

@@ -7,6 +7,7 @@ from core.senf.exemplars import score_exemplars
 from core.senf.identity import (
     DEFAULT_IDENTITY_THRESHOLD,
     IdentityResolver,
+    IdentityEvidence,
     IdentityWeights,
     resolve_identity,
 )
@@ -145,6 +146,8 @@ def test_the_merge_rests_on_three_independent_signals():
     }
     assert edge.strength >= DEFAULT_IDENTITY_THRESHOLD
     assert 0.0 < edge.confidence <= 1.0
+    assert all(isinstance(item, IdentityEvidence) for item in edge.positive_evidence)
+    assert tuple(item.kind for item in edge.positive_evidence) == edge.evidence
 
 
 def test_distractors_in_the_same_sentence_stay_far_below_threshold():

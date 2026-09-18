@@ -1,10 +1,10 @@
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Sequence
+from typing import Callable, Literal, Optional, Sequence
 
 from core.senf.temporal import BranchingContextTree, interval_relation
-from core.senf.types import Context, EntityPersistence, EntityRef, SENF, Mention
+from core.senf.types import Context, ContextGuard, EntityPersistence, EntityRef, SENF, Mention
 
 logger = logging.getLogger(__name__)
 
@@ -69,16 +69,18 @@ class IdentityWeights:
     exemplar_conflict: float = 0.7
 
 
+IdentityGuard = ContextGuard
+
+
 @dataclass(frozen=True)
-class IdentityGuard:
-    source_unit_ids: tuple[str, ...]
-    sentence_ids: tuple[str, ...]
-    speakers: tuple[str, ...] = ()
-    modalities: tuple[str, ...] = ()
-    time_refs: tuple[str, ...] = ()
-    location_refs: tuple[str, ...] = ()
-    branch_ids: tuple[str, ...] = ()
-    validity_interval_ids: tuple[str, ...] = ()
+class IdentityEvidence:
+    kind: str
+    weight: float
+    polarity: Literal["positive", "negative"] = "positive"
+
+    @property
+    def name(self) -> str:
+        return self.kind
 
 
 @dataclass(frozen=True)
@@ -94,7 +96,39 @@ class IdentityEdge:
     negative_evidence: tuple[str, ...] = ()
     positive_cost: float = 1.0
     negative_cost: float = 1.0
-    guard: Optional[IdentityGuard] = None
+    guard: Optional[ContextGuard] = None
+    positive_evidence: tuple[IdentityEvidence, ...] = ()
+    negative_evidence_records: tuple[IdentityEvidence, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.positive_evidence and not self.evidence:
+            object.__setattr__(self, "evidence", tuple(
+                item.kind for item in self.positive_evidence
+            ))
+        elif not self.positive_evidence and self.evidence:
+            object.__setattr__(self, "positive_evidence", tuple(
+                IdentityEvidence(name, min(1.0, getattr(IdentityWeights(), name, 0.0)))
+                for name in self.evidence
+            ))
+        if self.negative_evidence_records and not self.negative_evidence:
+            object.__setattr__(self, "negative_evidence", tuple(
+                item.kind for item in self.negative_evidence_records
+            ))
+        elif not self.negative_evidence_records and self.negative_evidence:
+            object.__setattr__(self, "negative_evidence_records", tuple(
+                IdentityEvidence(
+                    name, min(1.0, getattr(IdentityWeights(), name, 0.0)), "negative"
+                )
+                for name in self.negative_evidence
+            ))
+
+    @property
+    def positive_evidence_records(self) -> tuple[IdentityEvidence, ...]:
+        return self.positive_evidence
+
+    @property
+    def identity_evidence(self) -> tuple[IdentityEvidence, ...]:
+        return self.positive_evidence + self.negative_evidence_records
 
     @property
     def symbols(self) -> tuple[str, str]:
@@ -763,8 +797,8 @@ class IdentityResolver:
             vectors[key] = self.embedder(text or mention.surface or mention.canonical_symbol)
         return vectors[key]
 
-    @staticmethod
     def _edge(
+        self,
         left: Mention,
         right: Mention,
         strength: float,
@@ -809,6 +843,14 @@ class IdentityResolver:
             positive_cost=round(1.0 - strength, 4),
             negative_cost=round(1.0 - negative_strength, 4),
             guard=guard,
+            positive_evidence=tuple(
+                IdentityEvidence(name, getattr(self.weights, name, 0.0))
+                for name in evidence
+            ),
+            negative_evidence_records=tuple(
+                IdentityEvidence(name, getattr(self.weights, name, 0.0), "negative")
+                for name in negative_evidence
+            ),
         )
 
     def _apply_ambiguity(self, edges: tuple[IdentityEdge, ...]) -> tuple[IdentityEdge, ...]:
@@ -852,6 +894,10 @@ class IdentityResolver:
                 positive_cost=round(1.0 - self._strength(evidence), 4),
                 negative_cost=best.negative_cost,
                 guard=best.guard,
+                positive_evidence=best.positive_evidence + (
+                    IdentityEvidence("unambiguous", self.weights.unambiguous),
+                ),
+                negative_evidence_records=best.negative_evidence_records,
             )
 
         return tuple(promoted.get(id(edge), edge) for edge in edges)

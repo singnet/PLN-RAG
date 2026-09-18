@@ -321,14 +321,43 @@ def _mismatch(query_frame: SENFFrame, source_frame: SENFFrame, name: str) -> flo
 def _exemplar_options(
     query_senf: SENF,
     query_mention: Optional[Mention],
+    query_frame: SENFFrame,
     source_senf: SENF,
     source_mention: Optional[Mention],
+    source_frame: SENFFrame,
     cap: int,
 ) -> tuple[tuple[Optional[str], Optional[str], float], ...]:
     if query_mention is None or source_mention is None:
         return ((None, None, 0.0),)
-    query_active = sorted(query_senf.active_exemplars_for(query_mention))[:cap]
-    source_active = sorted(source_senf.active_exemplars_for(source_mention))[:cap]
+    def active_for(senf: SENF, mention: Mention, frame: SENFFrame) -> list[str]:
+        context = frame.context
+        alternatives = senf.exemplar_scores.get(mention.mention_id, ())
+        if not alternatives:
+            return sorted(senf.active_exemplars_for(mention))[:cap]
+        selected = []
+        for alternative in alternatives:
+            if alternative.exemplar not in senf.active_exemplars_for(mention):
+                continue
+            guard = alternative.guard
+            checks = (
+                ("source_unit_ids", context.source_unit_id if context else mention.source_unit_id),
+                ("sentence_ids", mention.sentence_id),
+                ("speakers", context.speaker if context else None),
+                ("modalities", context.modality if context else frame.modality),
+                ("time_refs", context.time_ref if context else frame.time_ref),
+                ("location_refs", context.location_ref if context else frame.location_ref),
+                ("branch_ids", context.branch_id if context else None),
+                ("validity_interval_ids", context.validity_interval_id if context else None),
+            )
+            if guard is None or all(
+                not getattr(guard, name) or value in getattr(guard, name)
+                for name, value in checks
+            ):
+                selected.append(alternative.exemplar)
+        return sorted(set(selected))[:cap]
+
+    query_active = active_for(query_senf, query_mention, query_frame)
+    source_active = active_for(source_senf, source_mention, source_frame)
     if not query_active and not source_active:
         return ((None, None, 0.0),)
     if not query_active or not source_active:
@@ -453,7 +482,8 @@ def _pair_hypotheses(
                 supported,
             ))
             exemplar_choices.append(_exemplar_options(
-                query_senf, query_mention, source_senf, source_mention,
+                query_senf, query_mention, query_frame,
+                source_senf, source_mention, source_frame,
                 limits.max_exemplar_alternatives,
             ))
             if supported:

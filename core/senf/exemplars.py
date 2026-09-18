@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
-from core.senf.types import ExemplarScore, Mention, SENF
+from core.senf.types import ContextGuard, EntityRef, ExemplarScore, Mention, SENF
 from core.symbol_normalization import canonical_symbol
 
 
@@ -78,6 +78,38 @@ def _mention_kinds(
     return tuple(sorted(kinds.values()))
 
 
+def _context_guard(senf: SENF, mention: Mention) -> ContextGuard:
+    contexts = [
+        frame.context
+        for frame in senf.frames
+        if frame.context is not None
+        if any(
+            isinstance(role.filler, EntityRef)
+            and role.filler.mention_id == mention.mention_id
+            for role in frame.roles
+        )
+    ]
+
+    def values(name: str) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(
+            value for context in contexts if (value := getattr(context, name))
+        ))
+
+    return ContextGuard(
+        source_unit_ids=tuple(dict.fromkeys(
+            [mention.source_unit_id]
+            + [context.source_unit_id for context in contexts]
+        )),
+        sentence_ids=(mention.sentence_id,),
+        speakers=values("speaker"),
+        modalities=values("modality"),
+        time_refs=values("time_ref"),
+        location_refs=values("location_ref"),
+        branch_ids=values("branch_id"),
+        validity_interval_ids=values("validity_interval_id"),
+    )
+
+
 def score_exemplars(
     senf: SENF,
     registry: Mapping[str, Sequence[ExemplarDefinition]] = DEFAULT_EXEMPLAR_REGISTRY,
@@ -97,6 +129,7 @@ def score_exemplars(
         if not kinds_and_definitions:
             continue
         context = _mention_context(senf, mention)
+        guard = _context_guard(senf, mention)
         scored: list[ExemplarScore] = []
         any_cue = False
         for kind, definition in kinds_and_definitions:
@@ -114,6 +147,7 @@ def score_exemplars(
                     exemplar=definition.name,
                     distance=round(distance, 4),
                     reasons=matched,
+                    guard=guard,
                 )
             )
 
@@ -122,7 +156,7 @@ def score_exemplars(
                 score
                 if score.reasons or score.exemplar.startswith("generic_")
                 else ExemplarScore(
-                    score.kind, score.exemplar, 0.85, score.reasons
+                    score.kind, score.exemplar, 0.85, score.reasons, score.guard
                 )
                 for score in scored
             ]

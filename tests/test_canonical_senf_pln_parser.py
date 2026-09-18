@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from core.parser import ParseResult
@@ -359,6 +362,21 @@ class TestVectorContext:
             "Is it, the camera, expensive?", queries, statements, [CAMERA]
         )
         assert any("camera" in query for query in planned)
+
+    def test_recall_accepts_static_v5_alongside_v6(self, parser):
+        fixture = Path(__file__).with_name("fixtures") / "senf_v5.json"
+        v5 = json.loads(fixture.read_text())
+        text = "Kebede works."
+        atom = "(: a (Works kebede) (STV 1 1))"
+        v6 = senf_to_payload(extract_senf("s1", text, [atom]))
+
+        recalled = [
+            parser._validated_recalled_senf({SENF_PAYLOAD_KEY: payload, "nl": text, "pln": [atom]})
+            for payload in (v5, v6)
+        ]
+
+        assert all(item is not None for item in recalled)
+        assert recalled[0] == recalled[1]
 
     @pytest.mark.parametrize("forgery", ["source_text", "source_atom_id"])
     def test_recalled_senf_must_match_stored_nl_and_accepted_atom_ids(

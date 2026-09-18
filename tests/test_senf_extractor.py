@@ -7,6 +7,7 @@ from core.senf.types import (
     KindRef,
     SENF,
     ValueRef,
+    SourceSpan,
     senf_from_payload,
     senf_to_payload,
 )
@@ -28,6 +29,21 @@ def test_entities_mentions_and_typed_fillers_are_separate():
     assert [role.position for role in frame.roles] == [0, 1, 2]
     assert all(mention.entity_id for mention in senf.mentions)
     assert {mention.canonical_symbol for mention in senf.mentions} == senf.symbols()
+
+
+def test_source_and_frame_spans_are_typed_and_conservative():
+    exact = extract_senf(
+        "s1", "Kebede works.", ["(: a (Works kebede) (STV 1 1))"]
+    )
+    inflected = extract_senf(
+        "s2", "Kebede ate fish.", ["(: a (Eats kebede fish) (STV 1 1))"]
+    )
+
+    assert exact.source_units[0].char_span == SourceSpan(0, 13)
+    assert exact.frames[0].frame_span == SourceSpan(0, 12)
+    assert exact.frames[0].clause_span == SourceSpan(0, 13)
+    assert inflected.frames[0].frame_span is None
+    assert inflected.frames[0].clause_span == SourceSpan(0, 16)
 
 
 def test_generic_roles_are_positional_and_safe_overrides_remain():

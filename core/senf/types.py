@@ -1,8 +1,8 @@
-"""SENF (Semantic Entity-Network Frame) v5 data structures."""
+"""SENF (Semantic Entity-Network Frame) data structures and persistence."""
 
 from dataclasses import dataclass, field
 import math
-from typing import Literal as TypingLiteral, Optional, Union
+from typing import Literal as TypingLiteral, NamedTuple, Optional, Union
 
 MentionType = TypingLiteral["proper", "common", "pronoun", "nominal"]
 ClauseRole = TypingLiteral["fact", "premise", "conclusion"]
@@ -13,12 +13,31 @@ EntityStatus = TypingLiteral["realized", "ghost", "unfulfilled"]
 ACTUAL_BRANCH_ID = "actual_root"
 
 
+class SourceSpan(NamedTuple):
+    """Half-open source offsets, kept tuple-compatible for existing callers."""
+
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
+class ContextGuard:
+    source_unit_ids: tuple[str, ...]
+    sentence_ids: tuple[str, ...]
+    speakers: tuple[str, ...] = ()
+    modalities: tuple[str, ...] = ()
+    time_refs: tuple[str, ...] = ()
+    location_refs: tuple[str, ...] = ()
+    branch_ids: tuple[str, ...] = ()
+    validity_interval_ids: tuple[str, ...] = ()
+
+
 @dataclass(frozen=True)
 class SourceUnit:
     source_unit_id: str
     sentence_id: str
     text: str
-    char_span: tuple[int, int]
+    char_span: SourceSpan
 
 
 @dataclass(frozen=True)
@@ -81,7 +100,7 @@ class Mention:
     sentence_id: str
     entity_id: str = ""
     mention_id: str = ""
-    char_span: Optional[tuple[int, int]] = None
+    char_span: Optional[SourceSpan] = None
     mention_type: MentionType = "common"
     head_lemma: str = ""
     source_unit_id: str = ""
@@ -128,11 +147,16 @@ class KindAssertion:
 
 
 @dataclass(frozen=True)
-class ExemplarScore:
+class ExemplarAlternative:
     kind: str
     exemplar: str
     distance: float
     reasons: tuple[str, ...] = ()
+    guard: Optional[ContextGuard] = None
+
+
+# The old name remains valid for callers that treat alternatives as scores.
+ExemplarScore = ExemplarAlternative
 
 
 @dataclass
@@ -149,6 +173,8 @@ class SENFFrame:
     source_atom_id: str = ""
     clause_role: ClauseRole = "fact"
     context: Optional[Context] = None
+    frame_span: Optional[SourceSpan] = None
+    clause_span: Optional[SourceSpan] = None
 
     def role(self, name: str) -> Optional[Role]:
         return next((role for role in self.roles if role.name == name), None)
@@ -161,7 +187,7 @@ class SENF:
     entities: list[Entity] = field(default_factory=list)
     mentions: list[Mention] = field(default_factory=list)
     kind_assertions: list[KindAssertion] = field(default_factory=list)
-    exemplar_scores: dict[str, list[ExemplarScore]] = field(default_factory=dict)
+    exemplar_scores: dict[str, list[ExemplarAlternative]] = field(default_factory=dict)
     nearest_exemplars: dict[str, str] = field(default_factory=dict)
     active_exemplars: dict[str, list[str]] = field(default_factory=dict)
     source_units: list[SourceUnit] = field(default_factory=list)
@@ -202,9 +228,78 @@ class SENF:
     def active_exemplars_for(self, mention: Mention) -> tuple[str, ...]:
         return tuple(self.active_exemplars.get(mention.mention_id, ()))
 
+    @property
+    def exemplar_alternatives(self) -> dict[str, list[ExemplarAlternative]]:
+        """Guarded alternatives; legacy active-name maps remain a projection."""
+        return {
+            mention_id: [score for score in self.exemplar_scores.get(mention_id, ()) if score.exemplar in names]
+            for mention_id, names in self.active_exemplars.items()
+        }
 
-SENF_PAYLOAD_VERSION = 5
+    def exemplar_alternatives_for(self, mention: Mention) -> tuple[ExemplarAlternative, ...]:
+        return tuple(self.exemplar_alternatives.get(mention.mention_id, ()))
+
+
+SENF_PAYLOAD_VERSION = 6
 SENF_PAYLOAD_KEY = "senf"
+
+
+def _span_to_payload(span: Optional[SourceSpan]) -> Optional[dict[str, int]]:
+    return {"start": span[0], "end": span[1]} if span is not None else None
+
+
+def _span_from_payload(blob: object) -> Optional[SourceSpan]:
+    if blob is None:
+        return None
+    if (
+        not isinstance(blob, dict)
+        or set(blob) != {"start", "end"}
+        or type(blob.get("start")) is not int
+        or type(blob.get("end")) is not int
+        or blob["start"] < 0
+        or blob["start"] > blob["end"]
+    ):
+        raise ValueError("invalid source span")
+    return SourceSpan(blob["start"], blob["end"])
+
+
+def _guard_to_payload(guard: Optional[ContextGuard]) -> Optional[dict]:
+    if guard is None:
+        return None
+    return {
+        "source_unit_ids": list(guard.source_unit_ids),
+        "sentence_ids": list(guard.sentence_ids),
+        "speakers": list(guard.speakers),
+        "modalities": list(guard.modalities),
+        "time_refs": list(guard.time_refs),
+        "location_refs": list(guard.location_refs),
+        "branch_ids": list(guard.branch_ids),
+        "validity_interval_ids": list(guard.validity_interval_ids),
+    }
+
+
+def _guard_from_payload(blob: object) -> Optional[ContextGuard]:
+    if blob is None:
+        return None
+    fields = (
+        "source_unit_ids", "sentence_ids", "speakers", "modalities", "time_refs",
+        "location_refs", "branch_ids", "validity_interval_ids",
+    )
+    if not isinstance(blob, dict) or set(blob) != set(fields):
+        raise ValueError("invalid context guard")
+    values = []
+    for name in fields:
+        value = blob.get(name)
+        if (
+            not isinstance(value, list)
+            or any(not isinstance(item, str) or not item for item in value)
+            or len(set(value)) != len(value)
+        ):
+            raise ValueError("invalid context guard values")
+        values.append(tuple(value))
+    if not values[0] or not values[1]:
+        raise ValueError("context guard lacks provenance")
+    return ContextGuard(*values)
 
 
 def _filler_to_payload(filler: Filler) -> dict:
@@ -243,7 +338,7 @@ def _filler_from_payload(blob: object) -> Filler:
 
 
 def senf_to_payload(senf: SENF) -> dict:
-    """Serialize a SENF v5 into a JSON-safe payload."""
+    """Serialize a SENF into the current JSON-safe payload."""
     return {
         "senf_version": SENF_PAYLOAD_VERSION,
         "senf_id": senf.senf_id,
@@ -259,7 +354,7 @@ def senf_to_payload(senf: SENF) -> dict:
                 "surface": mention.surface,
                 "canonical_symbol": mention.canonical_symbol,
                 "sentence_id": mention.sentence_id,
-                "char_span": list(mention.char_span) if mention.char_span else None,
+                "char_span": _span_to_payload(mention.char_span),
                 "mention_type": mention.mention_type,
                 "head_lemma": mention.head_lemma,
                 "source_unit_id": mention.source_unit_id,
@@ -287,6 +382,8 @@ def senf_to_payload(senf: SENF) -> dict:
                 "source_text": frame.source_text,
                 "source_atom_id": frame.source_atom_id,
                 "clause_role": frame.clause_role,
+                "frame_span": _span_to_payload(frame.frame_span),
+                "clause_span": _span_to_payload(frame.clause_span),
                 "context": {
                     "source_unit_id": frame.context.source_unit_id,
                     "speaker": frame.context.speaker,
@@ -315,6 +412,7 @@ def senf_to_payload(senf: SENF) -> dict:
                     "exemplar": score.exemplar,
                     "distance": score.distance,
                     "reasons": list(score.reasons),
+                    "guard": _guard_to_payload(score.guard),
                 }
                 for score in scores
             ]
@@ -327,7 +425,7 @@ def senf_to_payload(senf: SENF) -> dict:
                 "source_unit_id": unit.source_unit_id,
                 "sentence_id": unit.sentence_id,
                 "text": unit.text,
-                "char_span": list(unit.char_span),
+                "char_span": _span_to_payload(unit.char_span),
             }
             for unit in senf.source_units
         ],
@@ -373,11 +471,94 @@ def senf_to_payload(senf: SENF) -> dict:
     }
 
 
+def migrate_v5_payload(blob: object) -> Optional[dict]:
+    """Convert a legacy v5 payload to v6 shape without weakening validation."""
+    if (
+        not isinstance(blob, dict)
+        or type(blob.get("senf_version")) is not int
+        or blob["senf_version"] != 5
+    ):
+        return None
+    migrated = dict(blob)
+    try:
+        migrated["senf_version"] = SENF_PAYLOAD_VERSION
+        migrated["source_units"] = [dict(item) for item in blob["source_units"]]
+        for item in migrated["source_units"]:
+            span = item.get("char_span")
+            if not isinstance(span, list) or len(span) != 2:
+                return None
+            item["char_span"] = {"start": span[0], "end": span[1]}
+        migrated["mentions"] = [dict(item) for item in blob["mentions"]]
+        for item in migrated["mentions"]:
+            span = item.get("char_span")
+            if span is not None:
+                if not isinstance(span, list) or len(span) != 2:
+                    return None
+                item["char_span"] = {"start": span[0], "end": span[1]}
+        migrated["frames"] = [dict(item) for item in blob["frames"]]
+        for item in migrated["frames"]:
+            item["frame_span"] = None
+            item["clause_span"] = None
+        mentions = {
+            item.get("mention_id"): item
+            for item in migrated["mentions"]
+            if isinstance(item, dict)
+        }
+        migrated["exemplar_scores"] = {}
+        for key, scores in blob["exemplar_scores"].items():
+            mention = mentions.get(key, {})
+            contexts = [
+                frame.get("context")
+                for frame in migrated["frames"]
+                if isinstance(frame, dict) and isinstance(frame.get("context"), dict)
+                if any(
+                    isinstance(role, dict)
+                    and isinstance(role.get("filler"), dict)
+                    and role["filler"].get("type") == "entity_ref"
+                    and role["filler"].get("mention_id") == key
+                    for role in frame.get("roles", ())
+                )
+            ]
+
+            def unique_context_values(name: str) -> list[str]:
+                return list(dict.fromkeys(
+                    value for context in contexts
+                    if isinstance((value := context.get(name)), str) and value
+                ))
+
+            source_unit_ids = list(dict.fromkeys(
+                [mention.get("source_unit_id")]
+                + [context.get("source_unit_id") for context in contexts]
+            ))
+            guard = {
+                "source_unit_ids": [value for value in source_unit_ids if value],
+                "sentence_ids": [mention.get("sentence_id")]
+                if mention.get("sentence_id") else [],
+                "speakers": unique_context_values("speaker"),
+                "modalities": unique_context_values("modality"),
+                "time_refs": unique_context_values("time_ref"),
+                "location_refs": unique_context_values("location_ref"),
+                "branch_ids": unique_context_values("branch_id"),
+                "validity_interval_ids": unique_context_values("validity_interval_id"),
+            }
+            migrated["exemplar_scores"][key] = [
+                dict(score, guard=guard) for score in scores
+            ]
+        return migrated
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return None
+
+
 def senf_from_payload(blob: object) -> Optional[SENF]:
-    """Read only v5; older, future, and malformed payloads fail closed."""
+    """Read strict v6 or migrate strict v5; all other payloads fail closed."""
     if not isinstance(blob, dict) or type(blob.get("senf_version")) is not int:
         return None
-    if blob["senf_version"] != SENF_PAYLOAD_VERSION:
+    legacy_v5 = blob["senf_version"] == 5
+    if legacy_v5:
+        blob = migrate_v5_payload(blob)
+        if blob is None:
+            return None
+    elif blob["senf_version"] != SENF_PAYLOAD_VERSION:
         return None
     try:
         if not isinstance(blob.get("senf_id"), str) or not blob["senf_id"]:
@@ -454,17 +635,15 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
         for item in blob["source_units"]:
             if not isinstance(item, dict):
                 raise ValueError("malformed source unit")
-            span = item.get("char_span")
+            span = _span_from_payload(item.get("char_span"))
             if (
                 not isinstance(item.get("source_unit_id"), str) or not item["source_unit_id"]
                 or item.get("sentence_id") != blob["sentence_id"]
                 or not isinstance(item.get("text"), str)
-                or not isinstance(span, list) or len(span) != 2
-                or any(type(value) is not int for value in span)
-                or span[0] < 0 or span[0] > span[1]
+                or span is None
             ):
                 raise ValueError("malformed source unit")
-            source_units.append(SourceUnit(item["source_unit_id"], item["sentence_id"], item["text"], (span[0], span[1])))
+            source_units.append(SourceUnit(item["source_unit_id"], item["sentence_id"], item["text"], span))
         source_unit_ids = {unit.source_unit_id for unit in source_units}
         if len(source_unit_ids) != len(source_units):
             raise ValueError("duplicate source unit")
@@ -492,16 +671,12 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
                 raise ValueError("invalid definiteness")
             if item["source_unit_id"] not in source_unit_ids:
                 raise ValueError("invalid mention source unit")
-            span = item.get("char_span")
-            if span is not None and (not isinstance(span, list) or len(span) != 2 or any(type(value) is not int for value in span)):
-                raise ValueError("invalid span")
-            if span is not None and (span[0] < 0 or span[0] > span[1]):
-                raise ValueError("invalid span bounds")
+            span = _span_from_payload(item.get("char_span"))
             mentions.append(Mention(
                 surface=item["surface"], canonical_symbol=item["canonical_symbol"],
                 sentence_id=item["sentence_id"], entity_id=item["entity_id"],
                 mention_id=item["mention_id"],
-                char_span=(span[0], span[1]) if span is not None else None,
+                char_span=span,
                 mention_type=mention_type, head_lemma=item["head_lemma"],
                 source_unit_id=item["source_unit_id"], definiteness=definiteness,
             ))
@@ -514,6 +689,8 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
         for item in blob["frames"]:
             if not isinstance(item, dict) or not isinstance(item.get("roles"), list):
                 raise ValueError("malformed frame")
+            if "frame_span" not in item or "clause_span" not in item:
+                raise ValueError("missing frame provenance span")
             for key in ("frame_id", "predicate_head", "source_sentence_id", "source_atom_id"):
                 if not isinstance(item.get(key), str) or not item[key]:
                     raise ValueError("malformed frame")
@@ -531,6 +708,12 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
             clause_role = item.get("clause_role")
             if clause_role not in ("fact", "premise", "conclusion"):
                 raise ValueError("invalid clause role")
+            frame_span = _span_from_payload(item.get("frame_span"))
+            clause_span = _span_from_payload(item.get("clause_span"))
+            if frame_span is not None and clause_span is not None and not (
+                clause_span.start <= frame_span.start <= frame_span.end <= clause_span.end
+            ):
+                raise ValueError("frame span lies outside clause")
             raw_context = item.get("context")
             if not isinstance(raw_context, dict) or raw_context.get("source_unit_id") not in source_unit_ids:
                 raise ValueError("invalid context")
@@ -547,6 +730,15 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
             )
             if context.branch_id not in branch_ids:
                 raise ValueError("frame references missing branch")
+            context_unit = next(
+                unit for unit in source_units
+                if unit.source_unit_id == context.source_unit_id
+            )
+            if clause_span is not None and not (
+                context_unit.char_span.start <= clause_span.start
+                and clause_span.end <= context_unit.char_span.end
+            ):
+                raise ValueError("clause span lies outside source unit")
             if (
                 context.validity_interval_id is not None
                 and context.validity_interval_id not in interval_ids
@@ -572,6 +764,8 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
                 source_text=item.get("source_text", ""), source_atom_id=item["source_atom_id"],
                 clause_role=clause_role,
                 context=context,
+                frame_span=frame_span,
+                clause_span=clause_span,
             ))
         frame_ids = {frame.frame_id for frame in frames}
         if len(frame_ids) != len(frames) or any(not value for value in frame_ids):
@@ -715,6 +909,8 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
                 raise ValueError("malformed scores")
             parsed_scores = []
             for score in values:
+                if "guard" not in score:
+                    raise ValueError("missing exemplar guard")
                 reasons = score.get("reasons")
                 distance = score.get("distance")
                 if (
@@ -747,8 +943,45 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
                 }
                 if score_kind not in applicable_kinds or score["exemplar"] not in registered_names:
                     raise ValueError("exemplar does not apply to mention kind")
-                parsed_scores.append(ExemplarScore(
-                    score["kind"], score["exemplar"], float(distance), tuple(reasons)
+                guard = _guard_from_payload(score.get("guard"))
+                if guard is None:
+                    raise ValueError("exemplar alternative is unguarded")
+                mention_contexts = [
+                    frame.context
+                    for frame in frames
+                    if any(
+                        isinstance(role.filler, EntityRef)
+                        and role.filler.mention_id == key
+                        for role in frame.roles
+                    )
+                ]
+                allowed_guard_values = {
+                    "speakers": {context.speaker for context in mention_contexts if context.speaker},
+                    "modalities": {context.modality for context in mention_contexts if context.modality},
+                    "time_refs": {context.time_ref for context in mention_contexts if context.time_ref},
+                    "location_refs": {context.location_ref for context in mention_contexts if context.location_ref},
+                    "branch_ids": {context.branch_id for context in mention_contexts if context.branch_id},
+                    "validity_interval_ids": {
+                        context.validity_interval_id
+                        for context in mention_contexts
+                        if context.validity_interval_id
+                    },
+                }
+                if (
+                    key not in mention_ids
+                    or mention_by_id[key].source_unit_id not in guard.source_unit_ids
+                    or mention_by_id[key].sentence_id not in guard.sentence_ids
+                    or any(value not in source_unit_ids for value in guard.source_unit_ids)
+                    or any(value != blob["sentence_id"] for value in guard.sentence_ids)
+                ):
+                    raise ValueError("exemplar guard disagrees with mention")
+                if any(
+                    not set(getattr(guard, name)) <= allowed
+                    for name, allowed in allowed_guard_values.items()
+                ):
+                    raise ValueError("exemplar guard invents mention context")
+                parsed_scores.append(ExemplarAlternative(
+                    score["kind"], score["exemplar"], float(distance), tuple(reasons), guard
                 ))
             scores[key] = parsed_scores
             if len({score.exemplar for score in parsed_scores}) != len(parsed_scores):
@@ -840,6 +1073,10 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
         from core.senf.temporal import validate_temporal_model
 
         validate_temporal_model(parsed)
+        if legacy_v5:
+            from core.senf.extractor import infer_frame_spans
+
+            infer_frame_spans(parsed)
         return parsed
     except (KeyError, TypeError, ValueError):
         return None

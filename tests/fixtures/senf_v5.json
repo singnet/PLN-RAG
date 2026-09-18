@@ -1,0 +1,66 @@
+{
+  "senf_version": 5,
+  "senf_id": "senf:s1",
+  "sentence_id": "s1",
+  "entities": [
+    {"entity_id": "s1:e0", "canonical_symbol": "kebede"}
+  ],
+  "mentions": [
+    {
+      "mention_id": "s1:m0",
+      "entity_id": "s1:e0",
+      "surface": "Kebede",
+      "canonical_symbol": "kebede",
+      "sentence_id": "s1",
+      "char_span": [0, 6],
+      "mention_type": "common",
+      "head_lemma": "kebede",
+      "source_unit_id": "s1:u0",
+      "definiteness": "unknown"
+    }
+  ],
+  "frames": [
+    {
+      "frame_id": "s1:f0",
+      "predicate_head": "Works",
+      "roles": [
+        {
+          "name": "Arg0",
+          "position": 0,
+          "filler": {"type": "entity_ref", "entity_id": "s1:e0", "mention_id": "s1:m0"}
+        }
+      ],
+      "polarity": true,
+      "modality": null,
+      "time_ref": null,
+      "location_ref": null,
+      "source_sentence_id": "s1",
+      "source_text": "Kebede works.",
+      "source_atom_id": "a",
+      "clause_role": "fact",
+      "context": {
+        "source_unit_id": "s1:u0",
+        "speaker": null,
+        "modality": null,
+        "time_ref": null,
+        "location_ref": null,
+        "branch_id": "actual_root",
+        "validity_interval_id": null
+      }
+    }
+  ],
+  "kind_assertions": [],
+  "exemplar_scores": {},
+  "nearest_exemplars": {},
+  "active_exemplars": {},
+  "source_units": [
+    {"source_unit_id": "s1:u0", "sentence_id": "s1", "text": "Kebede works.", "char_span": [0, 13]}
+  ],
+  "constraints": [],
+  "branches": [
+    {"branch_id": "actual_root", "parent_id": null, "branch_type": "actual", "probability": 1.0}
+  ],
+  "validity_intervals": [],
+  "entity_persistence": [],
+  "source_atoms": ["(: a (Works kebede) (STV 1 1))"]
+}

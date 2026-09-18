@@ -21,6 +21,7 @@ from core.senf.types import (
     Role,
     SENF,
     SENFFrame,
+    SourceSpan,
     SourceUnit,
     ValidityInterval,
     ValueRef,
@@ -232,6 +233,7 @@ class SENFExtractor:
                 senf.entity_persistence.append(EntityPersistence(
                     entity.entity_id, persistence_type, status, branch_id, interval_id,
                 ))
+        infer_frame_spans(senf)
         return senf
 
     @staticmethod
@@ -544,7 +546,7 @@ class SENFExtractor:
         return EntityRef(entity.entity_id, mention.mention_id)
 
 
-def _find_surfaces(symbol: str, text: str) -> list[tuple[str, tuple[int, int]]]:
+def _find_surfaces(symbol: str, text: str) -> list[tuple[str, SourceSpan]]:
     if not symbol or not text:
         return []
     parts = [part for part in symbol.split("_") if part]
@@ -554,13 +556,13 @@ def _find_surfaces(symbol: str, text: str) -> list[tuple[str, tuple[int, int]]]:
         re.escape(part) + r"(?:e?s)?" for part in parts
     ) + r"\b"
     return [
-        (match.group(0), (match.start(), match.end()))
+        (match.group(0), SourceSpan(match.start(), match.end()))
         for match in re.finditer(pattern, text, re.IGNORECASE)
     ]
 
 
 def _infer_mention_type(
-    symbol: str, surface: str, span: Optional[tuple[int, int]],
+    symbol: str, surface: str, span: Optional[SourceSpan],
 ) -> MentionType:
     if symbol.lower() in _PRONOUNS:
         return "pronoun"
@@ -572,7 +574,7 @@ def _infer_mention_type(
 
 
 def _infer_definiteness(
-    symbol: str, text: str, span: Optional[tuple[int, int]],
+    symbol: str, text: str, span: Optional[SourceSpan],
 ) -> str:
     if symbol.lower() in _PRONOUNS:
         return "pronoun"
@@ -589,29 +591,82 @@ def _infer_definiteness(
 
 def _segment_source_units(sentence_id: str, text: str) -> list[SourceUnit]:
     """Split source text at explicit sentence boundaries, preserving exact spans."""
-    spans: list[tuple[int, int]] = []
+    spans: list[SourceSpan] = []
     start = 0
     for match in re.finditer(r"(?:[.!?]+(?=\s|$)|\n+)", text):
         end = match.end()
         if text[start:end].strip():
-            spans.append((start, end))
+            spans.append(SourceSpan(start, end))
         start = end
         while start < len(text) and text[start].isspace():
             start += 1
     if text[start:].strip() or not spans:
-        spans.append((start, len(text)))
+        spans.append(SourceSpan(start, len(text)))
     return [
-        SourceUnit(f"{sentence_id}:u{index}", sentence_id, text[start:end], (start, end))
+        SourceUnit(f"{sentence_id}:u{index}", sentence_id, text[start:end], SourceSpan(start, end))
         for index, (start, end) in enumerate(spans)
     ]
 
 
-def _source_unit_for_span(units: list[SourceUnit], span: Optional[tuple[int, int]]) -> str:
+def _source_unit_for_span(units: list[SourceUnit], span: Optional[SourceSpan]) -> str:
     if span is not None:
         for unit in units:
             if unit.char_span[0] <= span[0] and span[1] <= unit.char_span[1]:
                 return unit.source_unit_id
     return units[0].source_unit_id
+
+
+def infer_frame_spans(senf: SENF) -> None:
+    """Populate only spans supported by unambiguous source occurrences."""
+    mentions = {mention.mention_id: mention for mention in senf.mentions}
+    frames = {frame.frame_id: frame for frame in senf.frames}
+    units = {unit.source_unit_id: unit for unit in senf.source_units}
+
+    for frame in senf.frames:
+        if frame.context is None:
+            continue
+        unit = units.get(frame.context.source_unit_id)
+        if unit is None:
+            continue
+        frame.clause_span = unit.char_span
+        component_spans: list[SourceSpan] = []
+        complete = True
+        for role in frame.roles:
+            filler = role.filler
+            span: Optional[SourceSpan] = None
+            if isinstance(filler, EntityRef):
+                mention = mentions.get(filler.mention_id)
+                span = mention.char_span if mention is not None else None
+            elif isinstance(filler, FrameRef):
+                child = frames.get(filler.frame_id)
+                span = child.frame_span if child is not None else None
+            else:
+                value = filler.canonical_symbol if isinstance(filler, KindRef) else filler.value
+                pattern = re.compile(r"\b" + re.escape(value.replace("_", " ")) + r"\b", re.IGNORECASE)
+                matches = list(pattern.finditer(unit.text))
+                if len(matches) == 1:
+                    span = SourceSpan(
+                        unit.char_span.start + matches[0].start(),
+                        unit.char_span.start + matches[0].end(),
+                    )
+            if span is None or not (unit.char_span.start <= span.start <= span.end <= unit.char_span.end):
+                complete = False
+                break
+            component_spans.append(SourceSpan(*span))
+
+        predicate_matches = list(re.finditer(
+            r"\b" + re.escape(frame.predicate_head) + r"\b", unit.text, re.IGNORECASE
+        ))
+        if complete and component_spans and len(predicate_matches) == 1:
+            predicate = predicate_matches[0]
+            component_spans.append(SourceSpan(
+                unit.char_span.start + predicate.start(),
+                unit.char_span.start + predicate.end(),
+            ))
+            frame.frame_span = SourceSpan(
+                min(span.start for span in component_spans),
+                max(span.end for span in component_spans),
+            )
 
 
 def extract_senf(
