@@ -24,6 +24,13 @@ class SENFSignals:
     exemplar_coherence_weight: int = 0
     conflict_weight: int = 0
     transport_cost_weight: int = 0
+    matched_soft_mass: Optional[float] = None
+    global_residual_ratio: Optional[float] = None
+    alignment_confidence: Optional[float] = None
+    matched_soft_mass_weight: int = 0
+    global_residual_ratio_weight: int = 0
+    alignment_confidence_weight: int = 0
+    distortion_candidate_specific: bool = False
 
     @property
     def active(self) -> bool:
@@ -35,6 +42,9 @@ class SENFSignals:
             or self.exemplar_coherence_weight
             or self.conflict_weight
             or self.transport_cost_weight
+            or self.matched_soft_mass_weight
+            or self.global_residual_ratio_weight
+            or self.alignment_confidence_weight
         )
 
     def bonus(self, query: dict) -> int:
@@ -51,6 +61,9 @@ class SENFSignals:
             "conflict": 0,
             "transport": 0,
             "distortion": 0,
+            "matched_soft_mass": 0,
+            "global_residual_ratio": 0,
+            "alignment_confidence": 0,
         }
         if not self.active:
             return parts
@@ -86,11 +99,28 @@ class SENFSignals:
                 self.transport_cost * self.transport_cost_weight
             )
 
-        # Distortion is a property of the question, not the candidate, so it shifts
-        # every candidate equally and cannot reorder them. It is applied anyway so a
-        # wholly ungrounded question ranks below the `score > 0` floor and is
-        # rejected rather than executed on a guess.
-        parts["distortion"] = -round(self.distortion * self.distortion_weight)
+        if self.matched_soft_mass_weight and self.matched_soft_mass is not None:
+            parts["matched_soft_mass"] = round(
+                self.matched_soft_mass * self.matched_soft_mass_weight
+            )
+        if (
+            self.global_residual_ratio_weight
+            and self.global_residual_ratio is not None
+        ):
+            parts["global_residual_ratio"] = -round(
+                self.global_residual_ratio * self.global_residual_ratio_weight
+            )
+        if self.alignment_confidence_weight and self.alignment_confidence is not None:
+            parts["alignment_confidence"] = round(
+                self.alignment_confidence * self.alignment_confidence_weight
+            )
+
+        # Question-global distortion cannot reorder candidates. Only apply it when
+        # the planner supplied a candidate-specific weave.
+        if self.distortion_candidate_specific:
+            parts["distortion"] = -round(
+                self.distortion * self.distortion_weight
+            )
         return parts
 
 

@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 from pydantic import ValidationError
 
@@ -12,6 +14,7 @@ from core.senf.weave_model import (
     PairComponentCosts,
     SourceFrameKey,
 )
+from core.senf.types import Context
 from parsers.canonical_senf_pln_parser import CanonicalSENFPLNParser
 
 
@@ -86,6 +89,19 @@ def test_residuals_are_actual_stage_residuals():
     assert result.polish.block.solves == 1
     assert result.polish.global_stage.solves == 1
     assert max(result.residuals) <= get_settings().senf_weave_sinkhorn_tolerance
+    assert result.global_coupling_objective == pytest.approx(
+        result.polish.global_coupling_objective
+    )
+    assert result.coupling_entropy == pytest.approx(result.polish.entropy)
+    assert result.matched_soft_mass + result.unmatched_soft_mass == pytest.approx(1.0)
+    assert result.polish_iterations == result.polish.iterations
+    assert result.polish_converged
+    signals = CanonicalSENFPLNParser()._senf_signals(result)
+    assert signals is not None
+    assert signals.global_residual_ratio == pytest.approx(
+        result.polish.global_stage.global_residual
+        / get_settings().senf_weave_sinkhorn_tolerance
+    )
 
 
 def test_hard_predicate_exclusions_are_not_relaxed_by_polish():
@@ -443,6 +459,23 @@ def test_later_polish_does_not_reapply_semantic_cost():
     )
 
 
+def test_forget_fine_costs_makes_initial_coupling_cost_agnostic():
+    limits = HierarchyLimits(8, 64, 4, 200, 1e-7, 0.25, True)
+    cheap = FrameAlignment(
+        "q", SourceFrameKey("senf:s", "cheap"), 1.0, PairComponentCosts()
+    )
+    expensive = FrameAlignment(
+        "q", SourceFrameKey("senf:s", "expensive"), 1.0,
+        PairComponentCosts(structural=1.0),
+    )
+
+    _, weights = _solve((cheap, expensive), limits)
+
+    assert weights[("q", cheap.source_frame)] == pytest.approx(
+        weights[("q", expensive.source_frame)]
+    )
+
+
 def test_hard_rounding_uses_polished_mass_before_semantic_cost():
     cheap = FrameAlignment(
         "q", SourceFrameKey("senf:s1", "s1:f0"), 1.0,
@@ -512,6 +545,167 @@ def test_hard_rounding_finds_global_optimum_without_prefix_pruning():
 def test_hierarchy_settings_reject_invalid_values(name, value):
     with pytest.raises(ValidationError):
         Settings(openai_api_key="test", **{name: value})
+
+
+@pytest.mark.parametrize("engine", ["beam", "hierarchical"])
+def test_transport_budget_fails_closed_for_both_engines(monkeypatch, engine):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "senf_weave_engine", engine)
+    monkeypatch.setattr(settings, "senf_weave_max_transport_cost", 0.0)
+    query = _senf("q1", ["(: q (Moved alpha) $tv)"])
+    source = _senf("s1", ["(: a (Moved beta) (STV 1 1))"])
+
+    results = build_weaves(query, [source], k=2)
+
+    assert not results[0].aligned
+    assert results[0].rejection_reason == ""
+    assert any(
+        result.rejection_reason == "max_transport_cost"
+        and result.rejected_pairs
+        for result in results[1:]
+    )
+
+
+@pytest.mark.parametrize("engine", ["beam", "hierarchical"])
+def test_conflict_ceiling_fails_closed_for_both_engines(monkeypatch, engine):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "senf_weave_engine", engine)
+    monkeypatch.setattr(settings, "senf_weave_max_conflict_cost", 0.0)
+    query = _senf("q1", ["(: q (Moved alpha) $tv)"])
+    source = _senf("s1", ["(: a (Moved beta) (STV 1 1))"])
+    edge = IdentityEdge(
+        source.mentions[0],
+        query.mentions[0],
+        1.0,
+        1.0,
+        negative_strength=0.1,
+        positive_cost=0.0,
+    )
+    graph = IdentityGraph(
+        edges=(edge,),
+        merged=(edge,),
+        representatives={source.mentions[0].entity_id: query.mentions[0].entity_id},
+    )
+
+    results = build_weaves(query, [source], k=2, identity_graph=graph)
+
+    assert not results[0].aligned
+    assert results[0].rejection_reason == ""
+    assert any(
+        result.rejection_reason == "max_conflict_cost"
+        for result in results[1:]
+    )
+
+
+@pytest.mark.parametrize("engine", ["beam", "hierarchical"])
+def test_context_restriction_disallows_mismatched_weaves(monkeypatch, engine):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "senf_weave_engine", engine)
+    monkeypatch.setattr(settings, "senf_weave_require_context_match", True)
+    query = _senf("q1", ["(: q (Arrived alpha) $tv)"])
+    source = _senf("s1", ["(: a (Arrived alpha) (STV 1 1))"])
+    query.frames[0].modality = "observed"
+    source.frames[0].modality = "reported"
+
+    assert not weave(query, [source]).aligned
+
+
+@pytest.mark.parametrize("engine", ["beam", "hierarchical"])
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("speaker", "alice"),
+        ("modality", "observed"),
+        ("time_ref", "today"),
+        ("location_ref", "lab"),
+        ("validity_interval_id", "interval:query"),
+    ],
+)
+def test_context_restriction_rejects_explicit_to_absent(
+    monkeypatch, engine, name, value
+):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "senf_weave_engine", engine)
+    monkeypatch.setattr(settings, "senf_weave_require_context_match", True)
+    query = _senf("q1", ["(: q (Arrived alpha) $tv)"])
+    source = _senf("s1", ["(: a (Arrived alpha) (STV 1 1))"])
+    context = query.frames[0].context or Context("q1:u0")
+    query.frames[0].context = replace(context, **{name: value})
+
+    assert not weave(query, [source]).aligned
+
+
+@pytest.mark.parametrize("engine", ["beam", "hierarchical"])
+def test_context_restriction_compares_branch_ids(monkeypatch, engine):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "senf_weave_engine", engine)
+    monkeypatch.setattr(settings, "senf_weave_require_context_match", True)
+    query = _senf("q1", ["(: q (Arrived alpha) $tv)"])
+    source = _senf("s1", ["(: a (Arrived alpha) (STV 1 1))"])
+    context = query.frames[0].context or Context("q1:u0")
+    query.frames[0].context = replace(context, branch_id="projected")
+
+    assert not weave(query, [source]).aligned
+
+
+def test_policy_rejections_sort_after_operational_results(monkeypatch):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "senf_weave_engine", "beam")
+    monkeypatch.setattr(settings, "senf_weave_max_conflict_cost", 0.0)
+    query = _senf("q1", ["(: q (Moved alpha) $tv)"])
+    rejected_source = _senf("s1", ["(: a (Moved beta) (STV 1 1))"])
+    allowed_source = _senf("s2", ["(: b (Moved alpha) (STV 1 1))"])
+    edge = IdentityEdge(
+        rejected_source.mentions[0],
+        query.mentions[0],
+        1.0,
+        1.0,
+        negative_strength=0.1,
+        positive_cost=0.0,
+    )
+    graph = IdentityGraph(
+        edges=(edge,),
+        merged=(edge,),
+        representatives={
+            rejected_source.mentions[0].entity_id: query.mentions[0].entity_id
+        },
+    )
+
+    results = build_weaves(
+        query, [rejected_source, allowed_source], k=4, identity_graph=graph
+    )
+
+    rejection_index = next(
+        index for index, result in enumerate(results) if result.rejection_reason
+    )
+    assert all(not result.rejection_reason for result in results[:rejection_index])
+    assert any(
+        result.aligned
+        and result.pairs[0].source_id == allowed_source.senf_id
+        for result in results[:rejection_index]
+    )
+
+
+@pytest.mark.parametrize("engine", ["beam", "hierarchical"])
+def test_coarse_identity_forgets_supported_edge_cost(monkeypatch, engine):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "senf_weave_engine", engine)
+    monkeypatch.setattr(settings, "senf_weave_coarse_identity", True)
+    query = _senf("q1", ["(: q (Moved alpha) $tv)"])
+    source = _senf("s1", ["(: a (Moved beta) (STV 1 1))"])
+    edge = IdentityEdge(
+        source.mentions[0], query.mentions[0], 1.0, 1.0, positive_cost=0.8
+    )
+    graph = IdentityGraph(
+        edges=(edge,),
+        merged=(edge,),
+        representatives={source.mentions[0].entity_id: query.mentions[0].entity_id},
+    )
+
+    result = weave(query, [source], identity_graph=graph)
+
+    assert result.aligned
+    assert result.identity_cost == 0.0
 
 
 @pytest.mark.parametrize(

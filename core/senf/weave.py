@@ -98,10 +98,18 @@ class WeaveResult:
     transport_decisions: tuple[TransportDecision, ...] = ()
     total_cost: float = 0.0
     guard: str = ""
-    residuals: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    residuals: Optional[tuple[float, float, float]] = None
     rejected_pairs: tuple[FramePair, ...] = ()
     alignments: tuple[FrameAlignment, ...] = ()
     polish: Optional[PolishDiagnostics] = None
+    global_coupling_objective: Optional[float] = None
+    coupling_entropy: Optional[float] = None
+    matched_soft_mass: Optional[float] = None
+    unmatched_soft_mass: Optional[float] = None
+    polish_iterations: Optional[int] = None
+    polish_converged: Optional[bool] = None
+    fallback_reason: str = ""
+    rejection_reason: str = ""
 
     @property
     def aligned(self) -> bool:
@@ -239,6 +247,8 @@ def _identity_cost(
         # A direct accepted edge exposes positive uncertainty separately from its
         # negative evidence. Multi-hop transport uses the graph's bounded path cost.
         cost = edge.positive_cost if edge is not None else graph.transport_cost(left_id, right_id)
+        if get_settings().senf_weave_coarse_identity:
+            cost = 0.0
         return cost, conflict, True
     if edge is not None and edge.strength > 0.0:
         return edge.positive_cost, conflict, False
@@ -336,6 +346,16 @@ def _mismatch(query_frame: SENFFrame, source_frame: SENFFrame, name: str) -> flo
     return 1.0 if query_value is not None and source_value is not None and query_value != source_value else 0.0
 
 
+def _strict_context_mismatch(
+    query_frame: SENFFrame, source_frame: SENFFrame, name: str
+) -> bool:
+    query_value = _context_value(query_frame, name)
+    source_value = _context_value(source_frame, name)
+    return query_value != source_value and (
+        query_value is not None or source_value is not None
+    )
+
+
 def _exemplar_options(
     query_senf: SENF,
     query_mention: Optional[Mention],
@@ -406,6 +426,14 @@ def _pair_hypotheses(
 ) -> tuple[_PairHypothesis, ...]:
     source_context = source_frame.context or Context(source_senf.source_units[0].source_unit_id)
     query_context = query_frame.context or Context(query_senf.source_units[0].source_unit_id)
+    if get_settings().senf_weave_require_context_match and any(
+        _strict_context_mismatch(query_frame, source_frame, name)
+        for name in (
+            "speaker", "modality", "time_ref", "location_ref", "branch_id",
+            "validity_interval_id",
+        )
+    ):
+        return ()
     persistence_policies = _frame_persistence(source_frame, source_senf)
     if any(
         item.validity_interval_id is not None
@@ -575,7 +603,7 @@ def _pair_hypotheses(
             + modality + transport.branch_cost + transport.temporal_cost
             + transport.persistence_cost
         )
-        hypotheses.append(_PairHypothesis(
+        hypothesis = _PairHypothesis(
             replace(
                 pair,
                 transport_cost=round(local_cost, 4),
@@ -603,7 +631,8 @@ def _pair_hypotheses(
             transport.temporal_cost,
             transport.persistence_cost,
             transport,
-        ))
+        )
+        hypotheses.append(hypothesis)
         if len(hypotheses) >= limits.max_exemplar_alternatives:
             break
     return tuple(sorted(hypotheses, key=_pair_key))
@@ -840,7 +869,6 @@ def _result(
         transport_decisions=tuple(item.transport_decision for item in selected),
         total_cost=round(total, 4),
         guard=f"{source.sentence_id}->{query.sentence_id}",
-        residuals=(rounded_distortion, rounded_distortion, rounded_distortion),
     )
 
 
@@ -927,9 +955,7 @@ def _weave_source(
         graph,
     ))
     results = [
-        _reject_over_cost(result) if result.aligned and result.total_cost > limits.max_cost
-        else result
-        for result in results
+        _apply_policy(result, limits) for result in results
     ]
     unique: dict[tuple, WeaveResult] = {}
     for result in results:
@@ -945,8 +971,10 @@ def _weave_source(
 
 
 def _result_key(result: WeaveResult) -> tuple:
+    # Hard policy rejections are diagnostics, never operational alternatives.
+    disposition = 1 if result.rejection_reason else 0
     return (
-        1 if result.rejected_pairs else 0,
+        disposition,
         result.total_cost,
         result.distortion,
         result.guard,
@@ -957,7 +985,7 @@ def _result_key(result: WeaveResult) -> tuple:
     )
 
 
-def _reject_over_cost(result: WeaveResult) -> WeaveResult:
+def _reject_over_cost(result: WeaveResult, reason: str = "max_total_cost") -> WeaveResult:
     return WeaveResult(
         rejected_pairs=result.pairs,
         distortion=result.distortion,
@@ -981,7 +1009,34 @@ def _reject_over_cost(result: WeaveResult) -> WeaveResult:
         residuals=result.residuals,
         alignments=result.alignments,
         polish=result.polish,
+        global_coupling_objective=result.global_coupling_objective,
+        coupling_entropy=result.coupling_entropy,
+        matched_soft_mass=result.matched_soft_mass,
+        unmatched_soft_mass=result.unmatched_soft_mass,
+        polish_iterations=result.polish_iterations,
+        polish_converged=result.polish_converged,
+        fallback_reason=result.fallback_reason,
+        rejection_reason=reason,
     )
+
+
+def _apply_policy(result: WeaveResult, limits: _Limits) -> WeaveResult:
+    if not result.aligned:
+        return result
+    settings = get_settings()
+    fine_transport = (
+        result.structural_cost + result.exemplar_cost + result.identity_cost
+        + result.conflict_cost + result.time_cost + result.location_cost
+        + result.modality_cost + result.branch_cost + result.temporal_decay_cost
+        + result.persistence_cost
+    )
+    if result.conflict_cost + result.distortion_cost > settings.senf_weave_max_conflict_cost:
+        return _reject_over_cost(result, "max_conflict_cost")
+    if fine_transport > settings.senf_weave_max_transport_cost:
+        return _reject_over_cost(result, "max_transport_cost")
+    if result.total_cost > limits.max_cost:
+        return _reject_over_cost(result)
+    return result
 
 
 def _frame_persistence(
@@ -1263,11 +1318,15 @@ def _hierarchy_result(
         residuals=diagnostics.residuals,
         alignments=tuple(selected),
         polish=diagnostics,
+        global_coupling_objective=round(diagnostics.global_coupling_objective, 8),
+        coupling_entropy=round(diagnostics.entropy, 8),
+        matched_soft_mass=round(diagnostics.matched_soft_mass, 8),
+        unmatched_soft_mass=round(diagnostics.unmatched_soft_mass, 8),
+        polish_iterations=diagnostics.iterations,
+        polish_converged=diagnostics.converged,
+        fallback_reason=diagnostics.fallback_reason,
     )
-    settings = get_settings()
-    if result.aligned and result.total_cost > max(0.0, settings.senf_weave_max_cost):
-        return _reject_over_cost(result)
-    return result
+    return _apply_policy(result, _limits())
 
 
 def build_weaves(
@@ -1321,6 +1380,8 @@ def build_weaves(
             total_cost=1.0,
             guard=f"unaligned->{query.sentence_id}",
             polish=diagnostics,
+            polish_converged=False,
+            fallback_reason=reason,
         ),)
 
     hierarchy_values = (
@@ -1369,6 +1430,7 @@ def build_weaves(
         settings.senf_weave_max_iterations,
         settings.senf_weave_sinkhorn_tolerance,
         settings.senf_weave_sinkhorn_regularization,
+        settings.senf_weave_forget_fine_costs,
     )
     try:
         candidates, lookup = _hierarchy_candidates(

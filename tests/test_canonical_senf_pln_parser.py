@@ -8,9 +8,13 @@ from core.senf.exemplars import score_exemplars
 from core.senf.extractor import extract_senf
 from core.senf.identity import IdentityGraph
 from core.senf.features import ExactSpan, FeatureBatch, SpanFeature
+from core.senf.weave import FramePair, WeaveResult
 from core.senf.types import SENF_PAYLOAD_KEY, senf_to_payload
 from parsers.canonical_pln_parser import CanonicalPLNParser
-from parsers.canonical_senf_pln_parser import CanonicalSENFPLNParser
+from parsers.canonical_senf_pln_parser import (
+    CanonicalSENFPLNParser,
+    _weave_summary,
+)
 
 
 CAMERA = "(: a (HasProperty camera wide_lens) (STV 1.0 1.0))"
@@ -495,6 +499,53 @@ class TestSettings:
         assert parser._context_top_k == cfg.senf_context_top_k
         assert parser._max_frames == cfg.senf_session_max_frames
 
+    def test_planner_modality_environment_values_parse(self):
+        from config import Settings
+
+        settings = Settings(
+            openai_api_key="test",
+            senf_weave_forget_fine_costs=True,
+            senf_weave_coarse_identity=True,
+            senf_weave_max_conflict_cost=0.25,
+            senf_weave_max_transport_cost=0.5,
+            senf_weave_require_context_match=True,
+            senf_matched_soft_mass_weight=4,
+            senf_global_residual_ratio_weight=5,
+            senf_alignment_confidence_weight=6,
+            senf_diagnostics_max_weaves=2,
+            senf_diagnostics_max_items=20,
+            senf_diagnostics_max_evidence=3,
+        )
+
+        assert settings.senf_weave_forget_fine_costs
+        assert settings.senf_weave_coarse_identity
+        assert settings.senf_weave_max_conflict_cost == 0.25
+        assert settings.senf_weave_max_transport_cost == 0.5
+        assert settings.senf_weave_require_context_match
+        assert settings.senf_matched_soft_mass_weight == 4
+        assert settings.senf_diagnostics_max_items == 20
+
+    @pytest.mark.parametrize(
+        "name,value",
+        [
+            ("senf_weave_top_k", 17),
+            ("senf_weave_per_source_k", 17),
+            ("senf_weave_beam_width", 257),
+            ("senf_weave_max_frames", 129),
+            ("senf_weave_max_pair_candidates", 4097),
+            ("senf_weave_max_exemplar_alternatives", 33),
+            ("senf_diagnostics_max_weaves", 17),
+            ("senf_diagnostics_max_items", 1025),
+            ("senf_diagnostics_max_evidence", 65),
+        ],
+    )
+    def test_weave_and_diagnostic_bounds_reject_unsafe_maxima(self, name, value):
+        from pydantic import ValidationError
+        from config import Settings
+
+        with pytest.raises(ValidationError):
+            Settings(openai_api_key="test", **{name: value})
+
 
 class TestFeatureProviderIntegration:
     class Provider:
@@ -839,6 +890,24 @@ class TestTelemetry:
         assert report["frame_count"] > 0
         assert report["weave_distortion"] is not None
         assert report["weave_pair_count"] >= 1
+        assert 1 <= len(report["weave_summaries"]) <= parser._weave_top_k
+        summary = report["weave_summaries"][0]
+        assert summary["pairs"][0]["source_id"]
+        assert set(summary["costs"]) == {
+            "structural", "exemplar", "identity", "conflict", "time",
+            "location", "modality", "unmatched", "distortion", "branch",
+            "temporal_decay", "persistence",
+        }
+        assert "residuals" in summary
+        assert "rejected_pairs" in summary
+        assert "entity_maps" in summary
+        assert "polish_converged" in summary
+        assert summary["matched_pair_count"] == len(summary["pairs"])
+        assert summary["polish_status"] == "not_applicable"
+        assert summary["polish_converged"] is None
+        assert summary["matched_soft_mass"] is None
+        assert summary["residuals"] is None
+        assert "truncation" in summary
 
     def test_identity_merges_and_query_rewrites_are_reported_separately(self, parser):
         hook(parser, "The camera has a wide lens.", [CAMERA])
@@ -876,6 +945,43 @@ class TestTelemetry:
         parser.senf_telemetry()["frame_count"] = 999
 
         assert parser.senf_telemetry()["frame_count"] != 999
+
+    def test_nested_weave_telemetry_is_also_copied(self, parser):
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+        statements, queries = hook(
+            parser,
+            "Does the camera have a wide lens?",
+            [CAMERA],
+            ["(: $prf (HasProperty camera wide_lens) $tv)"],
+            is_query=True,
+        )
+        parser._plan_queries(
+            "Does the camera have a wide lens?", queries, statements, [CAMERA]
+        )
+
+        report = parser.senf_telemetry()
+        report["weave_summaries"][0]["pairs"].clear()
+
+        assert parser.senf_telemetry()["weave_summaries"][0]["pairs"]
+
+    def test_weave_summary_bounds_all_variable_collections(self):
+        result = WeaveResult(
+            pairs=(
+                FramePair("q1", "s1", 1.0, ("one", "two")),
+                FramePair("q2", "s2", 1.0, ("three", "four")),
+            ),
+            grounded_symbols=frozenset(("beta", "alpha")),
+            role_maps=(("r1", "r1"), ("r2", "r2")),
+        )
+
+        summary = _weave_summary(result, max_items=1, max_evidence=1)
+
+        assert len(summary["pairs"]) == 1
+        assert summary["pairs"][0]["evidence"] == ["one"]
+        assert summary["pairs"][0]["evidence_truncation"]["omitted"] == 1
+        assert summary["grounded_symbols"] == ["alpha"]
+        assert summary["truncation"]["pairs"]["omitted"] == 1
+        assert summary["truncation"]["role_maps"]["omitted"] == 1
 
     def test_the_base_parser_reports_nothing(self):
         assert not hasattr(CanonicalPLNParser, "senf_telemetry")

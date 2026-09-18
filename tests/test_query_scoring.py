@@ -232,7 +232,11 @@ class TestSENFSignals:
         )
 
     def test_distortion_can_reject_a_wholly_unsupported_question(self):
-        signals = query_scoring.SENFSignals(distortion=1.0, distortion_weight=99)
+        signals = query_scoring.SENFSignals(
+            distortion=1.0,
+            distortion_weight=99,
+            distortion_candidate_specific=True,
+        )
 
         assert (
             query_scoring.score_query_candidate(
@@ -277,6 +281,9 @@ class TestSENFSignals:
                 "conflict": 0,
                 "transport": 0,
                 "distortion": 0,
+                "matched_soft_mass": 0,
+                "global_residual_ratio": 0,
+                "alignment_confidence": 0,
             },
             "total": 14,
             "rejected": None,
@@ -292,7 +299,7 @@ class TestSENFSignals:
         )
         costly = query_scoring.SENFSignals(
             transport_cost=0.7, distortion=0.4, transport_cost_weight=2,
-            distortion_weight=2,
+            distortion_weight=2, distortion_candidate_specific=True,
         )
         candidate = q("Smart", "kebede")
         facts = [sig("Smart", "kebede")]
@@ -304,6 +311,47 @@ class TestSENFSignals:
         )
         assert costly.bonus_breakdown(candidate)["transport"] < 0
         assert costly.bonus_breakdown(candidate)["distortion"] < 0
+
+    def test_global_alignment_signals_have_zero_default_weights(self):
+        candidate = q("Smart", "kebede")
+        signals = query_scoring.SENFSignals(
+            matched_soft_mass=1.0,
+            global_residual_ratio=1.0,
+            alignment_confidence=1.0,
+        )
+
+        assert signals.bonus(candidate) == 0
+
+    def test_global_alignment_signals_are_configurable(self):
+        candidate = q("Smart", "kebede")
+        signals = query_scoring.SENFSignals(
+            matched_soft_mass=0.8,
+            global_residual_ratio=0.2,
+            alignment_confidence=0.75,
+            matched_soft_mass_weight=10,
+            global_residual_ratio_weight=10,
+            alignment_confidence_weight=4,
+        )
+
+        parts = signals.bonus_breakdown(candidate)
+        assert parts["matched_soft_mass"] == 8
+        assert parts["global_residual_ratio"] == -2
+        assert parts["alignment_confidence"] == 3
+
+    def test_unavailable_soft_alignment_signals_do_not_score(self):
+        candidate = q("Smart", "kebede")
+        signals = query_scoring.SENFSignals(
+            matched_soft_mass_weight=10,
+            global_residual_ratio_weight=10,
+            alignment_confidence_weight=10,
+        )
+
+        assert signals.bonus(candidate) == 0
+
+    def test_question_global_distortion_does_not_reorder_candidates(self):
+        signals = query_scoring.SENFSignals(distortion=1.0, distortion_weight=99)
+
+        assert signals.bonus_breakdown(q("Smart", "kebede"))["distortion"] == 0
 
 
 class TestDeriveExtraCandidates:

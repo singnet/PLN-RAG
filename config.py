@@ -93,18 +93,18 @@ class Settings(BaseSettings):
     senf_use_vector_context: bool = True
     senf_exemplar_enabled: bool = True
     senf_emit_bridge_atoms: bool = False
-    senf_weave_top_k: int = 3
+    senf_weave_top_k: int = Field(default=3, gt=0, le=16)
     # Global query-planning limits, before the lower-level weave bounds apply.
     senf_query_max_priors: int = 16
     senf_query_max_source_frames: int = 128
     senf_query_max_mentions: int = 256
     senf_query_max_candidate_work: int = 32
     # Deterministic weave search resource limits.
-    senf_weave_per_source_k: int = 3
-    senf_weave_beam_width: int = 32
-    senf_weave_max_frames: int = 64
-    senf_weave_max_pair_candidates: int = 256
-    senf_weave_max_exemplar_alternatives: int = 4
+    senf_weave_per_source_k: int = Field(default=3, gt=0, le=16)
+    senf_weave_beam_width: int = Field(default=32, gt=0, le=256)
+    senf_weave_max_frames: int = Field(default=64, gt=0, le=128)
+    senf_weave_max_pair_candidates: int = Field(default=256, gt=0, le=4_096)
+    senf_weave_max_exemplar_alternatives: int = Field(default=4, gt=0, le=32)
     senf_weave_max_cost: float = 2.0
     senf_weave_engine: Literal["beam", "hierarchical"] = "beam"
     senf_weave_global_candidate_cap: int = Field(default=512, gt=0)
@@ -117,6 +117,16 @@ class Settings(BaseSettings):
     senf_weave_sinkhorn_regularization: float = Field(
         default=0.25, gt=0.0, allow_inf_nan=False
     )
+    # Optional practical modality controls. Defaults preserve existing weaves.
+    senf_weave_forget_fine_costs: bool = False
+    senf_weave_coarse_identity: bool = False
+    senf_weave_max_conflict_cost: float = Field(
+        default=1_000_000.0, ge=0.0, allow_inf_nan=False
+    )
+    senf_weave_max_transport_cost: float = Field(
+        default=1_000_000.0, ge=0.0, allow_inf_nan=False
+    )
+    senf_weave_require_context_match: bool = False
     # Weave-derived query scoring (C7). Zero reproduces pre-SENF ranking exactly.
     senf_source_grounding_weight: int = 3
     senf_role_compat_weight: int = 2
@@ -125,6 +135,13 @@ class Settings(BaseSettings):
     senf_exemplar_coherence_weight: int = 2
     senf_conflict_weight: int = 3
     senf_transport_cost_weight: int = 2
+    senf_matched_soft_mass_weight: int = 0
+    senf_global_residual_ratio_weight: int = 0
+    senf_alignment_confidence_weight: int = 0
+    # Response-only bounds. These do not change planner search or scoring.
+    senf_diagnostics_max_weaves: int = Field(default=3, gt=0, le=16)
+    senf_diagnostics_max_items: int = Field(default=128, gt=0, le=1_024)
+    senf_diagnostics_max_evidence: int = Field(default=16, gt=0, le=64)
     # Stage 7 remains separately opt-in inside the experimental SENF parser.
     senf_counterfactual_enabled: bool = False
     senf_branch_max_nodes: int = 64

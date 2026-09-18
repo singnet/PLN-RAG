@@ -45,7 +45,7 @@ def test_reversing_sources_preserves_beam_outputs(monkeypatch):
     ]
 
 
-def test_residual_tuple_repeats_the_scalar_distortion():
+def test_beam_results_do_not_claim_solver_residuals():
     query = _senf(
         "q1",
         "Did alpha move and beta leave?",
@@ -59,7 +59,7 @@ def test_residual_tuple_repeats_the_scalar_distortion():
 
     assert {result.distortion for result in results} == {0.5, 1.0}
     assert all(
-        result.residuals == (result.distortion,) * 3 for result in results
+        result.residuals is None for result in results
     )
 
 

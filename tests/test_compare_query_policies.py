@@ -93,6 +93,22 @@ def test_rejects_setting_drift():
         cqp.compare_report(payload)
 
 
+def test_frozen_settings_include_planner_modalities_and_diagnostics():
+    assert {
+        "senf_weave_forget_fine_costs",
+        "senf_weave_coarse_identity",
+        "senf_weave_max_conflict_cost",
+        "senf_weave_max_transport_cost",
+        "senf_weave_require_context_match",
+        "senf_matched_soft_mass_weight",
+        "senf_global_residual_ratio_weight",
+        "senf_alignment_confidence_weight",
+        "senf_diagnostics_max_weaves",
+        "senf_diagnostics_max_items",
+        "senf_diagnostics_max_evidence",
+    } <= set(cqp.EXPECTED_POLICY_SETTINGS)
+
+
 def test_rejects_systematic_setting_drift():
     payload = report()
     for arm in cqp.POLICY_ARMS.values():

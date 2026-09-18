@@ -57,6 +57,8 @@ class PolishStageDiagnostics:
     row_residual: float = 0.0
     column_residual: float = 0.0
     global_residual: float = 0.0
+    objective: float = 0.0
+    entropy: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -68,6 +70,8 @@ class PolishDiagnostics:
     candidate_count: int = 0
     seed_count: int = 0
     fallback_reason: str = ""
+    matched_soft_mass: float = 0.0
+    unmatched_soft_mass: float = 0.0
 
     @property
     def residuals(self) -> tuple[float, float, float]:
@@ -75,6 +79,27 @@ class PolishDiagnostics:
             self.local.global_residual,
             self.block.global_residual,
             self.global_stage.global_residual,
+        )
+
+    @property
+    def global_coupling_objective(self) -> float:
+        return self.global_stage.objective
+
+    @property
+    def entropy(self) -> float:
+        return self.global_stage.entropy
+
+    @property
+    def iterations(self) -> int:
+        return self.local.iterations + self.block.iterations + self.global_stage.iterations
+
+    @property
+    def converged(self) -> bool:
+        return (
+            not self.fallback_reason
+            and self.local.converged
+            and self.block.converged
+            and self.global_stage.converged
         )
 
 

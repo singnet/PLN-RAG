@@ -31,6 +31,7 @@ class HierarchyLimits:
     max_iterations: int
     tolerance: float
     regularization: float
+    forget_fine_costs: bool = False
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,8 @@ def _stage(solutions: Sequence[SinkhornResult]) -> PolishStageDiagnostics:
         global_residual=max(
             (item.global_residual for item in solutions), default=0.0
         ),
+        objective=sum(item.objective for item in solutions),
+        entropy=sum(item.entropy for item in solutions),
     )
 
 
@@ -118,7 +121,8 @@ def _solve(
         inherited = 1.0 if prior is None else max(prior.get(key, 0.0), 1e-300)
         support[row, column] = True
         log_prior[row, column] = (
-            -item.costs.total / limits.regularization
+            -(0.0 if limits.forget_fine_costs else item.costs.total)
+            / limits.regularization
             if prior is None else math.log(inherited)
         )
 
@@ -447,6 +451,14 @@ def polish_hierarchy(
         global_stage=_stage((global_solution,)),
         candidate_count=len(ordered),
         seed_count=len(selections),
+        matched_soft_mass=sum(
+            value for (query_id, source), value in global_weights.items()
+            if source is not None
+        ),
+        unmatched_soft_mass=sum(
+            value for (query_id, source), value in global_weights.items()
+            if source is None
+        ),
     )
     return HierarchyResult(selections, diagnostics)
 

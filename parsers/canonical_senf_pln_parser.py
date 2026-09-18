@@ -1,3 +1,4 @@
+import copy
 import logging
 import re
 import uuid
@@ -56,6 +57,7 @@ class _CandidatePlan:
     adapters: tuple[str, ...] = ()
     query_context: Optional[Context] = None
     temporal_decisions: tuple[TransportDecision, ...] = ()
+    weaves: tuple[WeaveResult, ...] = ()
 
 
 def _is_semantic_atom(atom: str) -> bool:
@@ -103,6 +105,110 @@ def _telemetry(
     }
 
 
+def _bounded(items, limit: int) -> tuple[list, dict]:
+    values = list(items)
+    emitted = values[:limit]
+    return emitted, {
+        "total": len(values),
+        "emitted": len(emitted),
+        "omitted": len(values) - len(emitted),
+    }
+
+
+def _weave_summary(
+    result: WeaveResult, max_items: int, max_evidence: int
+) -> dict:
+    """Serialize one weave under response-specific cardinality bounds."""
+    costs = {
+        name: round(getattr(result, f"{name}_cost"), 4)
+        for name in (
+            "structural", "exemplar", "identity", "conflict", "time",
+            "location", "modality", "unmatched", "distortion", "branch",
+            "temporal_decay", "persistence",
+        )
+    }
+    truncation = {}
+
+    def collection(name: str, items, serializer=lambda item: item) -> list:
+        emitted, report = _bounded(items, max_items)
+        truncation[name] = report
+        return [serializer(item) for item in emitted]
+
+    def pair(item) -> dict:
+        payload = asdict(item)
+        evidence, report = _bounded(item.evidence, max_evidence)
+        payload["evidence"] = evidence
+        payload["evidence_truncation"] = report
+        return payload
+
+    def alignment(item) -> dict:
+        evidence, report = _bounded(item.evidence, max_evidence)
+        return {
+            "query_frame_id": item.query_frame_id,
+            "source_id": item.source_frame.source_id,
+            "source_frame_id": item.source_frame.frame_id,
+            "score": item.score,
+            "costs": asdict(item.costs),
+            "evidence": evidence,
+            "evidence_truncation": report,
+        }
+
+    polish_status = "not_applicable"
+    if result.polish is not None:
+        polish_status = (
+            "fallback" if result.fallback_reason
+            else "converged" if result.polish_converged
+            else "not_converged"
+        )
+    summary = {
+        "guard": result.guard,
+        "aligned": result.aligned,
+        "distortion": result.distortion,
+        "total_cost": result.total_cost,
+        "costs": costs,
+        "matched_pair_count": len(result.pairs),
+        "pairs": collection("pairs", result.pairs, pair),
+        "rejected_pairs": collection("rejected_pairs", result.rejected_pairs, pair),
+        "entity_maps": collection("entity_maps", result.entity_maps, asdict),
+        "predicate_maps": collection("predicate_maps", result.predicate_maps, asdict),
+        "kind_maps": collection("kind_maps", result.kind_maps, lambda item: {
+            "source_kind": item[0], "query_kind": item[1]
+        }),
+        "exemplar_maps": collection("exemplar_maps", result.exemplar_maps, lambda item: {
+            "source_exemplar": item[0], "query_exemplar": item[1]
+        }),
+        "role_maps": collection("role_maps", result.role_maps, lambda item: {
+            "source_role": item[0], "query_role": item[1]
+        }),
+        "alignments": collection("alignments", result.alignments, alignment),
+        "grounded_symbols": collection(
+            "grounded_symbols", sorted(result.grounded_symbols)
+        ),
+        "grounded_entity_ids": collection(
+            "grounded_entity_ids", sorted(result.grounded_entity_ids)
+        ),
+        "role_signatures": collection(
+            "role_signatures", sorted(result.role_signatures), list
+        ),
+        "residuals": list(result.residuals) if result.residuals is not None else None,
+        "global_coupling_objective": result.global_coupling_objective,
+        "coupling_entropy": result.coupling_entropy,
+        "matched_soft_mass": result.matched_soft_mass,
+        "unmatched_soft_mass": result.unmatched_soft_mass,
+        "polish_iterations": result.polish_iterations,
+        "polish_converged": result.polish_converged,
+        "polish_status": polish_status,
+        "fallback_reason": result.fallback_reason,
+        "rejection_reason": result.rejection_reason,
+        "polish": asdict(result.polish) if result.polish else None,
+        "transport_decisions": collection(
+            "transport_decisions", result.transport_decisions, asdict
+        ),
+    }
+    summary["truncation"] = truncation
+    return summary
+
+
 class CanonicalSENFPLNParser(CanonicalPLNParser):
     """Canonical PLN parser extended with SENF identity, exemplars, and weaves."""
 
@@ -132,6 +238,13 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._exemplar_coherence_weight = cfg.senf_exemplar_coherence_weight
         self._conflict_weight = cfg.senf_conflict_weight
         self._transport_cost_weight = cfg.senf_transport_cost_weight
+        self._matched_soft_mass_weight = cfg.senf_matched_soft_mass_weight
+        self._global_residual_ratio_weight = cfg.senf_global_residual_ratio_weight
+        self._alignment_confidence_weight = cfg.senf_alignment_confidence_weight
+        self._sinkhorn_tolerance = cfg.senf_weave_sinkhorn_tolerance
+        self._diagnostics_max_weaves = cfg.senf_diagnostics_max_weaves
+        self._diagnostics_max_items = cfg.senf_diagnostics_max_items
+        self._diagnostics_max_evidence = cfg.senf_diagnostics_max_evidence
         self._counterfactual_enabled = cfg.senf_counterfactual_enabled
         self._branch_max_nodes = max(1, int(cfg.senf_branch_max_nodes))
         self._branch_max_depth = max(1, int(cfg.senf_branch_max_depth))
@@ -141,6 +254,7 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._temporal_decay_rate = max(0.0, float(cfg.senf_temporal_decay_rate))
         self._feature_provider = create_feature_provider(cfg)
         self._feature_provider_name = cfg.senf_feature_provider
+        self._feature_diagnostics_limit = cfg.senf_feature_max_features
         self._vector_store = None
         self.reset()
 
@@ -173,7 +287,7 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         Probed by the service through `hasattr`, so the base parser reporting
         nothing needs no coordination here.
         """
-        return dict(self._telemetry) if self._telemetry else None
+        return copy.deepcopy(self._telemetry) if self._telemetry else None
 
     def _parse_many_with_mode(
         self, texts: List[str], context: List[str], is_query: bool
@@ -274,7 +388,8 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                     "applied_feature_count": 0,
                     "provider_coreference_count": 0,
                     "feature_rejections": [
-                        asdict(item) for item in self._feature_diagnostics
+                        asdict(item)
+                        for item in self._feature_diagnostics[:self._feature_diagnostics_limit]
                     ],
                 })
                 return statements, queries
@@ -325,7 +440,10 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                 "feature_provider": self._feature_provider_name,
                 "applied_feature_count": len(senf.applied_mention_features),
                 "provider_coreference_count": len(senf.coreference_evidence),
-                "feature_rejections": [asdict(item) for item in self._feature_diagnostics],
+                "feature_rejections": [
+                    asdict(item)
+                    for item in self._feature_diagnostics[:self._feature_diagnostics_limit]
+                ],
             })
             return query_statements, rewritten_queries
         except Exception as exc:
@@ -507,7 +625,21 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                 "weave_distortion": round(self._weave.distortion, 4) if self._weave else None,
                 "weave_pair_count": len(self._weave.pairs) if self._weave else 0,
                 "weave_total_cost": round(self._weave.total_cost, 4) if self._weave else None,
+                "weave_summaries": [],
             })
+            diagnostic_weaves = deduped[0].weaves if deduped else ()
+            emitted_weaves, weave_truncation = _bounded(
+                diagnostic_weaves, self._diagnostics_max_weaves
+            )
+            self._telemetry["weave_summaries"] = [
+                _weave_summary(
+                    item,
+                    self._diagnostics_max_items,
+                    self._diagnostics_max_evidence,
+                )
+                for item in emitted_weaves
+            ]
+            self._telemetry["weave_summaries_truncation"] = weave_truncation
         return [plan.query for plan in deduped]
 
     def _candidate_context(
@@ -712,7 +844,7 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         ) if parsed else query_scoring.CandidateScore(rejected="invalid_query")
         return _CandidatePlan(
             candidate, candidate_senf, graph, weave, source, score, adapters,
-            query_context, temporal_decisions,
+            query_context, temporal_decisions, weaves,
         )
 
     def _source_for_weave(self, weave: Optional[WeaveResult]) -> Optional[SENF]:
@@ -766,6 +898,30 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             exemplar_coherence_weight=self._exemplar_coherence_weight,
             conflict_weight=self._conflict_weight,
             transport_cost_weight=self._transport_cost_weight,
+            matched_soft_mass=selected.matched_soft_mass,
+            global_residual_ratio=(
+                min(
+                    1.0,
+                    selected.polish.global_stage.global_residual
+                    / self._sinkhorn_tolerance,
+                )
+                if selected.polish is not None
+                and not selected.fallback_reason
+                and selected.polish_converged is not None
+                else None
+            ),
+            alignment_confidence=(
+                selected.matched_soft_mass
+                / (selected.matched_soft_mass + selected.unmatched_soft_mass)
+                if selected.matched_soft_mass is not None
+                and selected.unmatched_soft_mass is not None
+                and selected.matched_soft_mass + selected.unmatched_soft_mass > 0.0
+                else None
+            ),
+            matched_soft_mass_weight=self._matched_soft_mass_weight,
+            global_residual_ratio_weight=self._global_residual_ratio_weight,
+            alignment_confidence_weight=self._alignment_confidence_weight,
+            distortion_candidate_specific=weave is not None,
         )
 
     def _prior_senfs(self, text: str, is_query: bool = False) -> List[SENF]:
