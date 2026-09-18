@@ -108,6 +108,33 @@ class Mention:
 
 
 @dataclass(frozen=True)
+class AppliedMentionFeature:
+    """Auditable provider evidence applied to an existing parser mention."""
+
+    mention_id: str
+    entity_id: str
+    name: str
+    value: str
+    confidence: float
+    provider: str
+    source_span: SourceSpan
+    source_text: str
+    evidence: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class AppliedCoreferenceEvidence:
+    """Provider identity evidence; it is never itself an entity merge."""
+
+    anaphor_mention_id: str
+    antecedent_mention_id: str
+    polarity: TypingLiteral["positive", "negative"]
+    confidence: float
+    provider: str
+    evidence: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class EntityRef:
     entity_id: str
     mention_id: str
@@ -198,6 +225,8 @@ class SENF:
     validity_intervals: list[ValidityInterval] = field(default_factory=list)
     entity_persistence: list[EntityPersistence] = field(default_factory=list)
     source_atoms: list[str] = field(default_factory=list)
+    applied_mention_features: list[AppliedMentionFeature] = field(default_factory=list)
+    coreference_evidence: list[AppliedCoreferenceEvidence] = field(default_factory=list)
 
     @property
     def is_empty(self) -> bool:
@@ -240,7 +269,7 @@ class SENF:
         return tuple(self.exemplar_alternatives.get(mention.mention_id, ()))
 
 
-SENF_PAYLOAD_VERSION = 6
+SENF_PAYLOAD_VERSION = 7
 SENF_PAYLOAD_KEY = "senf"
 
 
@@ -468,11 +497,36 @@ def senf_to_payload(senf: SENF) -> dict:
             for item in senf.entity_persistence
         ],
         "source_atoms": list(senf.source_atoms),
+        "applied_mention_features": [
+            {
+                "mention_id": item.mention_id,
+                "entity_id": item.entity_id,
+                "name": item.name,
+                "value": item.value,
+                "confidence": item.confidence,
+                "provider": item.provider,
+                "source_span": _span_to_payload(item.source_span),
+                "source_text": item.source_text,
+                "evidence": list(item.evidence),
+            }
+            for item in senf.applied_mention_features
+        ],
+        "coreference_evidence": [
+            {
+                "anaphor_mention_id": item.anaphor_mention_id,
+                "antecedent_mention_id": item.antecedent_mention_id,
+                "polarity": item.polarity,
+                "confidence": item.confidence,
+                "provider": item.provider,
+                "evidence": list(item.evidence),
+            }
+            for item in senf.coreference_evidence
+        ],
     }
 
 
 def migrate_v5_payload(blob: object) -> Optional[dict]:
-    """Convert a legacy v5 payload to v6 shape without weakening validation."""
+    """Convert a legacy v5 payload to v7 shape without weakening validation."""
     if (
         not isinstance(blob, dict)
         or type(blob.get("senf_version")) is not int
@@ -482,6 +536,8 @@ def migrate_v5_payload(blob: object) -> Optional[dict]:
     migrated = dict(blob)
     try:
         migrated["senf_version"] = SENF_PAYLOAD_VERSION
+        migrated["applied_mention_features"] = []
+        migrated["coreference_evidence"] = []
         migrated["source_units"] = [dict(item) for item in blob["source_units"]]
         for item in migrated["source_units"]:
             span = item.get("char_span")
@@ -549,13 +605,34 @@ def migrate_v5_payload(blob: object) -> Optional[dict]:
         return None
 
 
+def migrate_v6_payload(blob: object) -> Optional[dict]:
+    """Add the v7 feature-audit fields to an otherwise strict v6 payload."""
+    if (
+        not isinstance(blob, dict)
+        or type(blob.get("senf_version")) is not int
+        or blob["senf_version"] != 6
+        or "applied_mention_features" in blob
+        or "coreference_evidence" in blob
+    ):
+        return None
+    migrated = dict(blob)
+    migrated["senf_version"] = SENF_PAYLOAD_VERSION
+    migrated["applied_mention_features"] = []
+    migrated["coreference_evidence"] = []
+    return migrated
+
+
 def senf_from_payload(blob: object) -> Optional[SENF]:
-    """Read strict v6 or migrate strict v5; all other payloads fail closed."""
+    """Read strict v7 or migrate strict v5/v6; all other payloads fail closed."""
     if not isinstance(blob, dict) or type(blob.get("senf_version")) is not int:
         return None
     legacy_v5 = blob["senf_version"] == 5
     if legacy_v5:
         blob = migrate_v5_payload(blob)
+        if blob is None:
+            return None
+    elif blob["senf_version"] == 6:
+        blob = migrate_v6_payload(blob)
         if blob is None:
             return None
     elif blob["senf_version"] != SENF_PAYLOAD_VERSION:
@@ -570,6 +647,7 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
             "exemplar_scores", "nearest_exemplars", "active_exemplars", "constraints",
             "branches", "validity_intervals", "entity_persistence",
             "source_atoms",
+            "applied_mention_features", "coreference_evidence",
         ):
             expected = dict if key in ("exemplar_scores", "nearest_exemplars", "active_exemplars") else list
             if not isinstance(blob.get(key), expected):
@@ -684,6 +762,56 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
             raise ValueError("duplicate mention id")
         if {mention.entity_id for mention in mentions} != entity_ids:
             raise ValueError("orphan entity")
+        mention_by_id = {mention.mention_id: mention for mention in mentions}
+
+        applied_features = []
+        for item in blob["applied_mention_features"]:
+            span = _span_from_payload(item.get("source_span")) if isinstance(item, dict) else None
+            confidence = item.get("confidence") if isinstance(item, dict) else None
+            evidence = item.get("evidence") if isinstance(item, dict) else None
+            mention = mention_by_id.get(item.get("mention_id")) if isinstance(item, dict) else None
+            if (
+                mention is None or item.get("entity_id") != mention.entity_id
+                or item.get("name") not in (
+                    "mention_type", "definiteness", "exemplar_cue", "modality",
+                    "time_ref", "location_ref",
+                )
+                or not isinstance(item.get("value"), str) or not item["value"]
+                or type(confidence) not in (int, float) or not math.isfinite(confidence)
+                or not 0.0 <= confidence <= 1.0
+                or not isinstance(item.get("provider"), str) or not item["provider"]
+                or span is None or span != mention.char_span
+                or item.get("source_text") != mention.surface
+                or not isinstance(evidence, list)
+                or any(not isinstance(value, str) or not value for value in evidence)
+            ):
+                raise ValueError("malformed applied mention feature")
+            applied_features.append(AppliedMentionFeature(
+                mention.mention_id, mention.entity_id, item["name"], item["value"],
+                float(confidence), item["provider"], span, item["source_text"], tuple(evidence),
+            ))
+
+        applied_coreferences = []
+        for item in blob["coreference_evidence"]:
+            confidence = item.get("confidence") if isinstance(item, dict) else None
+            evidence = item.get("evidence") if isinstance(item, dict) else None
+            if (
+                not isinstance(item, dict)
+                or item.get("anaphor_mention_id") not in mention_by_id
+                or item.get("antecedent_mention_id") not in mention_by_id
+                or item["anaphor_mention_id"] == item["antecedent_mention_id"]
+                or item.get("polarity") not in ("positive", "negative")
+                or type(confidence) not in (int, float) or not math.isfinite(confidence)
+                or not 0.0 <= confidence <= 1.0
+                or not isinstance(item.get("provider"), str) or not item["provider"]
+                or not isinstance(evidence, list)
+                or any(not isinstance(value, str) or not value for value in evidence)
+            ):
+                raise ValueError("malformed coreference evidence")
+            applied_coreferences.append(AppliedCoreferenceEvidence(
+                item["anaphor_mention_id"], item["antecedent_mention_id"],
+                item["polarity"], float(confidence), item["provider"], tuple(evidence),
+            ))
 
         frames = []
         for item in blob["frames"]:
@@ -770,7 +898,73 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
         frame_ids = {frame.frame_id for frame in frames}
         if len(frame_ids) != len(frames) or any(not value for value in frame_ids):
             raise ValueError("invalid frame ids")
-        mention_by_id = {mention.mention_id: mention for mention in mentions}
+        if len({
+            (item.mention_id, item.name, item.value, item.provider)
+            for item in applied_features
+        }) != len(applied_features):
+            raise ValueError("duplicate applied mention feature")
+        from core.senf.exemplars import DEFAULT_EXEMPLAR_REGISTRY
+
+        from core.symbol_normalization import canonical_symbol
+
+        for feature in applied_features:
+            mention = mention_by_id[feature.mention_id]
+            if feature.confidence > 0.0 and feature.name == "mention_type" and (
+                feature.value not in ("proper", "common", "pronoun", "nominal")
+                or mention.mention_type != feature.value
+            ):
+                raise ValueError("mention type evidence disagrees with mention")
+            if feature.confidence > 0.0 and feature.name == "definiteness" and (
+                feature.value not in (
+                    "definite", "indefinite", "demonstrative", "pronoun", "unknown"
+                ) or mention.definiteness != feature.value
+            ):
+                raise ValueError("definiteness evidence disagrees with mention")
+            if feature.name == "exemplar_cue":
+                kinds = {
+                    canonical_symbol(item.get("kind", ""))
+                    for item in blob["kind_assertions"]
+                    if isinstance(item, dict)
+                    and item.get("entity_id") == mention.entity_id
+                    and item.get("polarity") is True
+                }
+                kinds.update(
+                    normalized
+                    for value in (mention.canonical_symbol, mention.head_lemma)
+                    if (normalized := canonical_symbol(value)) in DEFAULT_EXEMPLAR_REGISTRY
+                )
+                registered_cues = {
+                    cue.lower()
+                    for kind in kinds
+                    for definition in DEFAULT_EXEMPLAR_REGISTRY.get(kind, ())
+                    for cue in definition.cues
+                }
+                if feature.value.lower() not in registered_cues:
+                    raise ValueError("unregistered exemplar cue")
+                if feature.value.lower() not in feature.source_text.lower():
+                    raise ValueError("exemplar cue is not source-grounded")
+            if (
+                feature.confidence > 0.0
+                and feature.name in ("modality", "time_ref", "location_ref")
+                and not any(
+                    getattr(frame, feature.name) == feature.value
+                    and any(
+                        isinstance(role.filler, EntityRef)
+                        and role.filler.mention_id == feature.mention_id
+                        for role in frame.roles
+                    )
+                    for frame in frames
+                )
+            ):
+                raise ValueError("context hint is not applied to its mention frame")
+        if len({
+            (
+                item.anaphor_mention_id, item.antecedent_mention_id,
+                item.polarity, item.provider,
+            )
+            for item in applied_coreferences
+        }) != len(applied_coreferences):
+            raise ValueError("duplicate coreference evidence")
         source_texts = {frame.source_text for frame in frames}
         if len(source_texts) > 1:
             raise ValueError("inconsistent source text")
@@ -1069,6 +1263,8 @@ def senf_from_payload(blob: object) -> Optional[SENF]:
             branches=branches, validity_intervals=intervals,
             entity_persistence=persistence,
             source_atoms=list(source_atoms),
+            applied_mention_features=applied_features,
+            coreference_evidence=applied_coreferences,
         )
         from core.senf.temporal import validate_temporal_model
 

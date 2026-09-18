@@ -131,6 +131,13 @@ class Settings(BaseSettings):
     senf_branch_max_depth: int = 16
     senf_branch_max_theory_statements: int = 128
     senf_temporal_decay_rate: float = 0.01
+    # Optional feature-only enrichment. The canonical parser remains authoritative.
+    senf_feature_provider: Literal["none", "langextract"] = "none"
+    senf_feature_exact_only: bool = True
+    senf_feature_max_features: int = Field(default=64, gt=0)
+    senf_feature_timeout: float = Field(default=20.0, gt=0.0, allow_inf_nan=False)
+    senf_feature_model: Optional[str] = None
+    senf_feature_examples_path: str = "data/senf_feature_examples.json"
 
     model_config = ConfigDict(
         env_file=".env",

@@ -9,6 +9,9 @@ from core import query_scoring
 from core.parser import ParseResult
 from core.senf.bridge import executable_bridge_atoms
 from core.senf.exemplars import score_exemplars
+from core.senf.feature_binding import apply_feature_bindings, bind_features
+from core.senf.feature_provider import create_feature_provider, provide_features
+from core.senf.features import CoreferenceEvidence, ExactSpan, FeatureBatch, SpanFeature
 from core.senf.extractor import extract_senf
 from core.senf.identity import resolve_identity
 from core.senf.types import (
@@ -136,6 +139,8 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             1, int(cfg.senf_branch_max_theory_statements)
         )
         self._temporal_decay_rate = max(0.0, float(cfg.senf_temporal_decay_rate))
+        self._feature_provider = create_feature_provider(cfg)
+        self._feature_provider_name = cfg.senf_feature_provider
         self._vector_store = None
         self.reset()
 
@@ -146,13 +151,21 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         self._weave: Optional[WeaveResult] = None
         self._weaves: tuple[WeaveResult, ...] = ()
         self._telemetry: Optional[dict] = None
-        self._pending_ingest: Optional[tuple[str, str]] = None
+        self._pending_ingest = None
         self._query_source_heads: frozenset[str] = frozenset()
         self._query_prior: tuple[SENF, ...] = ()
         self._query_sentence_id = ""
         self._candidate_plans: tuple[_CandidatePlan, ...] = ()
         self._query_context = Context("query:u0")
         self._query_contexts: dict[str, Context] = {}
+        self._query_feature_batch = FeatureBatch.empty()
+        self._feature_diagnostics: tuple[object, ...] = ()
+
+    def set_generation_backend(self, backend) -> None:
+        super().set_generation_backend(backend)
+        installer = getattr(self._feature_provider, "set_backend", None)
+        if callable(installer):
+            installer(backend)
 
     def senf_telemetry(self) -> Optional[dict]:
         """Counts from the most recent hook call, or None if it never ran.
@@ -185,9 +198,10 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         if not pending or not accepted:
             parse_result.metadata = {}
             return None
-        sentence_id, text = pending
+        sentence_id, text, feature_batch = pending
         semantic_atoms = [atom for atom in accepted if _is_semantic_atom(atom)]
         senf = extract_senf(sentence_id, text, semantic_atoms)
+        self._apply_features(senf, text, feature_batch)
         if self._exemplar_enabled:
             score_exemplars(senf)
         if senf.is_empty:
@@ -230,6 +244,7 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             self._candidate_plans = ()
             self._query_context = Context("query:u0")
             self._query_contexts = {}
+            self._query_feature_batch = FeatureBatch.empty()
         else:
             self._pending_ingest = None
 
@@ -238,17 +253,30 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
 
         try:
             text = " ".join(texts)
+            feature_validation = provide_features(text, self._feature_provider)
+            self._feature_diagnostics = feature_validation.rejected
             self._sentence_counter += 1
             sentence_id = f"{self._session_nonce}:s{self._sentence_counter}"
             senf = extract_senf(
                 sentence_id, text, _senf_inputs(text, statements, queries)
             )
             if not is_query:
-                self._pending_ingest = (sentence_id, text)
+                self._pending_ingest = (sentence_id, text, feature_validation.accepted)
+            else:
+                self._query_feature_batch = feature_validation.accepted
+                self._apply_features(senf, text, feature_validation.accepted)
             if self._exemplar_enabled:
                 score_exemplars(senf)
             if senf.is_empty:
                 self._telemetry = _telemetry(senf)
+                self._telemetry.update({
+                    "feature_provider": self._feature_provider_name,
+                    "applied_feature_count": 0,
+                    "provider_coreference_count": 0,
+                    "feature_rejections": [
+                        asdict(item) for item in self._feature_diagnostics
+                    ],
+                })
                 return statements, queries
 
             if is_query and self._counterfactual_enabled:
@@ -293,8 +321,16 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             self._telemetry = _telemetry(
                 senf, graph, reported, changed, 0
             )
+            self._telemetry.update({
+                "feature_provider": self._feature_provider_name,
+                "applied_feature_count": len(senf.applied_mention_features),
+                "provider_coreference_count": len(senf.coreference_evidence),
+                "feature_rejections": [asdict(item) for item in self._feature_diagnostics],
+            })
             return query_statements, rewritten_queries
-        except Exception:
+        except Exception as exc:
+            if getattr(exc, "fail_closed", False):
+                raise
             logger.exception("SENF identity resolution failed; using canonical_pln output")
             return statements, queries
 
@@ -484,6 +520,7 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             question,
             [candidate_atom],
         )
+        self._apply_features(candidate_senf, question, self._query_feature_batch)
         tree = BranchingContextTree.from_senfs(
             self._query_prior,
             max_nodes=self._branch_max_nodes,
@@ -809,6 +846,10 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         ):
             return None
         expected = extract_senf(recalled.sentence_id, source_text, accepted)
+        if not self._reapply_audit(expected, recalled, source_text):
+            return None
+        if self._exemplar_enabled:
+            score_exemplars(expected)
         if (
             recalled.entities != expected.entities
             or recalled.mentions != expected.mentions
@@ -820,6 +861,8 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             or recalled.validity_intervals != expected.validity_intervals
             or recalled.entity_persistence != expected.entity_persistence
             or recalled.source_atoms != expected.source_atoms
+            or recalled.applied_mention_features != expected.applied_mention_features
+            or recalled.coreference_evidence != expected.coreference_evidence
         ):
             return None
         if self._exemplar_enabled:
@@ -829,6 +872,47 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
             recalled.nearest_exemplars.clear()
             recalled.active_exemplars.clear()
         return recalled
+
+    def _apply_features(self, senf: SENF, text: str, batch: FeatureBatch) -> None:
+        bindings = bind_features(text, senf.mentions, batch)
+        rejected = apply_feature_bindings(
+            senf, bindings, provider=self._feature_provider_name
+        )
+        if rejected:
+            self._feature_diagnostics = tuple(self._feature_diagnostics) + tuple(rejected)
+
+    @staticmethod
+    def _reapply_audit(expected: SENF, recalled: SENF, source_text: str) -> bool:
+        mentions = {mention.mention_id: mention for mention in recalled.mentions}
+        by_provider: dict[str, tuple[list[SpanFeature], list[CoreferenceEvidence]]] = {}
+        try:
+            for item in recalled.applied_mention_features:
+                features, _ = by_provider.setdefault(item.provider, ([], []))
+                features.append(SpanFeature(
+                    ExactSpan(item.source_span.start, item.source_span.end, item.source_text),
+                    item.name, item.value, item.confidence, item.evidence,
+                ))
+            for item in recalled.coreference_evidence:
+                anaphor = mentions[item.anaphor_mention_id]
+                antecedent = mentions[item.antecedent_mention_id]
+                if anaphor.char_span is None or antecedent.char_span is None:
+                    return False
+                _, links = by_provider.setdefault(item.provider, ([], []))
+                links.append(CoreferenceEvidence(
+                    ExactSpan(*anaphor.char_span, anaphor.surface),
+                    ExactSpan(*antecedent.char_span, antecedent.surface),
+                    item.confidence, item.evidence, item.polarity,
+                ))
+            for provider, (features, links) in by_provider.items():
+                bindings = bind_features(
+                    source_text, expected.mentions,
+                    FeatureBatch(tuple(features), tuple(links)),
+                )
+                if apply_feature_bindings(expected, bindings, provider=provider):
+                    return False
+            return True
+        except (KeyError, TypeError, ValueError):
+            return False
 
     def _retrieve_senf_records(self, text: str) -> List[dict]:
         if not self._use_vector_context or self._context_top_k <= 0:

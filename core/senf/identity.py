@@ -4,7 +4,14 @@ from dataclasses import dataclass, field
 from typing import Callable, Literal, Optional, Sequence
 
 from core.senf.temporal import BranchingContextTree, interval_relation
-from core.senf.types import Context, ContextGuard, EntityPersistence, EntityRef, SENF, Mention
+from core.senf.types import (
+    Context,
+    ContextGuard,
+    EntityPersistence,
+    EntityRef,
+    Mention,
+    SENF,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +74,8 @@ class IdentityWeights:
     same_frame_distinct_roles: float = 0.7
     contrastive_language: float = 0.9
     exemplar_conflict: float = 0.7
+    provider_coreference: float = 0.4
+    provider_coreference_conflict: float = 0.9
 
 
 IdentityGuard = ContextGuard
@@ -77,6 +86,7 @@ class IdentityEvidence:
     kind: str
     weight: float
     polarity: Literal["positive", "negative"] = "positive"
+    confidence: float = 1.0
 
     @property
     def name(self) -> str:
@@ -541,6 +551,7 @@ class IdentityResolver:
         source_texts = self._source_texts(senfs)
         exemplars = self._exemplar_index(senfs)
         contexts = self._context_index(senfs)
+        provider_identity = self._provider_identity_index(senfs)
 
         edges = self._score_pairs(
             mentions,
@@ -551,6 +562,7 @@ class IdentityResolver:
             source_texts,
             exemplars,
             contexts,
+            provider_identity,
         )
         edges = self._apply_ambiguity(edges)
         edges = self._collapse_to_mention_pairs(edges)
@@ -680,6 +692,29 @@ class IdentityResolver:
                         out.setdefault(role.filler.mention_id, frame.context)
         return out
 
+    def _provider_identity_index(
+        self,
+        senfs: Sequence[SENF],
+    ) -> dict[frozenset[str], tuple[list[IdentityEvidence], list[IdentityEvidence]]]:
+        index: dict[
+            frozenset[str], tuple[list[IdentityEvidence], list[IdentityEvidence]]
+        ] = {}
+        for senf in senfs:
+            for item in senf.coreference_evidence:
+                if item.confidence <= 0.0:
+                    continue
+                key = frozenset((item.anaphor_mention_id, item.antecedent_mention_id))
+                positive, negative = index.setdefault(key, ([], []))
+                target = positive if item.polarity == "positive" else negative
+                kind = f"provider_coreference{'_conflict' if item.polarity == 'negative' else ''}"
+                target.append(IdentityEvidence(
+                    kind,
+                    getattr(self.weights, kind) * item.confidence,
+                    item.polarity,
+                    item.confidence,
+                ))
+        return index
+
     def _score_pairs(
         self,
         mentions: Sequence[Mention],
@@ -690,14 +725,19 @@ class IdentityResolver:
         source_texts: dict[str, str],
         exemplars: dict[str, frozenset[str]],
         contexts: dict[str, Context],
+        provider_identity: dict[
+            frozenset[str], tuple[list[IdentityEvidence], list[IdentityEvidence]]
+        ],
     ) -> tuple[IdentityEdge, ...]:
         vectors: dict[str, Sequence[float]] = {}
         scored: list[IdentityEdge] = []
 
         for index, left in enumerate(mentions):
             for right in mentions[index + 1 :]:
-                evidence = self._evidence_for(left, right, kinds, roles, prominent, exemplars)
-                negative = _negative_evidence(
+                base_evidence = self._evidence_for(
+                    left, right, kinds, roles, prominent, exemplars
+                )
+                base_negative = _negative_evidence(
                     left,
                     right,
                     kinds,
@@ -705,17 +745,28 @@ class IdentityResolver:
                     source_texts,
                     exemplars,
                 )
+                provider_positive, provider_negative = provider_identity.get(
+                    frozenset((_mention_key(left), _mention_key(right))), ([], [])
+                )
+                evidence = base_evidence + [item.kind for item in provider_positive]
+                negative = base_negative + [item.kind for item in provider_negative]
                 if not evidence and not negative:
                     continue
-                strength = self._strength(evidence)
+                provider_positive_weight = sum(item.weight for item in provider_positive)
+                provider_negative_weight = sum(item.weight for item in provider_negative)
+                strength = min(1.0, self._strength(base_evidence) + provider_positive_weight)
                 extra = self._embedding_evidence(
                     left, right, strength, vectors, source_texts
                 )
                 if extra:
-                    evidence = evidence + extra
-                    strength = self._strength(evidence)
+                    base_evidence = base_evidence + extra
+                    evidence = base_evidence + [item.kind for item in provider_positive]
+                    strength = min(1.0, self._strength(base_evidence) + provider_positive_weight)
 
-                negative_strength = self._negative_strength(negative)
+                negative_strength = min(
+                    1.0,
+                    self._negative_strength(base_negative) + provider_negative_weight,
+                )
                 scored.append(
                     self._edge(
                         left,
@@ -725,6 +776,8 @@ class IdentityResolver:
                         negative_strength,
                         negative,
                         contexts,
+                        provider_positive,
+                        provider_negative,
                     )
                 )
 
@@ -806,6 +859,8 @@ class IdentityResolver:
         negative_strength: float = 0.0,
         negative_evidence: Sequence[str] = (),
         contexts: Optional[dict[str, Context]] = None,
+        additional_positive: Sequence[IdentityEvidence] = (),
+        additional_negative: Sequence[IdentityEvidence] = (),
     ) -> IdentityEdge:
         """Orient by mention ID so equal-symbol occurrences remain distinguishable."""
         if _mention_key(right) < _mention_key(left):
@@ -845,12 +900,12 @@ class IdentityResolver:
             guard=guard,
             positive_evidence=tuple(
                 IdentityEvidence(name, getattr(self.weights, name, 0.0))
-                for name in evidence
-            ),
+                for name in evidence[:len(evidence) - len(additional_positive)]
+            ) + tuple(additional_positive),
             negative_evidence_records=tuple(
                 IdentityEvidence(name, getattr(self.weights, name, 0.0), "negative")
-                for name in negative_evidence
-            ),
+                for name in negative_evidence[:len(negative_evidence) - len(additional_negative)]
+            ) + tuple(additional_negative),
         )
 
     def _apply_ambiguity(self, edges: tuple[IdentityEdge, ...]) -> tuple[IdentityEdge, ...]:
@@ -883,15 +938,16 @@ class IdentityResolver:
             if best.strength - runner_up <= self.ambiguity_margin:
                 continue
             evidence = best.evidence + ("unambiguous",)
+            promoted_strength = min(1.0, best.strength + self.weights.unambiguous)
             promoted[id(best)] = IdentityEdge(
                 left=best.left,
                 right=best.right,
-                strength=self._strength(evidence),
+                strength=promoted_strength,
                 confidence=_confidence(evidence),
                 evidence=evidence,
                 negative_strength=best.negative_strength,
                 negative_evidence=best.negative_evidence,
-                positive_cost=round(1.0 - self._strength(evidence), 4),
+                positive_cost=round(1.0 - promoted_strength, 4),
                 negative_cost=best.negative_cost,
                 guard=best.guard,
                 positive_evidence=best.positive_evidence + (

@@ -18,6 +18,12 @@ services:
       - LANGEXTRACT_MAX_WORKERS=${LANGEXTRACT_MAX_WORKERS:-1}
       - LANGEXTRACT_SKIP_FUZZY=${LANGEXTRACT_SKIP_FUZZY:-true}
       - LANGEXTRACT_CHUNK_SIZE=${LANGEXTRACT_CHUNK_SIZE:-512}
+      - SENF_FEATURE_PROVIDER=${SENF_FEATURE_PROVIDER:-none}
+      - SENF_FEATURE_EXACT_ONLY=${SENF_FEATURE_EXACT_ONLY:-true}
+      - SENF_FEATURE_MAX_FEATURES=${SENF_FEATURE_MAX_FEATURES:-64}
+      - SENF_FEATURE_TIMEOUT=${SENF_FEATURE_TIMEOUT:-20}
+      - SENF_FEATURE_MODEL=${SENF_FEATURE_MODEL:-}
+      - SENF_FEATURE_EXAMPLES_PATH=/app/data/senf_feature_examples.json
       - QDRANT_URL=http://qdrant:6333
       # Note: Points to Ollama on your host machine
       - OLLAMA_URL=http://host.docker.internal:11434/api/embeddings
@@ -48,6 +54,7 @@ services:
       - ./data/simba_all.json:/app/data/simba_all.json
       - ./data/simba_canonical_pln.json:/app/data/simba_canonical_pln.json
       - ./data/langextract_examples.json:/app/data/langextract_examples.json
+      - ./data/senf_feature_examples.json:/app/data/senf_feature_examples.json
       - ./data/benchmarks:/app/data/benchmarks
       - ./data/conceptnet:/app/data/conceptnet
       - ./local-deps/manhin-parser:/deps/manhin-parser:ro

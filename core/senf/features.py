@@ -65,10 +65,13 @@ class CoreferenceEvidence:
     antecedent: ExactSpan
     confidence: float = 1.0
     evidence: tuple[str, ...] = ()
+    polarity: str = "positive"
 
     def __post_init__(self) -> None:
         if self.anaphor == self.antecedent:
             raise ValueError("coreference endpoints must be distinct")
+        if self.polarity not in ("positive", "negative"):
+            raise ValueError("coreference polarity must be positive or negative")
         if type(self.confidence) not in (int, float) or not math.isfinite(self.confidence):
             raise ValueError("coreference confidence must be finite")
         if not 0.0 <= self.confidence <= 1.0:

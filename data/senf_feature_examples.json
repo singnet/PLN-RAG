@@ -1,0 +1,24 @@
+{
+  "prompt": "Extract only source-grounded SENF advisory features. Never emit canonical symbols, predicates, logical atoms, roles, statements, or PLN. Every extraction text must be an exact mention substring. Use senf_feature with attributes name and value for mention_type (proper, common, pronoun, nominal), definiteness (definite, indefinite, demonstrative, pronoun, unknown), registered exemplar cues, and modality/time_ref/location_ref hints. An exemplar_cue value must occur verbatim inside that extraction's exact text. Use senf_coreference on each endpoint with a shared group and polarity positive or negative. Coreference is evidence only and never requests a merge.",
+  "examples": [
+    {
+      "text": "Alice arrived. She smiled.",
+      "extractions": [
+        {"class": "senf_feature", "text": "Alice", "attributes": {"name": "mention_type", "value": "proper"}},
+        {"class": "senf_feature", "text": "She", "attributes": {"name": "mention_type", "value": "pronoun"}},
+        {"class": "senf_feature", "text": "She", "attributes": {"name": "definiteness", "value": "pronoun"}},
+        {"class": "senf_coreference", "text": "Alice", "attributes": {"group": "person-1", "polarity": "positive"}},
+        {"class": "senf_coreference", "text": "She", "attributes": {"group": "person-1", "polarity": "positive"}}
+      ]
+    },
+    {
+      "text": "The professional camera arrived, but another camera stayed home.",
+      "extractions": [
+        {"class": "senf_feature", "text": "professional camera", "attributes": {"name": "definiteness", "value": "definite"}},
+        {"class": "senf_feature", "text": "professional camera", "attributes": {"name": "exemplar_cue", "value": "professional"}},
+        {"class": "senf_coreference", "text": "camera", "attributes": {"group": "different-cameras", "polarity": "negative"}},
+        {"class": "senf_coreference", "text": "another camera", "attributes": {"group": "different-cameras", "polarity": "negative"}}
+      ]
+    }
+  ]
+}

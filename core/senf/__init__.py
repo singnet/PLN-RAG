@@ -16,6 +16,8 @@ from core.senf.identity import (
 )
 from core.senf.types import (
     ACTUAL_BRANCH_ID,
+    AppliedCoreferenceEvidence,
+    AppliedMentionFeature,
     BranchContext,
     BranchType,
     ClauseRole,
@@ -48,6 +50,7 @@ from core.senf.types import (
     senf_from_payload,
     senf_to_payload,
     migrate_v5_payload,
+    migrate_v6_payload,
 )
 from core.senf.temporal import (
     BranchingContextTree,
@@ -64,6 +67,8 @@ from core.senf.temporal import (
 
 __all__ = [
     "ACTUAL_BRANCH_ID",
+    "AppliedCoreferenceEvidence",
+    "AppliedMentionFeature",
     "BranchContext",
     "BranchType",
     "BranchingContextTree",
@@ -114,6 +119,7 @@ __all__ = [
     "senf_from_payload",
     "senf_to_payload",
     "migrate_v5_payload",
+    "migrate_v6_payload",
     "temporal_decay",
     "unwrap_contextual_query",
     "validate_temporal_model",

@@ -1048,8 +1048,12 @@ async def main() -> int:
     using_tape = bool(args.capture_generation_tape or args.replay_generation_tape)
     if using_tape and args.mode != "isolated":
         cli.error("generation capture/replay currently supports isolated mode only")
-    if args.capture_generation_tape and args.parsers != ["canonical_pln"]:
-        cli.error("generation capture requires --parsers canonical_pln")
+    if args.capture_generation_tape and args.parsers not in (
+        ["canonical_pln"], ["canonical_senf_pln"]
+    ):
+        cli.error(
+            "generation capture requires one parser: canonical_pln or canonical_senf_pln"
+        )
     if args.expected_generation_tape_sha256 and not args.replay_generation_tape:
         cli.error("--expected-generation-tape-sha256 requires replay mode")
     if args.expected_generation_tape_sha256 and args.replay_generation_tape:

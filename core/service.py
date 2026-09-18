@@ -188,6 +188,8 @@ class PLNRAGService:
             )
 
         except Exception as exc:
+            if getattr(exc, "fail_closed", False):
+                raise
             logger.exception("Ingest failed for preview %r", text[:80])
             return IngestItemResult(
                 text=text,
@@ -387,6 +389,8 @@ class PLNRAGService:
                             successful_candidate_index = idx
                             break
             except Exception as exc:
+                if getattr(exc, "fail_closed", False):
+                    raise
                 logger.warning("retry_parse_query failed: %s", exc)
 
         reasoning_seconds = time.perf_counter() - t2
@@ -497,7 +501,9 @@ class PLNRAGService:
         try:
             metadata = prepare(parse_result, added)
             return (metadata if isinstance(metadata, dict) else None), True
-        except Exception:
+        except Exception as exc:
+            if getattr(exc, "fail_closed", False):
+                raise
             logger.warning("parser ingest preparation failed", exc_info=True)
             parse_result.parser_state = None
             return None, False
@@ -508,7 +514,9 @@ class PLNRAGService:
             return
         try:
             commit(parse_result)
-        except Exception:
+        except Exception as exc:
+            if getattr(exc, "fail_closed", False):
+                raise
             logger.warning("parser ingest commit failed", exc_info=True)
 
     def _classify_query_status(

@@ -7,6 +7,7 @@ from core.parser import ParseResult
 from core.senf.exemplars import score_exemplars
 from core.senf.extractor import extract_senf
 from core.senf.identity import IdentityGraph
+from core.senf.features import ExactSpan, FeatureBatch, SpanFeature
 from core.senf.types import SENF_PAYLOAD_KEY, senf_to_payload
 from parsers.canonical_pln_parser import CanonicalPLNParser
 from parsers.canonical_senf_pln_parser import CanonicalSENFPLNParser
@@ -363,16 +364,16 @@ class TestVectorContext:
         )
         assert any("camera" in query for query in planned)
 
-    def test_recall_accepts_static_v5_alongside_v6(self, parser):
+    def test_recall_accepts_static_v5_alongside_v7(self, parser):
         fixture = Path(__file__).with_name("fixtures") / "senf_v5.json"
         v5 = json.loads(fixture.read_text())
         text = "Kebede works."
         atom = "(: a (Works kebede) (STV 1 1))"
-        v6 = senf_to_payload(extract_senf("s1", text, [atom]))
+        v7 = senf_to_payload(extract_senf("s1", text, [atom]))
 
         recalled = [
             parser._validated_recalled_senf({SENF_PAYLOAD_KEY: payload, "nl": text, "pln": [atom]})
-            for payload in (v5, v6)
+            for payload in (v5, v7)
         ]
 
         assert all(item is not None for item in recalled)
@@ -493,6 +494,53 @@ class TestSettings:
         assert parser._threshold == cfg.senf_identity_threshold
         assert parser._context_top_k == cfg.senf_context_top_k
         assert parser._max_frames == cfg.senf_session_max_frames
+
+
+class TestFeatureProviderIntegration:
+    class Provider:
+        def __init__(self, raises=False):
+            self.calls = []
+            self.raises = raises
+
+        def provide(self, text):
+            self.calls.append(text)
+            if self.raises:
+                raise RuntimeError("provider offline")
+            start = text.lower().index("camera")
+            surface = text[start:start + 6]
+            return FeatureBatch((SpanFeature(
+                ExactSpan(start, start + 6, surface),
+                "definiteness", "definite",
+            ),))
+
+    def test_source_ingest_calls_once_and_persists_applied_audit(self, parser):
+        provider = self.Provider()
+        parser._feature_provider = provider
+        parser._feature_provider_name = "test"
+        hook(parser, "The camera has a wide lens.", [CAMERA])
+        assert provider.calls == ["The camera has a wide lens."]
+        assert parser._session[0].applied_mention_features[0].provider == "test"
+
+    def test_original_query_calls_once_and_candidates_reuse_batch(self, parser):
+        provider = self.Provider()
+        parser._feature_provider = provider
+        parser._feature_provider_name = "test"
+        question = "Does the camera have a wide lens?"
+        hook(parser, question, [], [CAMERA], is_query=True)
+        parser._candidate_context(CAMERA, question)
+        parser._candidate_context(CAMERA, question)
+        assert provider.calls == [question]
+
+    def test_provider_failure_keeps_canonical_output_with_diagnostics(self, parser):
+        provider = self.Provider(raises=True)
+        parser._feature_provider = provider
+        parser._feature_provider_name = "test"
+        statements, queries = hook(
+            parser, "The camera has a wide lens.", [CAMERA]
+        )
+        assert statements == [CAMERA]
+        assert queries == []
+        assert parser.senf_telemetry()["feature_rejections"][0]["category"] == "provider"
 
 
 class TestWeaveScoring:

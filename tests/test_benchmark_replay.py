@@ -11,6 +11,15 @@ def result(statements=None, queries=None):
     return SimpleNamespace(statements=statements or [], queries=queries or [])
 
 
+def extraction():
+    return SimpleNamespace(
+        extraction_class="senf_feature", extraction_text="She",
+        attributes={"name": "mention_type", "value": "pronoun"},
+        char_interval=SimpleNamespace(start_pos=0, end_pos=3),
+        alignment_status=SimpleNamespace(name="MATCH_EXACT"),
+    )
+
+
 def capture_one(tmp_path, *, metadata=None):
     path = tmp_path / "generation-tape.json"
     tape = GenerationTape("capture", path, metadata=metadata or {"suite": "test"})
@@ -49,6 +58,7 @@ class TestGenerationTape:
         payload = json.loads(path.read_text(encoding="utf-8"))
         call = payload["calls"][0]
 
+        assert call["parser"] == "canonical_pln"
         assert call["case_id"] == "A01"
         assert call["phase"] == "e2e_query"
         assert call["context_sha256"] == content_hash(call["context"])
@@ -84,6 +94,10 @@ class TestGenerationTape:
 
     def test_senf_context_drift_is_reported_not_rejected(self, tmp_path):
         path, _ = capture_one(tmp_path)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["schema_version"] = 1
+        payload.pop("feature_calls")
+        path.write_text(json.dumps(payload), encoding="utf-8")
         tape = GenerationTape("replay", path)
         backend = tape.backend("canonical_senf_pln", "A01")
         backend.set_phase("e2e_query")
@@ -97,6 +111,33 @@ class TestGenerationTape:
 
         assert replayed.queries
         assert tape.report()["parser_runs"][0]["context_mismatches"] == 1
+
+    def test_schema2_senf_generation_replay_is_strict(self, tmp_path):
+        path = tmp_path / "senf-generation.json"
+        capture = GenerationTape("capture", path)
+        backend = capture.backend("canonical_senf_pln", "A01")
+        backend.set_phase("query")
+        arguments = {
+            "sentences": ["question"], "context": ["context"], "pln_spec": "spec",
+            "live": lambda **_: result(queries=["query"]),
+        }
+        backend.generate(**arguments)
+        backend.finish()
+
+        replay = GenerationTape("replay", path).backend("canonical_senf_pln", "A01")
+        replay.set_phase("query")
+        with pytest.raises(GenerationTapeError, match="Context mismatch"):
+            replay.generate(**{**arguments, "context": ["changed"]})
+
+        replay = GenerationTape("replay", path).backend("canonical_senf_pln", "A01")
+        with pytest.raises(GenerationTapeError, match="Unconsumed generation calls"):
+            replay.finish()
+
+        replay = GenerationTape("replay", path).backend("canonical_senf_pln", "A01")
+        replay.set_phase("query")
+        replay.generate(**arguments)
+        with pytest.raises(GenerationTapeError, match="extra generation call"):
+            replay.generate(**arguments)
 
     def test_extra_canonical_call_fails(self, tmp_path):
         path, _ = capture_one(tmp_path)
@@ -146,3 +187,113 @@ class TestCanonicalGenerationSeam:
 
         parser.set_generation_backend(Backend())
         assert parser._generate(["sentence"], []).queries == ["query"]
+
+
+class TestFeatureTape:
+    def test_schema2_feature_capture_replay_is_strict(self, tmp_path):
+        path = tmp_path / "features.json"
+        capture = GenerationTape("capture", path)
+        backend = capture.backend("canonical_senf_pln", "A01")
+        backend.set_phase("e2e_query")
+        backend.feature_call(
+            request={"text": "She"}, config={"model": "m"},
+            live=lambda: [extraction()],
+        )
+        backend.finish()
+
+        replay = GenerationTape("replay", path)
+        backend = replay.backend("canonical_senf_pln", "A01")
+        backend.set_phase("e2e_query")
+        restored = backend.feature_call(
+            request={"text": "She"}, config={"model": "m"},
+            live=lambda: pytest.fail("feature replay called live"),
+        )
+        backend.finish()
+        assert restored[0].extraction_text == "She"
+
+    def test_schema2_feature_calls_are_owned_by_parser(self, tmp_path):
+        path = tmp_path / "features.json"
+        capture = GenerationTape("capture", path)
+        backend = capture.backend("canonical_senf_pln", "A01")
+        backend.set_phase("query")
+        backend.feature_call(
+            request={"text": "She"}, config={"model": "m"}, live=lambda: [extraction()],
+        )
+        backend.finish()
+
+        other = GenerationTape("replay", path).backend("canonical_pln", "A01")
+        other.finish()
+
+    def test_schema2_rejects_malformed_feature_payload(self, tmp_path):
+        path = tmp_path / "features.json"
+        capture = GenerationTape("capture", path)
+        backend = capture.backend("canonical_senf_pln", "A01")
+        backend.set_phase("query")
+        backend.feature_call(
+            request={"text": "She"}, config={"model": "m"}, live=lambda: [extraction()],
+        )
+        backend.finish()
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        del payload["feature_calls"][0]["extractions"][0]["alignment"]
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        backend = GenerationTape("replay", path).backend("canonical_senf_pln", "A01")
+        backend.set_phase("query")
+        with pytest.raises(GenerationTapeError, match="invalid schema"):
+            backend.feature_call(
+                request={"text": "She"}, config={"model": "m"}, live=lambda: [],
+            )
+
+    def test_feature_replay_rejects_extra_hash_mismatch_and_unconsumed(self, tmp_path):
+        path = tmp_path / "features.json"
+        capture = GenerationTape("capture", path)
+        backend = capture.backend("canonical_senf_pln", "A01")
+        backend.set_phase("query")
+        backend.feature_call(
+            request={"text": "She"}, config={"model": "m"},
+            live=lambda: [extraction()],
+        )
+        backend.finish()
+
+        backend = GenerationTape("replay", path).backend("canonical_senf_pln", "A01")
+        backend.set_phase("query")
+        with pytest.raises(GenerationTapeError, match="Feature (text|request) mismatch"):
+            backend.feature_call(
+                request={"text": "He"}, config={"model": "m"}, live=lambda: [],
+            )
+
+        backend = GenerationTape("replay", path).backend("canonical_senf_pln", "A01")
+        with pytest.raises(GenerationTapeError, match="Unconsumed feature calls"):
+            backend.finish()
+
+        backend = GenerationTape("replay", path).backend("canonical_senf_pln", "A01")
+        backend.set_phase("query")
+        arguments = {
+            "request": {"text": "She"}, "config": {"model": "m"},
+            "live": lambda: [],
+        }
+        backend.feature_call(**arguments)
+        with pytest.raises(GenerationTapeError, match="extra feature call"):
+            backend.feature_call(**arguments)
+
+    def test_feature_capture_failure_aborts_without_incomplete_entry(self, tmp_path):
+        tape = GenerationTape("capture", tmp_path / "tape.json")
+        backend = tape.backend("canonical_senf_pln", "A01")
+        backend.set_phase("query")
+
+        with pytest.raises(GenerationTapeError, match="Feature capture failed"):
+            backend.feature_call(
+                request={"text": "She"},
+                config={"model": "m"},
+                live=lambda: (_ for _ in ()).throw(TimeoutError("offline")),
+            )
+
+        assert tape.feature_calls == []
+
+    def test_schema1_tape_remains_readable(self, tmp_path):
+        path, _ = capture_one(tmp_path)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["schema_version"] = 1
+        payload.pop("feature_calls")
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        assert GenerationTape("replay", path).feature_calls == []

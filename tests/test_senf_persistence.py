@@ -11,6 +11,8 @@ from core.senf import (
 )
 from core.senf.extractor import extract_senf
 from core.senf.types import EntityRef, FrameRef, KindRef, ValueRef
+from core.senf.feature_binding import apply_feature_bindings, bind_features
+from core.senf.features import CoreferenceEvidence, ExactSpan, FeatureBatch, SpanFeature
 
 
 def _sample():
@@ -24,10 +26,10 @@ def _sample():
     )
 
 
-def test_v6_payload_is_json_safe_and_round_trips_every_field():
+def test_v7_payload_is_json_safe_and_round_trips_every_field():
     original = _sample()
     payload = senf_to_payload(original)
-    assert payload["senf_version"] == 6 == SENF_PAYLOAD_VERSION
+    assert payload["senf_version"] == 7 == SENF_PAYLOAD_VERSION
     assert json.loads(json.dumps(payload)) == payload
     assert senf_from_payload(json.loads(json.dumps(payload))) == original
 
@@ -42,14 +44,14 @@ def test_round_trip_preserves_all_reference_types():
     assert any(isinstance(filler, FrameRef) for filler in fillers)
 
 
-@pytest.mark.parametrize("version", [1, 2, 3, 4, 7, 99, "6", True, None])
+@pytest.mark.parametrize("version", [1, 2, 3, 4, 8, 99, "7", True, None])
 def test_absent_old_future_and_malformed_versions_are_unsupported(version):
     payload = senf_to_payload(_sample())
     payload["senf_version"] = version
     assert senf_from_payload(payload) is None
 
 
-def test_static_v5_fixture_migrates_to_typed_v6_model():
+def test_static_v5_fixture_migrates_to_typed_v7_model():
     fixture = Path(__file__).with_name("fixtures") / "senf_v5.json"
     payload = json.loads(fixture.read_text())
 
@@ -59,10 +61,22 @@ def test_static_v5_fixture_migrates_to_typed_v6_model():
     assert restored.mentions[0].char_span.start == 0
     assert restored.frames[0].frame_span == (0, 12)
     assert restored.frames[0].clause_span == (0, 13)
-    assert senf_to_payload(restored)["senf_version"] == 6
+    assert senf_to_payload(restored)["senf_version"] == 7
 
 
-def test_v6_requires_new_span_and_guard_fields():
+def test_static_v6_fixture_migrates_with_empty_feature_audit():
+    fixture = Path(__file__).with_name("fixtures") / "senf_v6.json"
+    payload = json.loads(fixture.read_text())
+
+    restored = senf_from_payload(payload)
+
+    assert restored is not None
+    assert restored.applied_mention_features == []
+    assert restored.coreference_evidence == []
+    assert senf_to_payload(restored)["senf_version"] == 7
+
+
+def test_v7_requires_span_and_guard_fields():
     payload = senf_to_payload(_sample())
     del payload["frames"][0]["frame_span"]
     assert senf_from_payload(payload) is None
@@ -341,3 +355,44 @@ def test_store_without_metadata_writes_no_senf_key(fake_vector_store):
     payload = fake_vector_store.points[-1]["payload"]
     assert SENF_PAYLOAD_KEY not in payload
     assert senf_from_payload(payload.get(SENF_PAYLOAD_KEY)) is None
+
+
+def test_v7_round_trip_preserves_applied_feature_and_coreference_audit():
+    text = "Alice arrived. She smiled."
+    senf = extract_senf(
+        "s1", text,
+        ["(: a (Arrived alice) (STV 1 1))", "(: b (Smiled she) (STV 1 1))"],
+    )
+    alice, she = senf.mentions
+    batch = FeatureBatch(
+        (SpanFeature(ExactSpan(*she.char_span, she.surface), "mention_type", "pronoun"),),
+        (CoreferenceEvidence(
+            ExactSpan(*she.char_span, she.surface),
+            ExactSpan(*alice.char_span, alice.surface), 0.8, ("test",),
+        ),),
+    )
+    apply_feature_bindings(
+        senf, bind_features(text, senf.mentions, batch), provider="test"
+    )
+
+    restored = senf_from_payload(senf_to_payload(senf))
+    assert restored == senf
+    assert restored.applied_mention_features[0].mention_id == she.mention_id
+    assert restored.coreference_evidence[0].antecedent_mention_id == alice.mention_id
+
+
+def test_v7_rejects_forged_applied_feature_audit():
+    payload = senf_to_payload(_sample())
+    mention = payload["mentions"][0]
+    payload["applied_mention_features"] = [{
+        "mention_id": mention["mention_id"],
+        "entity_id": mention["entity_id"],
+        "name": "mention_type",
+        "value": "pronoun",
+        "confidence": 1.0,
+        "provider": "test",
+        "source_span": mention["char_span"],
+        "source_text": mention["surface"],
+        "evidence": [],
+    }]
+    assert senf_from_payload(payload) is None

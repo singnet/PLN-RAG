@@ -1,5 +1,8 @@
 from types import SimpleNamespace
 
+import pytest
+
+from benchmark_replay import GenerationTapeError
 from core.parser import ParseResult, SemanticParser
 from core.senf.types import SENF_PAYLOAD_KEY, senf_from_payload
 from core.service import PLNRAGService
@@ -156,6 +159,17 @@ def test_prepare_failure_skips_commit_but_preserves_canonical_storage(fake_vecto
     assert result.atoms == [CAMERA]
     assert parser.committed == []
     assert fake_vector_store.points[0]["payload"]["pln"] == [CAMERA]
+
+
+def test_fail_closed_ingest_error_is_not_converted_to_item_failure(fake_vector_store):
+    class StrictReplayParser(FixedParser):
+        def parse(self, text, context):
+            raise GenerationTapeError("feature replay hash mismatch")
+
+    service = service_for(StrictReplayParser([CAMERA]), fake_vector_store)
+
+    with pytest.raises(GenerationTapeError, match="hash mismatch"):
+        service._ingest_single("The camera has a wide lens.")
 
 
 def test_senf_session_and_payload_exclude_rejected_atoms(monkeypatch):
