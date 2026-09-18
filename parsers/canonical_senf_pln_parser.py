@@ -506,16 +506,12 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
         graph = resolve_identity(
             list(self._query_prior) + [candidate_senf], threshold=self._threshold
         )
-        source_weaves = [
-            item
-            for source in self._query_prior
-            for item in build_weaves(
-                candidate_senf,
-                [source],
-                k=self._weave_top_k,
-                identity_graph=graph,
-            )
-        ]
+        source_weaves = build_weaves(
+            candidate_senf,
+            self._query_prior,
+            k=self._weave_top_k,
+            identity_graph=graph,
+        )
         weaves = tuple(sorted(source_weaves, key=lambda item: (
             0 if item.aligned else 1,
             item.total_cost,
@@ -567,45 +563,65 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                 if rendered != candidate:
                     variants.append(rendered)
         for weave in weaves:
-            replacement_sets: list[dict[int, str]] = [{}]
-            for mapping in weave.entity_maps:
-                edge = next((
-                    edge for edge in graph.edges
-                    if {mapping.source_mention_id, mapping.target_mention_id}
-                    == set(edge.mention_ids)
+            for pair in weave.pairs:
+                query_frame = next((
+                    frame for frame in query_senf.frames
+                    if frame.frame_id == pair.query_frame_id
                 ), None)
-                if (
-                    edge is None
-                    or frozenset(edge.mention_ids) not in accepted_edges
-                    or mapping.target_mention_id not in query_mentions
-                ):
+                if query_frame is None or query_frame.predicate_head != parsed["head"]:
                     continue
-                positions = {
-                    role.position
-                    for frame in query_senf.frames
-                    for role in frame.roles
-                    if isinstance(role.filler, EntityRef)
-                    and role.filler.mention_id == mapping.target_mention_id
-                }
-                if positions:
-                    replacement_sets.append({position: mapping.source_symbol for position in positions})
+                replacements: dict[int, str] = {}
+                for mapping in weave.entity_maps:
+                    if mapping.source_id and mapping.source_id != pair.source_id:
+                        continue
+                    if mapping.source_frame_id and (
+                        mapping.source_frame_id != pair.source_frame_id
+                        or mapping.query_frame_id != pair.query_frame_id
+                    ):
+                        continue
+                    edge = next((
+                        edge for edge in graph.edges
+                        if {mapping.source_mention_id, mapping.target_mention_id}
+                        == set(edge.mention_ids)
+                    ), None)
+                    if (
+                        edge is None
+                        or frozenset(edge.mention_ids) not in accepted_edges
+                        or mapping.target_mention_id not in query_mentions
+                    ):
+                        continue
+                    for role in query_frame.roles:
+                        if (
+                            isinstance(role.filler, EntityRef)
+                            and role.filler.mention_id == mapping.target_mention_id
+                        ):
+                            replacements[role.position] = mapping.source_symbol
 
-            source_heads = [
-                mapping.source_head for mapping in weave.predicate_maps
-                if mapping.source_head != mapping.query_head
-            ]
-            for replacements in replacement_sets:
+                source_heads = [
+                    mapping.source_head for mapping in weave.predicate_maps
+                    if mapping.source_head != mapping.query_head
+                    and (not mapping.source_id or mapping.source_id == pair.source_id)
+                    and (
+                        not mapping.source_frame_id
+                        or mapping.source_frame_id == pair.source_frame_id
+                        and mapping.query_frame_id == pair.query_frame_id
+                    )
+                ]
+                replacement_sets = [replacements] if replacements else [{}]
+                if replacements and source_heads:
+                    replacement_sets.append({})
                 heads = source_heads + [parsed["head"]]
-                for head in heads:
-                    changed = dict(parsed)
-                    changed["head"] = head
-                    changed["args"] = [
-                        replacements.get(index, arg)
-                        for index, arg in enumerate(parsed["args"])
-                    ]
-                    rendered = self._signature_to_query(changed)
-                    if rendered != candidate:
-                        variants.append(rendered)
+                for replacements in replacement_sets:
+                    for head in heads:
+                        changed = dict(parsed)
+                        changed["head"] = head
+                        changed["args"] = [
+                            replacements.get(index, arg)
+                            for index, arg in enumerate(parsed["args"])
+                        ]
+                        rendered = self._signature_to_query(changed)
+                        if rendered != candidate:
+                            variants.append(rendered)
         return self._dedupe_preserve_order(variants)
 
     def _build_candidate_plan(
@@ -632,7 +648,7 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
                     continue
                 generated = tuple(executable_bridge_atoms(
                     option,
-                    option_source,
+                    self._query_prior,
                     candidate_senf,
                     graph,
                 ))
@@ -665,6 +681,11 @@ class CanonicalSENFPLNParser(CanonicalPLNParser):
     def _source_for_weave(self, weave: Optional[WeaveResult]) -> Optional[SENF]:
         if weave is None or not weave.pairs:
             return None
+        source_ids = {pair.source_id for pair in weave.pairs if pair.source_id}
+        if source_ids:
+            return next((
+                senf for senf in self._query_prior if senf.senf_id in source_ids
+            ), None)
         source_frame_ids = {pair.source_frame_id for pair in weave.pairs}
         return next((
             senf for senf in self._query_prior

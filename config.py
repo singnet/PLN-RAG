@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 from typing import Literal, Optional
 
 
@@ -106,6 +106,17 @@ class Settings(BaseSettings):
     senf_weave_max_pair_candidates: int = 256
     senf_weave_max_exemplar_alternatives: int = 4
     senf_weave_max_cost: float = 2.0
+    senf_weave_engine: Literal["beam", "hierarchical"] = "beam"
+    senf_weave_global_candidate_cap: int = Field(default=512, gt=0)
+    senf_weave_max_cells: int = Field(default=65_536, gt=0)
+    senf_weave_max_seeds: int = Field(default=32, gt=0)
+    senf_weave_max_iterations: int = Field(default=200, gt=0)
+    senf_weave_sinkhorn_tolerance: float = Field(
+        default=1e-7, gt=0.0, allow_inf_nan=False
+    )
+    senf_weave_sinkhorn_regularization: float = Field(
+        default=0.25, gt=0.0, allow_inf_nan=False
+    )
     # Weave-derived query scoring (C7). Zero reproduces pre-SENF ranking exactly.
     senf_source_grounding_weight: int = 3
     senf_role_compat_weight: int = 2

@@ -1,5 +1,6 @@
 import math
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
@@ -139,7 +140,7 @@ def _contexts_allow_executable_bridge(
 
 def executable_bridge_atoms(
     weave: WeaveResult,
-    source: SENF,
+    source: SENF | Mapping[str, SENF] | Sequence[SENF],
     query: SENF,
     identity_graph=None,
 ) -> list[str]:
@@ -148,10 +149,25 @@ def executable_bridge_atoms(
     The rules are concrete by design. This keeps adapters for multiple candidates
     isolated when the parser returns one shared transient query context.
     """
+    if isinstance(source, SENF):
+        sources = {source.senf_id: source}
+        default_source = source
+    elif isinstance(source, Mapping):
+        sources = dict(source)
+        sources.update({item.senf_id: item for item in source.values()})
+        default_source = next(iter(source.values()), None)
+    else:
+        source_items = tuple(source)
+        sources = {item.senf_id: item for item in source_items}
+        default_source = source_items[0] if len(source_items) == 1 else None
+
     atoms: list[str] = []
-    source_roots = _root_frame_ids(source)
     query_roots = _root_frame_ids(query)
     for index, pair in enumerate(weave.pairs):
+        pair_source = sources.get(pair.source_id) if pair.source_id else default_source
+        if pair_source is None:
+            continue
+        source_roots = _root_frame_ids(pair_source)
         decision = (
             weave.transport_decisions[index]
             if index < len(weave.transport_decisions)
@@ -159,7 +175,7 @@ def executable_bridge_atoms(
         )
         if decision is not None and not decision.allowed:
             continue
-        source_frame = _frame(source, pair.source_frame_id)
+        source_frame = _frame(pair_source, pair.source_frame_id)
         query_frame = _frame(query, pair.query_frame_id)
         if source_frame is None or query_frame is None:
             continue
@@ -186,7 +202,7 @@ def executable_bridge_atoms(
             or not _contexts_allow_executable_bridge(source_frame, query_frame)
         ):
             continue
-        source_args = _arguments(source_frame, source)
+        source_args = _arguments(source_frame, pair_source)
         query_args = _arguments(query_frame, query)
         if source_args is None or query_args is None or len(source_args) != len(query_args):
             continue
@@ -204,6 +220,13 @@ def executable_bridge_atoms(
             if isinstance(role.filler, EntityRef)
         }
         for mapping in weave.entity_maps:
+            if mapping.source_id and mapping.source_id != pair.source_id:
+                continue
+            if mapping.source_frame_id and (
+                mapping.source_frame_id != pair.source_frame_id
+                or mapping.query_frame_id != pair.query_frame_id
+            ):
+                continue
             if (
                 mapping.source_entity_id not in source_entity_ids
                 or mapping.target_entity_id not in query_entity_ids
@@ -228,9 +251,12 @@ def executable_bridge_atoms(
         if not justified or (not predicate_changed and source_args == query_args):
             continue
 
-        probability = weave.branch_probability if decision is not None else 1.0
+        probability = pair.branch_probability if decision is not None else 1.0
+        pair_cost = (
+            weave.total_cost if len(weave.pairs) == 1 else pair.transport_cost
+        )
         tv = transport_truth(
-            probability, probability, weave.total_cost + identity_cost
+            probability, probability, pair_cost + identity_cost
         )
         source_body = f"({source_frame.predicate_head} {' '.join(source_args)})"
         query_body = f"({query_frame.predicate_head} {' '.join(query_args)})"

@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import math
 from itertools import product
 from typing import Optional, Sequence
 
@@ -7,6 +8,12 @@ from core.senf.exemplars import exemplar_distance
 from core.senf.identity import IdentityEdge, IdentityGraph
 from core.senf.temporal import BranchingContextTree, TransportDecision, assess_transport
 from core.senf.types import Context, EntityPersistence, EntityRef, FrameRef, KindRef, Mention, Role, SENF, SENFFrame, ValidityInterval, ValueRef
+from core.senf.weave_model import (
+    FrameAlignment,
+    PairComponentCosts,
+    PolishDiagnostics,
+    SourceFrameKey,
+)
 
 
 MIN_PAIR_SCORE = 0.3
@@ -35,6 +42,9 @@ class EntityMap:
     target_symbol: str
     cost: float
     identity_supported: bool = False
+    source_id: str = ""
+    source_frame_id: str = ""
+    query_frame_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -42,6 +52,9 @@ class PredicateMap:
     source_head: str
     query_head: str
     cost: float
+    source_id: str = ""
+    source_frame_id: str = ""
+    query_frame_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -51,6 +64,9 @@ class FramePair:
     score: float
     evidence: tuple[str, ...] = ()
     cost: float = 1.0
+    source_id: str = ""
+    transport_cost: float = 0.0
+    branch_probability: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -84,6 +100,8 @@ class WeaveResult:
     guard: str = ""
     residuals: tuple[float, float, float] = (0.0, 0.0, 0.0)
     rejected_pairs: tuple[FramePair, ...] = ()
+    alignments: tuple[FrameAlignment, ...] = ()
+    polish: Optional[PolishDiagnostics] = None
 
     @property
     def aligned(self) -> bool:
@@ -480,6 +498,9 @@ def _pair_hypotheses(
                 query_symbol,
                 0.0,
                 supported,
+                source_senf.senf_id,
+                source_frame.frame_id,
+                query_frame.frame_id,
             ))
             exemplar_choices.append(_exemplar_options(
                 query_senf, query_mention, query_frame,
@@ -514,6 +535,9 @@ def _pair_hypotheses(
         round(score, 4),
         tuple(dict.fromkeys(evidence)),
         round(max(0.0, min(1.0, 1.0 - score)), 4),
+        source_senf.senf_id,
+        0.0,
+        transport.branch_probability,
     )
 
     combinations = product(*exemplar_choices) if exemplar_choices else [()]
@@ -535,6 +559,9 @@ def _pair_hypotheses(
                 mapping.target_symbol,
                 round(min(1.0, identity_part + conflict_part + exemplar_part[2]), 4),
                 mapping.identity_supported,
+                mapping.source_id,
+                mapping.source_frame_id,
+                mapping.query_frame_id,
             )
             for mapping, exemplar_part, identity_part, conflict_part in zip(
                 base_entities,
@@ -543,10 +570,26 @@ def _pair_hypotheses(
                 _entity_conflict_parts(base_entities, graph),
             )
         )
+        local_cost = (
+            structural + exemplar_cost + identity + conflict + time + location
+            + modality + transport.branch_cost + transport.temporal_cost
+            + transport.persistence_cost
+        )
         hypotheses.append(_PairHypothesis(
-            pair,
+            replace(
+                pair,
+                transport_cost=round(local_cost, 4),
+                branch_probability=round(transport.branch_probability, 8),
+            ),
             entities,
-            (PredicateMap(source_frame.predicate_head, query_frame.predicate_head, predicate_cost),),
+            (PredicateMap(
+                source_frame.predicate_head,
+                query_frame.predicate_head,
+                predicate_cost,
+                source_senf.senf_id,
+                source_frame.frame_id,
+                query_frame.frame_id,
+            ),),
             exemplar_maps,
             tuple(role_maps),
             structural,
@@ -936,6 +979,8 @@ def _reject_over_cost(result: WeaveResult) -> WeaveResult:
         total_cost=result.total_cost,
         guard=result.guard,
         residuals=result.residuals,
+        alignments=result.alignments,
+        polish=result.polish,
     )
 
 
@@ -956,6 +1001,275 @@ def _frame_persistence(
     return tuple(sorted(candidates, key=lambda item: (item.entity_id, item.persistence_type)))
 
 
+def _hierarchy_candidates(
+    query: SENF,
+    sources: Sequence[SENF],
+    graph: Optional[IdentityGraph],
+    limits: _Limits,
+    cap: int,
+) -> tuple[
+    tuple[FrameAlignment, ...],
+    dict[FrameAlignment, tuple[SENF, _PairHypothesis]],
+]:
+    cap = max(0, cap)
+    buckets: dict[
+        str, dict[str, list[tuple[FrameAlignment, SENF, _PairHypothesis]]]
+    ] = {}
+
+    def candidate_rank(
+        item: tuple[FrameAlignment, SENF, _PairHypothesis],
+    ) -> tuple:
+        return (
+            _pair_key(item[2]),
+            item[0].source_frame.source_id,
+            item[0].source_frame.frame_id,
+        )
+    query_frames = {
+        frame.frame_id: frame
+        for frame in sorted(
+            (frame for frame in query.frames if frame.clause_role == "fact"),
+            key=lambda frame: frame.frame_id,
+        )[:limits.max_frames]
+    }
+    for source in sorted(sources, key=lambda item: (item.sentence_id, item.senf_id)):
+        source_id = source.senf_id
+        tree = BranchingContextTree.from_senfs((source, query))
+        intervals: dict[str, ValidityInterval] = {}
+        invalid_intervals = False
+        for senf in (source, query):
+            for interval in senf.validity_intervals:
+                existing = intervals.get(interval.interval_id)
+                if existing is not None and existing != interval:
+                    invalid_intervals = True
+                    break
+                intervals[interval.interval_id] = interval
+            if invalid_intervals:
+                break
+        if invalid_intervals:
+            continue
+        source_frames = {
+            frame.frame_id: frame
+            for frame in sorted(
+                (frame for frame in source.frames if frame.clause_role != "premise"),
+                key=lambda frame: frame.frame_id,
+            )[:limits.max_frames]
+        }
+        for query_id, query_frame in sorted(query_frames.items()):
+            bucket = buckets.setdefault(query_id, {}).setdefault(source_id, [])
+            for source_frame_id, source_frame in sorted(source_frames.items()):
+                hypotheses = _pair_hypotheses(
+                    query, source, query_frame, source_frame, graph, limits, tree,
+                    intervals,
+                )
+                if not hypotheses:
+                    continue
+                hypothesis = hypotheses[0]
+                costs = PairComponentCosts(
+                    hypothesis.structural,
+                    hypothesis.exemplar,
+                    hypothesis.identity,
+                    hypothesis.conflict,
+                    hypothesis.time,
+                    hypothesis.location,
+                    hypothesis.modality,
+                    hypothesis.branch,
+                    hypothesis.temporal_decay,
+                    hypothesis.persistence,
+                )
+                alignment = FrameAlignment(
+                    query_id,
+                    SourceFrameKey(source_id, source_frame_id),
+                    hypothesis.pair.score,
+                    costs,
+                    hypothesis.pair.evidence,
+                )
+                bucket.append((alignment, source, hypothesis))
+                bucket.sort(key=candidate_rank)
+                if len(bucket) > cap:
+                    bucket.pop()
+
+    # First interleave sources for each query, then interleave queries globally.
+    # No bucket receives a second slot while another eligible bucket at the same
+    # level has received none.
+    fair_by_query: dict[
+        str, list[tuple[FrameAlignment, SENF, _PairHypothesis]]
+    ] = {}
+    for query_id, by_source in sorted(buckets.items()):
+        fair = fair_by_query.setdefault(query_id, [])
+        depth = 0
+        while len(fair) < cap:
+            available = [
+                values[depth]
+                for _, values in sorted(by_source.items())
+                if depth < len(values)
+            ]
+            if not available:
+                break
+            fair.extend(sorted(available, key=candidate_rank)[:cap - len(fair)])
+            depth += 1
+
+    ordered: list[tuple[FrameAlignment, SENF, _PairHypothesis]] = []
+    depth = 0
+    while len(ordered) < cap:
+        available = [
+            values[depth]
+            for _, values in sorted(fair_by_query.items())
+            if depth < len(values)
+        ]
+        if not available:
+            break
+        ordered.extend(sorted(available, key=candidate_rank)[:cap - len(ordered)])
+        depth += 1
+    ordered.sort(key=candidate_rank)
+    alignments = tuple(item[0] for item in ordered)
+    return alignments, {
+        alignment: (source, hypothesis)
+        for alignment, source, hypothesis in ordered
+    }
+
+
+def _hierarchy_result(
+    query: SENF,
+    sources: Sequence[SENF],
+    selected: Sequence[FrameAlignment],
+    lookup: dict[FrameAlignment, tuple[SENF, _PairHypothesis]],
+    graph: Optional[IdentityGraph],
+    diagnostics: PolishDiagnostics,
+) -> WeaveResult:
+    chosen = [(alignment, *lookup[alignment]) for alignment in selected]
+    hypotheses = [item[2] for item in chosen]
+    query_count = sum(frame.clause_role == "fact" for frame in query.frames)
+    divisor = max(1, len(hypotheses))
+
+    def average(name: str) -> float:
+        return sum(getattr(item, name) for item in hypotheses) / divisor
+
+    source_ids = sorted({
+        source.sentence_id for _, source, _ in chosen
+    } or {
+        source.sentence_id for source in sources
+    })
+    guard = f"{'+'.join(source_ids)}->{query.sentence_id}"
+    grouped: dict[str, tuple[SENF, list[_PairHypothesis]]] = {}
+    for _, source, hypothesis in chosen:
+        grouped.setdefault(source.senf_id, (source, []))[1].append(hypothesis)
+    partials = [
+        _result(
+            query,
+            source,
+            _SearchState(tuple(items), frozenset(
+                item.pair.source_frame_id for item in items
+            )),
+            query_count,
+            graph,
+        )
+        for source, items in (grouped[key] for key in sorted(grouped))
+    ]
+
+    entity_maps = tuple(
+        mapping for item in hypotheses for mapping in item.entity_maps
+    )
+    source_targets: dict[tuple[str, str], set[str]] = {}
+    target_sources: dict[str, list[EntityMap]] = {}
+    for alignment, _, hypothesis in chosen:
+        for mapping in hypothesis.entity_maps:
+            source_key = (alignment.source_frame.source_id, mapping.source_entity_id)
+            source_targets.setdefault(source_key, set()).add(mapping.target_entity_id)
+            target_sources.setdefault(mapping.target_entity_id, []).append(mapping)
+    consistency_violations = sum(
+        max(0, len(values) - 1) for values in source_targets.values()
+    )
+    consistency_checks = len(source_targets)
+    for mappings in target_sources.values():
+        groups: list[list[EntityMap]] = []
+        for mapping in mappings:
+            matching = [
+                group for group in groups
+                if any(
+                    item.source_symbol == mapping.source_symbol
+                    or graph is not None and graph.same_entity(
+                        item.source_entity_id, mapping.source_entity_id
+                    )
+                    for item in group
+                )
+            ]
+            if not matching:
+                groups.append([mapping])
+            else:
+                merged = [mapping]
+                for group in matching:
+                    merged.extend(group)
+                    groups.remove(group)
+                groups.append(merged)
+        consistency_violations += max(0, len(groups) - 1)
+        consistency_checks += 1
+    cross_distortion = max(
+        [item.distortion_cost for item in partials]
+        + [consistency_violations / max(1, consistency_checks)]
+    )
+    matched_queries = {item.pair.query_frame_id for item in hypotheses}
+    unmatched = max(0, query_count - len(matched_queries)) / max(1, query_count)
+    distortion = min(1.0, unmatched + cross_distortion)
+    component_names = (
+        "structural", "exemplar", "identity", "conflict", "time", "location",
+        "modality", "branch", "temporal_decay", "persistence",
+    )
+    component_values = {name: average(name) for name in component_names}
+    total = sum(component_values.values()) + unmatched + cross_distortion
+    result = WeaveResult(
+        pairs=tuple(item.pair for item in hypotheses),
+        distortion=round(distortion, 4),
+        grounded_symbols=frozenset().union(*(
+            item.grounded_symbols for item in partials
+        )),
+        grounded_entity_ids=frozenset().union(*(
+            item.grounded_entity_ids for item in partials
+        )),
+        role_signatures=frozenset().union(*(
+            item.role_signatures for item in partials
+        )),
+        entity_maps=entity_maps,
+        predicate_maps=tuple(
+            mapping for item in hypotheses for mapping in item.predicate_maps
+        ),
+        kind_maps=tuple(sorted({mapping for item in partials for mapping in item.kind_maps})),
+        exemplar_maps=tuple(
+            mapping for item in hypotheses for mapping in item.exemplar_maps
+        ),
+        role_maps=tuple(mapping for item in hypotheses for mapping in item.role_maps),
+        structural_cost=round(component_values["structural"], 4),
+        exemplar_cost=round(component_values["exemplar"], 4),
+        identity_cost=round(component_values["identity"], 4),
+        conflict_cost=round(component_values["conflict"], 4),
+        time_cost=round(component_values["time"], 4),
+        location_cost=round(component_values["location"], 4),
+        modality_cost=round(component_values["modality"], 4),
+        unmatched_cost=round(unmatched, 4),
+        distortion_cost=round(cross_distortion, 4),
+        branch_cost=round(component_values["branch"], 4),
+        temporal_decay_cost=round(component_values["temporal_decay"], 4),
+        persistence_cost=round(component_values["persistence"], 4),
+        branch_probability=round(min(
+            (item.transport_decision.branch_probability for item in hypotheses),
+            default=1.0,
+        ), 8),
+        branch_lca=next((
+            item.transport_decision.branch_lca
+            for item in hypotheses if item.transport_decision.branch_lca
+        ), "actual_root"),
+        transport_decisions=tuple(item.transport_decision for item in hypotheses),
+        total_cost=round(total, 4),
+        guard=guard,
+        residuals=diagnostics.residuals,
+        alignments=tuple(selected),
+        polish=diagnostics,
+    )
+    settings = get_settings()
+    if result.aligned and result.total_cost > max(0.0, settings.senf_weave_max_cost):
+        return _reject_over_cost(result)
+    return result
+
+
 def build_weaves(
     query: SENF,
     sources: Sequence[SENF],
@@ -965,12 +1279,131 @@ def build_weaves(
     if not query.frames:
         return (WeaveResult(),)
     limits = _limits()
-    results = [
-        result
-        for source in sources
-        if source.frames
-        for result in _weave_source(query, source, identity_graph, limits)
-    ]
+    active_sources = [source for source in sources if source.frames]
+    if not active_sources:
+        return ()
+    settings = get_settings()
+    if settings.senf_weave_engine == "beam":
+        results = [
+            result
+            for source in active_sources
+            for result in _weave_source(query, source, identity_graph, limits)
+        ]
+        results.sort(key=_result_key)
+        return tuple(results[:max(1, k)])
+
+    from core.senf.weave_hierarchy import (
+        HierarchyFallback,
+        HierarchyLimits,
+        polish_hierarchy,
+    )
+
+    def invalid_integer(value: object) -> bool:
+        return type(value) is not int or value <= 0
+
+    def invalid_float(value: object) -> bool:
+        return (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or float(value) <= 0.0
+        )
+
+    def fallback(reason: str) -> tuple[WeaveResult, ...]:
+        diagnostics = PolishDiagnostics(
+            engine="hierarchical",
+            fallback_reason=reason,
+            seed_count=1,
+        )
+        return (WeaveResult(
+            distortion=1.0,
+            unmatched_cost=1.0,
+            total_cost=1.0,
+            guard=f"unaligned->{query.sentence_id}",
+            polish=diagnostics,
+        ),)
+
+    hierarchy_values = (
+        settings.senf_weave_global_candidate_cap,
+        settings.senf_weave_max_cells,
+        settings.senf_weave_max_seeds,
+        settings.senf_weave_max_iterations,
+    )
+    if any(invalid_integer(value) for value in hierarchy_values):
+        return fallback("invalid_hierarchy_bound")
+    if any(invalid_float(value) for value in (
+        settings.senf_weave_sinkhorn_tolerance,
+        settings.senf_weave_sinkhorn_regularization,
+    )):
+        return fallback("invalid_hierarchy_numeric_setting")
+
+    max_sources = max(1, int(settings.senf_query_max_priors))
+    max_source_frames = max(1, int(settings.senf_query_max_source_frames))
+    if len(active_sources) > max_sources:
+        return fallback("hierarchy_source_cap")
+    bounded_source_frames = sum(
+        min(
+            limits.max_frames,
+            sum(frame.clause_role != "premise" for frame in source.frames),
+        )
+        for source in active_sources
+    )
+    if bounded_source_frames > max_source_frames:
+        return fallback("hierarchy_source_frame_cap")
+    query_frame_count = min(
+        limits.max_frames,
+        sum(frame.clause_role == "fact" for frame in query.frames),
+    )
+    pair_work = query_frame_count * bounded_source_frames
+    pair_work_cap = settings.senf_weave_global_candidate_cap * max_sources
+    if pair_work > pair_work_cap:
+        return fallback("hierarchy_pair_work_cap")
+
+    source_ids = [source.senf_id for source in active_sources]
+    if len(source_ids) != len(set(source_ids)):
+        return fallback("duplicate_source_id")
+    hierarchy_limits = HierarchyLimits(
+        settings.senf_weave_global_candidate_cap,
+        settings.senf_weave_max_cells,
+        settings.senf_weave_max_seeds,
+        settings.senf_weave_max_iterations,
+        settings.senf_weave_sinkhorn_tolerance,
+        settings.senf_weave_sinkhorn_regularization,
+    )
+    try:
+        candidates, lookup = _hierarchy_candidates(
+            query,
+            active_sources,
+            identity_graph,
+            limits,
+            hierarchy_limits.global_candidate_cap,
+        )
+        polished = polish_hierarchy(
+            candidates,
+            tuple(
+                frame.frame_id
+                for frame in sorted(
+                    (item for item in query.frames if item.clause_role == "fact"),
+                    key=lambda item: item.frame_id,
+                )[:limits.max_frames]
+            ),
+            hierarchy_limits,
+        )
+        results = [
+            _hierarchy_result(
+                query,
+                active_sources,
+                selected,
+                lookup,
+                identity_graph,
+                polished.diagnostics,
+            )
+            for selected in polished.selections
+        ]
+    except HierarchyFallback as exc:
+        return fallback(str(exc))
+    except Exception as exc:
+        return fallback(f"hierarchy_error:{type(exc).__name__}")
     results.sort(key=_result_key)
     return tuple(results[:max(1, k)])
 
