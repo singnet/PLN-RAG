@@ -210,6 +210,10 @@ QUERY_POLICY_SETTINGS = {
     "SENF_TEMPORAL_DECAY_RATE": "0.01",
     **FEATURE_SETTINGS,
 }
+HIERARCHICAL_RANKED_FIRST_PROOF_SETTINGS = {
+    **QUERY_POLICY_SETTINGS,
+    "SENF_WEAVE_ENGINE": "hierarchical",
+}
 _BASE_QUERY_POLICY_SETTINGS = {
     key: os.environ.get(key) for key in QUERY_POLICY_SETTINGS
 }
@@ -245,6 +249,12 @@ PARSER_ARMS: dict[str, dict[str, Any]] = {
         "senf_counterfactual_enabled": True,
         "query_execution_policy": "ranked_first_proof",
         "settings": QUERY_POLICY_SETTINGS,
+    },
+    "canonical_senf_pln_hierarchical_ranked_first_proof": {
+        "parser": "canonical_senf_pln",
+        "senf_counterfactual_enabled": True,
+        "query_execution_policy": "ranked_first_proof",
+        "settings": HIERARCHICAL_RANKED_FIRST_PROOF_SETTINGS,
     },
     "canonical_senf_pln_stage7_ranked_first_only": {
         "parser": "canonical_senf_pln",

@@ -337,6 +337,14 @@ class TestSENFSignals:
         assert parts["matched_soft_mass"] == 8
         assert parts["global_residual_ratio"] == -2
         assert parts["alignment_confidence"] == 3
+        assert all(isinstance(parts[name], int) for name in (
+            "matched_soft_mass",
+            "global_residual_ratio",
+            "alignment_confidence",
+        ))
+        assert signals.matched_soft_mass == 0.8
+        assert signals.global_residual_ratio == 0.2
+        assert signals.alignment_confidence == 0.75
 
     def test_unavailable_soft_alignment_signals_do_not_score(self):
         candidate = q("Smart", "kebede")

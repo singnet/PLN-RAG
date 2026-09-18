@@ -52,7 +52,7 @@ class SENFSignals:
         return sum(self.bonus_breakdown(query).values())
 
     def bonus_breakdown(self, query: dict) -> dict[str, int]:
-        """Expose candidate-local SENF adjustments without changing their sum."""
+        """Return weighted integer contributions, not raw weave diagnostics."""
         parts = {
             "source_grounding": 0,
             "role_compat": 0,

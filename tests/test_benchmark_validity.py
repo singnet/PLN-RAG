@@ -130,6 +130,31 @@ class TestParserArms:
         assert metadata["settings"]["answer_generation_enabled"] == "false"
         assert metadata["settings"]["senf_feature_provider"] == "none"
 
+    def test_hierarchical_ranked_first_proof_arm_only_changes_engine(self):
+        baseline = bp._parser_arm_metadata(
+            "canonical_senf_pln_stage7_ranked_first_proof"
+        )
+        hierarchical = bp._parser_arm_metadata(
+            "canonical_senf_pln_hierarchical_ranked_first_proof"
+        )
+
+        assert hierarchical["parser"] == "canonical_senf_pln"
+        assert hierarchical["senf_counterfactual_enabled"] is True
+        assert hierarchical["query_execution_policy"] == "ranked_first_proof"
+        assert set(hierarchical["settings"]) == {
+            key.lower() for key in bp.QUERY_POLICY_SETTINGS
+        }
+        assert hierarchical["settings"]["senf_weave_engine"] == "hierarchical"
+        assert {
+            key: value
+            for key, value in hierarchical["settings"].items()
+            if key != "senf_weave_engine"
+        } == {
+            key: value
+            for key, value in baseline["settings"].items()
+            if key != "senf_weave_engine"
+        }
+
     def test_feature_metadata_is_complete_hashed_and_sanitized(self):
         from config import Settings
 
@@ -239,6 +264,24 @@ class TestParserArms:
 
             assert bp.get_settings().query_execution_policy == policy
             assert bp.get_settings().answer_generation_enabled is False
+        finally:
+            bp._configure_parser_arm("canonical_senf_pln_stage7")
+            bp.get_settings.cache_clear()
+
+    def test_hierarchical_arm_configuration(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+
+        try:
+            bp._configure_case_environment(
+                "canonical_senf_pln_hierarchical_ranked_first_proof",
+                "case",
+                "run",
+            )
+            settings = bp.get_settings()
+
+            assert settings.senf_counterfactual_enabled is True
+            assert settings.query_execution_policy == "ranked_first_proof"
+            assert settings.senf_weave_engine == "hierarchical"
         finally:
             bp._configure_parser_arm("canonical_senf_pln_stage7")
             bp.get_settings.cache_clear()
