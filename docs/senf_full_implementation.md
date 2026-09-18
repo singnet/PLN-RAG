@@ -221,6 +221,14 @@ Important fields include:
 - Stage 7: `branch_count`, `candidate_temporal_plans`, `executed_temporal_plan`,
   and `stage7_rejection`.
 
+The `matched_soft_mass`, `global_residual_ratio`, and `alignment_confidence`
+entries under `candidate_score_breakdown[].senf_components` are weighted,
+rounded integer score contributions, not raw alignment measurements. Raw soft
+mass and Sinkhorn residual values are reported in `weave_summaries` (including
+`matched_soft_mass`, `unmatched_soft_mass`, and the global-stage residual in
+`polish`); alignment confidence is the matched share of total soft mass, and the
+residual ratio is derived from the global residual and configured tolerance.
+
 Response bounds are `SENF_DIAGNOSTICS_MAX_WEAVES`,
 `SENF_DIAGNOSTICS_MAX_ITEMS`, and `SENF_DIAGNOSTICS_MAX_EVIDENCE`. Truncation
 metadata must be checked before treating an emitted list as complete. No

@@ -15,7 +15,7 @@ from core.senf.weave_model import (
     SourceFrameKey,
 )
 from core.senf.types import Context
-from parsers.canonical_senf_pln_parser import CanonicalSENFPLNParser
+from parsers.canonical_senf_pln_parser import CanonicalSENFPLNParser, _weave_summary
 
 
 def _senf(sentence_id: str, atoms: list[str]):
@@ -101,6 +101,41 @@ def test_residuals_are_actual_stage_residuals():
     assert signals.global_residual_ratio == pytest.approx(
         result.polish.global_stage.global_residual
         / get_settings().senf_weave_sinkhorn_tolerance
+    )
+
+
+def test_score_breakdown_weights_raw_weave_diagnostics_to_integers():
+    query = _senf("q1", ["(: q (Arrived alpha) $tv)"])
+    source = _senf("s1", ["(: a (Arrived alpha) (STV 1 1))"])
+    result = weave(query, [source])
+    parser = CanonicalSENFPLNParser()
+    parser._matched_soft_mass_weight = 10
+    parser._global_residual_ratio_weight = 10
+    parser._alignment_confidence_weight = 10
+
+    signals = parser._senf_signals(result)
+    assert signals is not None
+    parts = signals.bonus_breakdown({
+        "head": "Arrived",
+        "args": ["alpha"],
+        "arity": 1,
+        "variables": [],
+    })
+    summary = _weave_summary(result, max_items=128, max_evidence=16)
+
+    assert all(isinstance(parts[name], int) for name in (
+        "matched_soft_mass",
+        "global_residual_ratio",
+        "alignment_confidence",
+    ))
+    assert summary["matched_soft_mass"] == result.matched_soft_mass
+    assert summary["unmatched_soft_mass"] == result.unmatched_soft_mass
+    assert summary["polish"]["global_stage"]["global_residual"] == (
+        result.polish.global_stage.global_residual
+    )
+    assert signals.alignment_confidence == pytest.approx(
+        summary["matched_soft_mass"]
+        / (summary["matched_soft_mass"] + summary["unmatched_soft_mass"])
     )
 
 

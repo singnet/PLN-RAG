@@ -7,6 +7,11 @@ artifacts, settings, and modes stated below. They predate the newer
 hierarchical TransWeave and optional source-grounded feature-provider modes and
 must not be cited as validation of those modes.
 
+The frozen hierarchical ablation in
+`docs/benchmarks/stress25_hierarchical_ablation.md` preserved `22/25` proofs
+but regressed correct answers from `8/25` to `7/25` and increased latency.
+Hierarchical mode therefore remains opt-in.
+
 These results were produced from base commit
 `c94ce1d9ceeb01ec782f77644a4ef87e633e27e7` plus the benchmark changes in the
 same commit as this document. The container image was
