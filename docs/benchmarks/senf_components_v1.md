@@ -1,6 +1,6 @@
 # SENF Component Benchmark v1
 
-Cases: **14**  
+Cases: **14**
 Schema: `senf-components-report/v2`
 
 ## Classification And Mapping Metrics
@@ -54,8 +54,8 @@ Schema: `senf-components-report/v2`
 
 - Command: `python scripts/evaluate_senf_components.py --gold data/benchmarks/senf_components_v1.json --format markdown --output docs/benchmarks/senf_components_v1.md`
 - Dataset SHA-256: `94307583375462b9f680345a60cdf8026724c2232c5d8d83d82fc058e568df0d`
-- Generator SHA-256: `8424aa3d6421a51c632b652072c7f557f6df060e6eef32791671d0ba1a731f55`
-- Git revision: `4244dc69782dde7031ac11fe6398436959eb0a78`
+- Generator SHA-256: `41ea89664672be961f3185db94465adedfdd1b5ea4ef82e7d0f94db2dbe902e8`
+- Git revision: `unknown`
 - Determinism scope: two sequential runs in the same process
 
 ```json
@@ -63,16 +63,22 @@ Schema: `senf-components-report/v2`
   "environment": {
     "cpu_count": 16,
     "dependencies": {
-      "numpy": "2.5.3",
+      "numpy": "2.2.6",
       "pydantic": "2.13.5",
       "pydantic-settings": "2.15.0"
     },
-    "platform": "Linux-7.1.3-arch1-3-x86_64-with-glibc2.43",
-    "processor": "unknown",
-    "python": "3.14.6"
+    "platform": "Linux-7.1.3-arch1-3-x86_64-with-glibc2.35",
+    "processor": "x86_64",
+    "python": "3.10.12"
   },
   "settings": {
     "senf_exemplar_enabled": true,
+    "senf_feature_exact_only": true,
+    "senf_feature_examples_path": "data/senf_feature_examples.json",
+    "senf_feature_max_features": 64,
+    "senf_feature_model": null,
+    "senf_feature_provider": "none",
+    "senf_feature_timeout": 20.0,
     "senf_identity_threshold": 0.75,
     "senf_query_max_candidate_work": 64,
     "senf_query_max_mentions": 256,

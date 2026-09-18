@@ -20,26 +20,26 @@ python scripts/benchmark_weave_engines.py --sizes 2,4 --sparsities 0.0,0.25,1.0 
 
 | Case | Engine | Hash | Order stable | Pairs | Candidates | Max residual | Fallback | Median ms | Work / cap | Matrix / cap |
 |---|---|---|---:|---:|---:|---:|---|---:|---:|---:|
-| n2-s0.000-sources2 | beam | `84aa5e821c35` | true | 5 | 0 | n/a | none | 0.408914 | 8 / 8192 | 36 / 65536 |
-| n2-s0.000-sources2 | hierarchical | `c730d52bce27` | true | 6 | 4 | 7.056085715717586e-08 | none | 11.957499 | 8 / 8192 | 36 / 65536 |
-| n2-s0.250-sources2 | beam | `fba15882e13b` | true | 4 | 0 | n/a | none | 0.446132 | 8 / 8192 | 25 / 65536 |
-| n2-s0.250-sources2 | hierarchical | `05fb94d5665e` | true | 5 | 3 | 9.678907963994732e-08 | none | 10.416147 | 8 / 8192 | 25 / 65536 |
-| n2-s1.000-sources2 | beam | `b88ab533cee5` | true | 0 | 0 | n/a | none | 0.143795 | 8 / 8192 | 4 / 65536 |
-| n2-s1.000-sources2 | hierarchical | `b6acc066768b` | true | 0 | 0 | n/a | no_hard_compatible_candidates | 0.093382 | 8 / 8192 | 4 / 65536 |
-| n4-s0.000-sources2 | beam | `f1076b0a5f43` | true | 11 | 0 | n/a | none | 1.957439 | 32 / 8192 | 144 / 65536 |
-| n4-s0.000-sources2 | hierarchical | `c599929fd77f` | true | 12 | 8 | 8.569811416059281e-08 | none | 24.928196 | 32 / 8192 | 144 / 65536 |
-| n4-s0.250-sources2 | beam | `08ada730058f` | true | 8 | 0 | n/a | none | 0.991168 | 32 / 8192 | 100 / 65536 |
-| n4-s0.250-sources2 | hierarchical | `bb221dcd7a9d` | true | 12 | 6 | 9.678907963994732e-08 | none | 25.535657 | 32 / 8192 | 100 / 65536 |
-| n4-s1.000-sources2 | beam | `b88ab533cee5` | true | 0 | 0 | n/a | none | 0.304932 | 32 / 8192 | 16 / 65536 |
-| n4-s1.000-sources2 | hierarchical | `b6acc066768b` | true | 0 | 0 | n/a | no_hard_compatible_candidates | 0.244841 | 32 / 8192 | 16 / 65536 |
+| n2-s0.000-sources2 | beam | `84aa5e821c35` | true | 5 | 0 | n/a | none | 0.456363 | 8 / 8192 | 36 / 65536 |
+| n2-s0.000-sources2 | hierarchical | `c730d52bce27` | true | 6 | 4 | 7.056085715717586e-08 | none | 16.283085 | 8 / 8192 | 36 / 65536 |
+| n2-s0.250-sources2 | beam | `fba15882e13b` | true | 4 | 0 | n/a | none | 0.380650 | 8 / 8192 | 25 / 65536 |
+| n2-s0.250-sources2 | hierarchical | `05fb94d5665e` | true | 5 | 3 | 9.678907963994732e-08 | none | 11.102605 | 8 / 8192 | 25 / 65536 |
+| n2-s1.000-sources2 | beam | `b88ab533cee5` | true | 0 | 0 | n/a | none | 0.139834 | 8 / 8192 | 4 / 65536 |
+| n2-s1.000-sources2 | hierarchical | `b6acc066768b` | true | 0 | 0 | n/a | no_hard_compatible_candidates | 0.088919 | 8 / 8192 | 4 / 65536 |
+| n4-s0.000-sources2 | beam | `f1076b0a5f43` | true | 11 | 0 | n/a | none | 1.560332 | 32 / 8192 | 144 / 65536 |
+| n4-s0.000-sources2 | hierarchical | `c599929fd77f` | true | 12 | 8 | 8.569811416059281e-08 | none | 24.397226 | 32 / 8192 | 144 / 65536 |
+| n4-s0.250-sources2 | beam | `08ada730058f` | true | 8 | 0 | n/a | none | 0.947182 | 32 / 8192 | 100 / 65536 |
+| n4-s0.250-sources2 | hierarchical | `bb221dcd7a9d` | true | 12 | 6 | 9.678907963994732e-08 | none | 22.947473 | 32 / 8192 | 100 / 65536 |
+| n4-s1.000-sources2 | beam | `b88ab533cee5` | true | 0 | 0 | n/a | none | 0.287454 | 32 / 8192 | 16 / 65536 |
+| n4-s1.000-sources2 | hierarchical | `b6acc066768b` | true | 0 | 0 | n/a | no_hard_compatible_candidates | 0.231097 | 32 / 8192 | 16 / 65536 |
 
 `Pairs` is the sum across returned top-k results. `Candidates` is hierarchical polish diagnostics; the beam engine does not expose an equivalent counter. Matrix values are conservative dense-cell upper bounds for the hierarchical Sinkhorn and assignment stages.
 
 ## Reproducibility
 
 - Dataset SHA-256: `f88f5c18bb7aee900a802acf795c1449877d9da64257ede641b61af025627fe4`
-- Generator SHA-256: `ed3fd1d2abd07308f0766a24a9b2da7644f90d7c27cf841bf17c3d5efb4a163e`
-- Git revision: `4244dc69782dde7031ac11fe6398436959eb0a78`
+- Generator SHA-256: `337281e03e89939a3b77c2eb263d860e19f68575c93a9a76cdacc3ea39fcd9f6`
+- Git revision: `unknown`
 - Determinism scope: same-process repeats plus one fresh-process hash test in pytest
 
 ```json
@@ -50,6 +50,12 @@ python scripts/benchmark_weave_engines.py --sizes 2,4 --sparsities 0.0,0.25,1.0 
     "pydantic-settings": "2.15.0"
   },
   "settings": {
+    "senf_feature_exact_only": true,
+    "senf_feature_examples_path": "data/senf_feature_examples.json",
+    "senf_feature_max_features": 64,
+    "senf_feature_model": null,
+    "senf_feature_provider": "none",
+    "senf_feature_timeout": 20.0,
     "senf_query_max_priors": 16,
     "senf_query_max_source_frames": 128,
     "senf_weave_beam_width": 32,

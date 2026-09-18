@@ -29,9 +29,15 @@
   "reproducibility": {
     "command": "python scripts/benchmark_weave_engines.py --sizes 2,4 --sparsities 0.0,0.25,1.0 --sources 2 --repeats 3 --warmups 1 --top-k 3 --json-output docs/benchmarks/senf_weave_engine_microbenchmark.json --markdown-output docs/benchmarks/senf_weave_engine_microbenchmark.md",
     "dataset_sha256": "f88f5c18bb7aee900a802acf795c1449877d9da64257ede641b61af025627fe4",
-    "generator_sha256": "ed3fd1d2abd07308f0766a24a9b2da7644f90d7c27cf841bf17c3d5efb4a163e",
-    "git_revision": "4244dc69782dde7031ac11fe6398436959eb0a78",
+    "generator_sha256": "337281e03e89939a3b77c2eb263d860e19f68575c93a9a76cdacc3ea39fcd9f6",
+    "git_revision": "unknown",
     "settings": {
+      "senf_feature_exact_only": true,
+      "senf_feature_examples_path": "data/senf_feature_examples.json",
+      "senf_feature_max_features": 64,
+      "senf_feature_model": null,
+      "senf_feature_provider": "none",
+      "senf_feature_timeout": 20.0,
       "senf_query_max_priors": 16,
       "senf_query_max_source_frames": 128,
       "senf_weave_beam_width": 32,
@@ -110,13 +116,13 @@
           "fallback_reasons": [],
           "wall_time_ms": {
             "samples": [
-              0.380501,
-              0.408914,
-              0.472071
+              0.426056,
+              0.521095,
+              0.456363
             ],
-            "median": 0.408914,
-            "min": 0.380501,
-            "max": 0.472071
+            "median": 0.456363,
+            "min": 0.426056,
+            "max": 0.521095
           }
         },
         {
@@ -155,13 +161,13 @@
           "fallback_reasons": [],
           "wall_time_ms": {
             "samples": [
-              11.957499,
-              13.009359,
-              11.847767
+              22.920021,
+              16.283085,
+              9.949313
             ],
-            "median": 11.957499,
-            "min": 11.847767,
-            "max": 13.009359
+            "median": 16.283085,
+            "min": 9.949313,
+            "max": 22.920021
           }
         }
       ]
@@ -212,13 +218,13 @@
           "fallback_reasons": [],
           "wall_time_ms": {
             "samples": [
-              0.443628,
-              0.457313,
-              0.446132
+              0.365812,
+              0.385369,
+              0.38065
             ],
-            "median": 0.446132,
-            "min": 0.443628,
-            "max": 0.457313
+            "median": 0.38065,
+            "min": 0.365812,
+            "max": 0.385369
           }
         },
         {
@@ -257,13 +263,13 @@
           "fallback_reasons": [],
           "wall_time_ms": {
             "samples": [
-              11.479148,
-              10.416147,
-              8.064671
+              8.47815,
+              11.102605,
+              11.409354
             ],
-            "median": 10.416147,
-            "min": 8.064671,
-            "max": 11.479148
+            "median": 11.102605,
+            "min": 8.47815,
+            "max": 11.409354
           }
         }
       ]
@@ -312,13 +318,13 @@
           "fallback_reasons": [],
           "wall_time_ms": {
             "samples": [
-              0.139036,
-              0.151639,
-              0.143795
+              0.138803,
+              0.150915,
+              0.139834
             ],
-            "median": 0.143795,
-            "min": 0.139036,
-            "max": 0.151639
+            "median": 0.139834,
+            "min": 0.138803,
+            "max": 0.150915
           }
         },
         {
@@ -343,13 +349,13 @@
           ],
           "wall_time_ms": {
             "samples": [
-              0.090356,
-              0.097239,
-              0.093382
+              0.086894,
+              0.091884,
+              0.088919
             ],
-            "median": 0.093382,
-            "min": 0.090356,
-            "max": 0.097239
+            "median": 0.088919,
+            "min": 0.086894,
+            "max": 0.091884
           }
         }
       ]
@@ -400,13 +406,13 @@
           "fallback_reasons": [],
           "wall_time_ms": {
             "samples": [
-              1.957439,
-              2.731597,
-              1.684606
+              1.695628,
+              1.465342,
+              1.560332
             ],
-            "median": 1.957439,
-            "min": 1.684606,
-            "max": 2.731597
+            "median": 1.560332,
+            "min": 1.465342,
+            "max": 1.695628
           }
         },
         {
@@ -445,13 +451,13 @@
           "fallback_reasons": [],
           "wall_time_ms": {
             "samples": [
-              23.85578,
-              25.111094,
-              24.928196
+              24.397226,
+              25.851346,
+              24.366527
             ],
-            "median": 24.928196,
-            "min": 23.85578,
-            "max": 25.111094
+            "median": 24.397226,
+            "min": 24.366527,
+            "max": 25.851346
           }
         }
       ]
@@ -502,13 +508,13 @@
           "fallback_reasons": [],
           "wall_time_ms": {
             "samples": [
-              0.991027,
-              0.991168,
-              1.085642
+              0.926332,
+              0.947182,
+              0.959145
             ],
-            "median": 0.991168,
-            "min": 0.991027,
-            "max": 1.085642
+            "median": 0.947182,
+            "min": 0.926332,
+            "max": 0.959145
           }
         },
         {
@@ -547,13 +553,13 @@
           "fallback_reasons": [],
           "wall_time_ms": {
             "samples": [
-              25.828928,
-              24.556712,
-              25.535657
+              22.604805,
+              22.947473,
+              23.344143
             ],
-            "median": 25.535657,
-            "min": 24.556712,
-            "max": 25.828928
+            "median": 22.947473,
+            "min": 22.604805,
+            "max": 23.344143
           }
         }
       ]
@@ -602,13 +608,13 @@
           "fallback_reasons": [],
           "wall_time_ms": {
             "samples": [
-              0.30379,
-              0.30935,
-              0.304932
+              0.283507,
+              0.301491,
+              0.287454
             ],
-            "median": 0.304932,
-            "min": 0.30379,
-            "max": 0.30935
+            "median": 0.287454,
+            "min": 0.283507,
+            "max": 0.301491
           }
         },
         {
@@ -633,13 +639,13 @@
           ],
           "wall_time_ms": {
             "samples": [
-              0.234011,
-              0.250412,
-              0.244841
+              0.231097,
+              0.230085,
+              0.237459
             ],
-            "median": 0.244841,
-            "min": 0.234011,
-            "max": 0.250412
+            "median": 0.231097,
+            "min": 0.230085,
+            "max": 0.237459
           }
         }
       ]
@@ -657,42 +663,42 @@
         "result_hash_equal": false,
         "pair_count_delta": 1,
         "fallback_changed": false,
-        "hierarchical_to_beam_median_wall_time_ratio": 29.242088
+        "hierarchical_to_beam_median_wall_time_ratio": 35.680116
       },
       {
         "case_id": "n2-s0.250-sources2",
         "result_hash_equal": false,
         "pair_count_delta": 1,
         "fallback_changed": false,
-        "hierarchical_to_beam_median_wall_time_ratio": 23.34768
+        "hierarchical_to_beam_median_wall_time_ratio": 29.16749
       },
       {
         "case_id": "n2-s1.000-sources2",
         "result_hash_equal": false,
         "pair_count_delta": 0,
         "fallback_changed": true,
-        "hierarchical_to_beam_median_wall_time_ratio": 0.649411
+        "hierarchical_to_beam_median_wall_time_ratio": 0.63589
       },
       {
         "case_id": "n4-s0.000-sources2",
         "result_hash_equal": false,
         "pair_count_delta": 1,
         "fallback_changed": false,
-        "hierarchical_to_beam_median_wall_time_ratio": 12.735107
+        "hierarchical_to_beam_median_wall_time_ratio": 15.63592
       },
       {
         "case_id": "n4-s0.250-sources2",
         "result_hash_equal": false,
         "pair_count_delta": 4,
         "fallback_changed": false,
-        "hierarchical_to_beam_median_wall_time_ratio": 25.763198
+        "hierarchical_to_beam_median_wall_time_ratio": 24.2271
       },
       {
         "case_id": "n4-s1.000-sources2",
         "result_hash_equal": false,
         "pair_count_delta": 0,
         "fallback_changed": true,
-        "hierarchical_to_beam_median_wall_time_ratio": 0.802936
+        "hierarchical_to_beam_median_wall_time_ratio": 0.803944
       }
     ]
   }
