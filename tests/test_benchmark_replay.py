@@ -71,6 +71,22 @@ class TestGenerationTape:
                 "replay", path, metadata={"suite": "stress25", "cases": "changed"}
             )
 
+    def test_schema_one_allows_metadata_added_by_newer_runners(self, tmp_path):
+        path, _ = capture_one(tmp_path, metadata={"suite": "stress25"})
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["schema_version"] = 1
+        payload.pop("feature_calls")
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        tape = GenerationTape("replay", path, metadata={
+            "suite": "stress25",
+            "feature_configs": {
+                "canonical_senf_pln": {"provider": "none"},
+            },
+        })
+
+        assert tape.schema_version == 1
+
     def test_feature_configuration_drift_fails_before_replay(self, tmp_path):
         path, _ = capture_one(
             tmp_path,

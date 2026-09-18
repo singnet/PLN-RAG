@@ -108,6 +108,10 @@ class GenerationTape:
         for key, current in self.metadata.items():
             if current is None:
                 continue
+            # Schema 1 predates feature-provider capture. Preserve replay of
+            # frozen generation-only tapes while validating its recorded fields.
+            if self.schema_version == 1 and key not in captured:
+                continue
             previous = captured.get(key)
             if previous != current:
                 raise GenerationTapeError(
