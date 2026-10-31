@@ -223,13 +223,24 @@ class PLNRAGService:
 
     def _enrich_context(self, rag_context: List[str], max_atoms: int = 50) -> List[str]:
         """
-        Supplement RAG-retrieved context with the most recent atoms
-        from the atomspace file, deduplicating and capping at max_atoms.
-        This ensures the parser always has the full predicate vocabulary
-        even when RAG similarity scores are low.
+        Keep unique RAG-retrieved atoms in retrieval order, up to max_atoms.
+        Fill remaining slots with the most recent unique atoms from disk,
+        preserving their file order and excluding atoms already retrieved.
         """
         from config import get_settings
         import os
+
+        if max_atoms <= 0:
+            return []
+
+        seen = set()
+        merged = []
+        for atom in rag_context:
+            if atom not in seen:
+                seen.add(atom)
+                merged.append(atom)
+                if len(merged) == max_atoms:
+                    return merged
 
         cfg = get_settings()
         file_atoms: List[str] = []
@@ -237,14 +248,16 @@ class PLNRAGService:
             with open(cfg.atomspace_path, "r") as f:
                 file_atoms = [l.strip() for l in f if l.strip()]
 
-        seen = set()
-        merged = []
-        for atom in file_atoms + rag_context:
+        remaining = max_atoms - len(merged)
+        recent_atoms = []
+        for atom in reversed(file_atoms):
             if atom not in seen:
                 seen.add(atom)
-                merged.append(atom)
+                recent_atoms.append(atom)
+                if len(recent_atoms) == remaining:
+                    break
 
-        return merged[-max_atoms:]
+        return merged + list(reversed(recent_atoms))
 
     #  Query
 
